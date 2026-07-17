@@ -18,8 +18,12 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 
 - **Top bar:** global search, interface-language toggle (EN/BG), reading-settings menu,
   add/remove pane (max 3).
+> **v1 ships English-only.** The Bulgarian Bible source is deferred until rights are cleared
+> (see [`../content_and_licensing.md`](../content_and_licensing.md)); the source list is data-driven
+> from `/works`, so BG appears automatically once imported — no UI rework.
+
 - **Panes** (`react-resizable-panels`, horizontal split on desktop). Each pane header has:
-  - a **source selector** — Bible EN / Bible BG / Commentary / Dictionary / Notes;
+  - a **source selector** — Bible (EN; BG later) / Commentary / Dictionary / Notes;
   - for Bible/commentary panes, a **passage selector** — book → chapter;
   - a **link/sync** toggle that groups panes to follow the same reference.
 - **Mobile:** one active pane + a bottom segmented control to switch source; "3 panes" degrades to

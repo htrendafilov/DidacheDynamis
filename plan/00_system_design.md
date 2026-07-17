@@ -14,7 +14,8 @@
 A responsive SPA. Desktop shows **1–3 resizable panes**; mobile collapses to a single pane with a
 source switcher. Each pane is bound to a **source**:
 
-- **Bible pane** — English (public-domain) or Bulgarian (user-provided), with a book/chapter selector.
+- **Bible pane** — English (public-domain) with a book/chapter selector. (A second Bible — Bulgarian —
+  is a supported source type but deferred until rights are cleared; see §7.)
 - **Commentary pane** — follows a reference (book/chapter[/verse]).
 - **Dictionary pane** — headword lookup + list.
 - **Notes pane** — free / verse-attached personal notes, stored **locally in the browser**.
@@ -33,7 +34,7 @@ commentary / second-Bible pane to the same verse. A per-session toggle controls 
 | Requirement | Decision |
 |---|---|
 | 1/2/3 panes, any pane = bible/commentary/dictionary/notes | `react-resizable-panels`, source-bound panes |
-| 1 EN Bible, 1 BG Bible, 1 commentary | WEB (EN, PD) + user BG file + Matthew Henry (PD) |
+| 1 EN Bible, 1 BG Bible, 1 commentary | WEB (EN, PD) + Matthew Henry (PD). **BG deferred** — no rights-clear Bulgarian text yet (see [`content_and_licensing.md`](content_and_licensing.md)) |
 | + dictionary + cross-references (clarified in scope) | Easton's (PD) + Treasury of Scripture Knowledge (PD) |
 | verse-per-line vs continuous | render mode over one canonical representation |
 | words of Christ bold/red | `wordsOfJesus` node flag toggled by CSS class |
@@ -99,30 +100,45 @@ bible_app_bg/                    # git repo root (GitHub: htrendafilov/bible_app
 
 ## 7. Content set
 
+**v1 ships English-only** — all public domain. See [`content_and_licensing.md`](content_and_licensing.md)
+for full rights analysis.
+
 | Slot | v1 source | License |
 |---|---|---|
 | English Bible | World English Bible (WEB), red-letter capable | Public domain |
-| Bulgarian Bible | user-provided file (OSIS/USFM/VPL/text) | per user (attested) |
 | Commentary | Matthew Henry's Complete Commentary (CCEL) | Public domain |
 | Dictionary | Easton's Bible Dictionary | Public domain |
 | Cross-references | Treasury of Scripture Knowledge (TSK) | Public domain |
+| Bulgarian Bible | **DEFERRED** — no rights-clear source yet | see below |
+
+**Bulgarian is deferred, not cancelled.** Neither CrossWire Bulgarian module is usable by a custom web
+app (BulVeren is copyrighted, non-commercial *SWORD-format* only; BulCarigradNT is NT-only, permission
+granted to CrossWire only), and there is no public-domain Bulgarian module on CrossWire. The
+public-domain path is the 1871 Tsarigrad full Bible (sourced outside CrossWire, verified). The pane
+system and canonical addressing already support a second translation, so Bulgarian drops in later with
+no rework once rights are cleared. Details + decision gate: [`content_and_licensing.md`](content_and_licensing.md).
 
 Every work records `title, abbrev, language, direction, versification, license, attribution,
-source_url, source_version, checksum`; attribution is shown in the UI. If the BG file lacks
-words-of-Jesus markup, the red-letter toggle simply renders plain text for that pane (documented
-limitation). KJV is the fallback English if red-letter WEB proves fiddly.
+source_url, source_version, checksum`; attribution is shown in the UI. KJV is the fallback English if
+red-letter WEB proves fiddly.
 
 ## 8. Build order (milestones)
 
 1. **M0 — Repo + pipeline + deploy path.** Monorepo, GitHub repo, `ci.yml` + `deploy.yml`, GHCR
    image, one-off VM setup, `/health` + empty SPA auto-deploying from `main`.
-2. **M1 — Content + importer.** Schema + FTS; OSIS/USFM importer; import WEB + BG; versification report.
-3. **M2 — Read one/two Bibles.** Passage API + renderer; verse-per-line vs flowing; words-of-Christ;
-   selectors; two synced Bible panes; i18n + localized book names.
+2. **M1 — Content + importer.** Schema + FTS; OSIS/USFM importer; import **WEB (EN)**. Importer keeps
+   the EN↔other-translation versification-alignment validation ready for when Bulgarian is added.
+3. **M2 — Read a Bible.** Passage API + renderer; verse-per-line vs flowing; words-of-Christ;
+   book/chapter selector; the pane system (supports 1–3 panes though v1 has one Bible); i18n (EN/BG
+   **interface**) + localized book names.
 4. **M3 — Commentary + dictionary + xrefs.** Import Matthew Henry / Easton's / TSK; panes; verse popover.
 5. **M4 — Notes + search.** IndexedDB notes (free + verse-attached) + export/import; FTS search panel.
 6. **M5 — Hardening.** Cache tuning, Playwright smoke, mobile, accessibility, attribution, uptime,
    backup/rollback rehearsal → public beta.
+7. **M6 (later) — Bulgarian Bible.** Once rights are cleared (see
+   [`content_and_licensing.md`](content_and_licensing.md)): import the chosen BG text, enable the
+   second synced Bible pane and EN↔BG verse alignment. No architectural change — drops into the
+   existing pane/addressing system.
 
 ## 9. v1 non-goals
 

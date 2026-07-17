@@ -3,7 +3,8 @@
 Bilingual, multi-pane Bible reading web app served at **bible.trendafilovi.net**.
 
 - 1–3 resizable panes; each pane can be a Bible, commentary, dictionary, or notes.
-- English (public-domain) + Bulgarian Bibles, a commentary, a dictionary, and cross-references.
+- English (public-domain) Bible, a commentary, a dictionary, and cross-references. A Bulgarian Bible is
+  deferred until rights are cleared (see [`plan/content_and_licensing.md`](plan/content_and_licensing.md)).
 - Verse-per-line or continuous layout; words of Christ off / bold / red.
 - Bilingual interface (EN/BG). Local (browser-side) personal notes. Full-text search.
 
