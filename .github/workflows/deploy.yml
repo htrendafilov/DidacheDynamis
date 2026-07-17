@@ -1,8 +1,10 @@
 name: deploy
 
+# Manual-only until M1: the image bakes in data/content.sqlite (built by the importer)
+# and the deploy step needs VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR secrets.
+# Flip to `push: branches: [main]` once content.sqlite exists and secrets are set.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-production
