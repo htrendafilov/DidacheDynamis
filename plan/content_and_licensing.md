@@ -20,37 +20,58 @@ translations, so Bulgarian can be added later with no rework once its rights are
 
 ## Bulgarian Bible — DEFERRED (rights not yet cleared)
 
-We want a Bulgarian Bible but do not yet have one we can legally serve from a custom web app. Findings:
+**Preferred target: the ББД (Bulgarian Bible Society) edition** — *"Библия, ревизирано издание"*
+© Българско библейско дружество, 2015 (the "РИ ББД" revised edition, the one shipped in YouVersion /
+Bible.com, version id 1443). The owner will pursue **written permission from ББД** for use in this app.
+This is a copyrighted, licensed text — **not** public domain — so it ships only after a permission/
+license agreement is in hand. Everything below is the supporting analysis and fallbacks.
+
+### ББД Revised Edition (preferred) — status & permission path
+- **Rights:** © Bulgarian Bible Society 2015. ББД is a United Bible Societies member; on Bible.com the
+  text is shown *"used with permission,"* and anything past limited quoting requires explicit written
+  permission from ББД. So a full-Bible web reader needs a license.
+- **Permission contact:** Bulgarian Bible Society — `biblesociety.bg` (also `bulgarian.bible`). Request
+  permission for **non-commercial** display of the full text in a web reading app; ask what delivery/
+  attribution terms apply.
+- **Likely delivery model (architectural caveat):** UBS/Bible-Society texts are usually licensed via
+  the **Digital Bible Library (DBL)** and served through **api.bible** (scripture.api.bible). Such
+  licenses often **restrict storing/exporting the full text** and require API-backed delivery,
+  attribution, and rate limits. If ББД's terms forbid local full-text storage, that conflicts with our
+  "baked read-only SQLite" model **for this one text** — we'd serve the BG Bible via the licensed API
+  (or a permitted local cache) while the PD works stay in SQLite. Clarify storage rights when
+  requesting permission; record whichever model they permit.
+
+### Other Bulgarian sources (fallbacks / reference)
 
 ### CrossWire modules (checked 2026-07-17)
 - **BulVeren — "Veren's Contemporary Bible"** (Veren LTD, 2020). License: *"Copyrighted; Permission
   granted to distribute non-commercially in SWORD format."* Copyrighted; the grant is scoped to
   distribution **as a SWORD module**, i.e. to the SWORD app ecosystem. Re-encoding the text and
   serving it over our own HTTP API is **not** "in SWORD format," so this grant does **not** cover our
-  use. Modern, readable text — worth pursuing via permission (option A below).
+  use. (A different publisher from ББД; not the preferred text.)
 - **BulCarigradNT — "Bulgarian NT 1914, Tsarigrad Edition"** (Youth group, Church of God in Sofia,
   1997; permission via Ventsislav Stoykov). License: *"Copyrighted; Permission to distribute granted
   to CrossWire."* Even narrower — permission granted **to CrossWire specifically** — and it is **New
   Testament only.** Not usable for us.
 - **There is no public-domain Bulgarian module on CrossWire.**
 
-### The public-domain route
+### Public-domain fallback (only if ББД permission cannot be obtained)
 - **Tsarigrad / Constantinople Bible of 1871** (Slaveykov, Riggs, Long, et al.) — the first modern
   Bulgarian full-Bible translation. Public domain by age (>150 years). The *text* is PD; a specific
-  *digital edition* may carry its own editorial copyright, so we need a clean PD-sourced digital copy.
-  Sources to verify: Bulgarian Wikisource, eBible.org, other open Bible repositories. Language is
-  archaic vs. Veren's contemporary text.
-- The 1940 Protestant revision and 1925/1926 Orthodox Synodal Bible have **uncertain** copyright
-  status — treat as not-clear until verified.
+  *digital edition* may carry its own editorial copyright, so we'd need a clean PD-sourced digital copy
+  (Bulgarian Wikisource, eBible.org, etc.). Archaic language; no words-of-Jesus markup.
+- The 1940 Protestant revision and 1925/1926 Orthodox Synodal Bible have **uncertain** copyright status
+  — treat as not-clear until verified.
 
-### Options to add Bulgarian later
-- **A. Permission for BulVeren** — ask Veren LTD (via the CDL Project / CrossWire) for written
-  permission to serve their text non-commercially via a web application. Best modern-language outcome;
-  store the permission as the work's rights evidence.
-- **B. Public-domain 1871 Tsarigrad** — source and verify a clean digital full-Bible text; no
-  permission needed, but archaic language and no words-of-Jesus markup (red-letter toggle would render
-  plain for this text).
+### Options to add Bulgarian later (in preference order)
+- **A. ББД Revised Edition 2015 via written permission (PREFERRED).** Owner requests permission/license
+  from Bulgarian Bible Society for non-commercial full-text web display; clarify storage vs.
+  API-delivery terms; store the agreement as the work's rights evidence. Best (modern, familiar text;
+  same as YouVersion).
+- **B. Public-domain 1871 Tsarigrad** — fallback if A is refused/unaffordable: source + verify a clean
+  PD digital full-Bible text. No permission needed, but archaic language.
 - **C. Owner-provided file** — any Bulgarian text the owner holds rights to, with attestation.
 
-**Decision gate:** pick A, B, or C and record the rights evidence before importing/publishing the
-Bulgarian Bible. Until then, it stays out of the shipped app.
+**Decision gate:** obtain ББД permission (A) — or fall back to B/C — and record the rights evidence
+(and any delivery/storage constraints) before importing/publishing the Bulgarian Bible. Until then it
+stays out of the shipped app; v1 ships English-only regardless.

@@ -1,7 +1,36 @@
 # Deployment Design (v1)
 
-Self-host on the existing VM now, stay portable, deploy via a **CI/CD pipeline from GitHub**. See
-[`../00_system_design.md`](../00_system_design.md).
+The same portable **Docker image** runs on either host below. See [`../00_system_design.md`](../00_system_design.md).
+
+## 0. Hosting options (both supported)
+
+| | **Render Free (Hobby)** | **Self-host VM** |
+|---|---|---|
+| Deploy | Native from GitHub (Render builds the Dockerfile on push) | GitHub Actions → GHCR → SSH to VM |
+| Cost | $0 | $0 (existing box) |
+| Ops | Zero servers | We manage Docker + Caddy |
+| Cold start | **Spins down after 15 min idle**, ~1 min cold start (mitigable) | Always on |
+| Resources | 512 MB RAM, **0.1 CPU** | 4 vCPU, ~6.7 GB free |
+| Bandwidth | **5 GB/mo origin** (as of 2026-04-23) | unmetered (VM) |
+| Persistent disk | none (ephemeral) — fine, our DB is baked read-only | full disk |
+
+**Why the free tier actually fits us:** our architecture is stateless — a **read-only SQLite baked
+into the image**, no managed DB, no persistent disk, no server-side writes. That sidesteps the free
+tier's worst traps (no free-Postgres-expiry problem since we use SQLite; no persistent disk needed).
+
+**The two real caveats and their mitigations:**
+1. **Cold starts (15-min spin-down).** First visitor after idle waits ~1 min. Mitigate with a
+   keep-warm ping (UptimeRobot every ~10 min) hitting `/health`. Keeping one service awake 24/7 ≈ 730
+   instance-hours, under the **750 free hours/month** — so it fits *if this is the only free service in
+   the workspace*.
+2. **5 GB/month origin bandwidth + 0.1 CPU.** Both are absorbed by **Cloudflare** in front: static JS/CSS
+   and immutable `/api/v1` GETs are cached at the edge, so origin egress and CPU stay tiny. This only
+   holds with correct cache rules; if the cache-hit ratio is poor, 5 GB and 0.1 CPU get tight fast.
+
+**Recommendation:** **start on Render Free** for the simplest GitHub-native deploy; keep the **VM as the
+scale/fallback target** for when cold starts, the 5 GB cap, or 0.1 CPU become limiting (or if a sustained
+100-concurrent, cache-missing load appears). Because the artifact is one Docker image, switching between
+them is repoint-DNS + redeploy — no code change. Render config lives in [`../../render.yaml`](../../render.yaml).
 
 ## 1. Target VM (surveyed)
 

@@ -1,0 +1,21 @@
+# Render Blueprint — deploy the app on Render's free tier straight from GitHub.
+# Render builds deploy/Dockerfile on every push to main (autoDeploy) — no GHCR/SSH needed.
+# See plan/deployment/deployment_design.md §0.
+#
+# NOTE: on Render the container must listen on $PORT (Render injects it). The app/entrypoint
+# should bind 0.0.0.0:$PORT (default 8080 elsewhere). Wire this in when apps/api lands (M0/M1).
+services:
+  - type: web
+    name: bible-app
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: CACHE_MAX_AGE
+        value: "86400"
+    # Custom domain bible.trendafilovi.net is added in the Render dashboard;
+    # Cloudflare stays in front (proxied) with SSL mode Full. Add a keep-warm
+    # ping (UptimeRobot ~10 min) to avoid 15-min spin-down cold starts.

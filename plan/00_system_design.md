@@ -40,7 +40,7 @@ commentary / second-Bible pane to the same verse. A per-session toggle controls 
 | words of Christ bold/red | `wordsOfJesus` node flag toggled by CSS class |
 | served at bible.trendafilovi.net behind Cloudflare | Caddy vhost → container; Cloudflare orange-cloud |
 | EN/BG interface | `react-i18next`; book names localized per work |
-| cheap + good uptime | self-host on existing idle VM; Cloudflare caching |
+| cheap + good uptime | **Render Free** for easy GitHub-native deploy (recommended launch), or self-host on the idle VM; Cloudflare caching in front. Same Docker image either way — see [`deployment/deployment_design.md`](deployment/deployment_design.md) §0 |
 | editable notes | client-side only (IndexedDB), no accounts in v1 |
 | full-text search | SQLite FTS5 |
 
