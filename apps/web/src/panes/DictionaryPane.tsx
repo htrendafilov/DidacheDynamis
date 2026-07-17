@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SourceSelector } from "../components/SourceSelector";
+import { WorkFooter } from "../components/WorkFooter";
 import { useDictionaryEntry, useDictionaryHeadwords, useWorks } from "../data/hooks";
 import { DocumentRenderer } from "../render/DocumentRenderer";
 import { useStore, type Pane } from "../state/store";
@@ -58,7 +59,7 @@ export function DictionaryPane({ pane }: { pane: Pane }) {
           )}
         </div>
       </div>
-      {work && <div className="pane-footer">{work.attribution}</div>}
+      {work && <WorkFooter work={work} />}
     </div>
   );
 }

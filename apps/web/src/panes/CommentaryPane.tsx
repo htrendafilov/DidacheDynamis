@@ -2,7 +2,8 @@ import { useTranslation } from "react-i18next";
 
 import { PassageSelector } from "../components/PassageSelector";
 import { SourceSelector } from "../components/SourceSelector";
-import { useCommentary, useWorks } from "../data/hooks";
+import { WorkFooter } from "../components/WorkFooter";
+import { useBooks, useCommentary, useWorks } from "../data/hooks";
 import { DocumentRenderer } from "../render/DocumentRenderer";
 import { useStore, type Pane } from "../state/store";
 
@@ -12,6 +13,7 @@ export function CommentaryPane({ pane }: { pane: Pane }) {
   const goToRef = useStore((state) => state.goToRef);
   const works = useWorks();
   const work = works?.find((item) => item.id === pane.workId);
+  const books = useBooks(pane.workId);
   const { loading, error, data } = useCommentary(pane.workId, pane.osis, pane.chapter);
 
   return (
@@ -45,7 +47,7 @@ export function CommentaryPane({ pane }: { pane: Pane }) {
           </article>
         ))}
       </div>
-      {work && <div className="pane-footer">{work.attribution}</div>}
+      {work && <WorkFooter work={work} books={books} />}
     </div>
   );
 }

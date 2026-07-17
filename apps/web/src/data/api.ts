@@ -10,6 +10,8 @@ export interface Work {
   versification: string;
   license: string;
   attribution: string;
+  source_url: string | null;
+  source_version: string | null;
 }
 
 export interface Book {
@@ -122,15 +124,17 @@ export interface CrossReferences {
 
 const BASE = "/api/v1";
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(BASE + path);
+async function get<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(BASE + path, init);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${path}`);
   return (await res.json()) as T;
 }
 
 export const api = {
   meta: () => get<Meta>("/meta"),
-  works: () => get<Work[]>("/works"),
+  // Revalidate discovery metadata so a newly deployed source does not keep an old
+  // attribution-less /works response from the browser cache.
+  works: () => get<Work[]>("/works", { cache: "no-cache" }),
   books: (workId: string) => get<Book[]>(`/works/${workId}/books`),
   passage: (workId: string, osis: string, chapter: number) =>
     get<Passage>(`/works/${workId}/passage/${osis}/${chapter}`),

@@ -21,6 +21,15 @@ def test_works_lists_web_with_attribution(client):
     assert w["id"] == "web" and w["type"] == "bible"
     assert w["license"] == "Public Domain"
     assert "public domain" in w["attribution"].lower()
+    assert w["source_url"] == "https://ebible.org/"
+    assert w["source_version"] == "test fixture"
+
+    commentary = next(work for work in works if work["id"] == "mhc")
+    dictionary = next(work for work in works if work["id"] == "easton")
+    assert commentary["license"] == "Public Domain"
+    assert dictionary["license"] == "Public Domain"
+    assert commentary["source_url"]
+    assert dictionary["source_url"]
 
 
 def test_books(client):

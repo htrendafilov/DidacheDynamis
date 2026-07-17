@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { PassageSelector } from "../components/PassageSelector";
 import { SourceSelector } from "../components/SourceSelector";
+import { WorkFooter } from "../components/WorkFooter";
 import { useBooks, useCrossReferences, usePassage, useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
 import { CIRRenderer } from "../render/CIRRenderer";
@@ -132,7 +133,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
         )}
       </div>
 
-      {work && <div className="pane-footer">{work.attribution}</div>}
+      {work && <WorkFooter work={work} books={books} />}
     </div>
   );
 }

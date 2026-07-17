@@ -18,7 +18,8 @@ def meta(conn: sqlite3.Connection = Depends(get_conn)) -> Meta:
 @router.get("/works", response_model=list[Work])
 def list_works(conn: sqlite3.Connection = Depends(get_conn)) -> list[Work]:
     rows = conn.execute(
-        "SELECT id,type,language,title,abbrev,direction,versification,license,attribution "
+        "SELECT id,type,language,title,abbrev,direction,versification,license,attribution,"
+        "source_url,source_version "
         "FROM works ORDER BY type, id"
     ).fetchall()
     return [Work(**dict(r)) for r in rows]

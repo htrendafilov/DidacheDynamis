@@ -32,6 +32,7 @@ def db_path(tmp_path_factory) -> Path:
     spec = BibleSpec(
         work_id="web", title="World English Bible", abbrev="WEB", language="en",
         versification="kjv", license="Public Domain", attribution="WEB is public domain.",
+        source_url="https://ebible.org/", source_version="test fixture",
     )
     diag = build_bible(src, spec, out, fmt="usfx")
     assert diag.ok, diag.errors

@@ -46,6 +46,8 @@ class Work(BaseModel):
     versification: str
     license: str
     attribution: str
+    source_url: str | None = None
+    source_version: str | None = None
 
 
 class Book(BaseModel):

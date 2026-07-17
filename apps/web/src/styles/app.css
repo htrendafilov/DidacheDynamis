@@ -133,10 +133,138 @@ input[type="search"] {
   padding: 1rem 1.25rem;
 }
 .pane-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
   color: var(--muted);
   border-top: 1px solid var(--border);
+}
+.work-info-open {
+  flex: none;
+  padding: 0.2rem 0.45rem;
+  color: var(--accent);
+  background: transparent;
+}
+.work-info-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 55%);
+}
+.work-info-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(52rem, 100%);
+  max-height: min(48rem, calc(100vh - 2rem));
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 30%);
+  overflow: hidden;
+}
+.work-info-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 0.9rem;
+}
+.work-info-header h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1.35rem;
+}
+.work-info-kicker {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.work-info-close {
+  border: 0;
+  padding: 0.2rem 0.35rem;
+  background: transparent;
+}
+.work-info-tabs {
+  display: flex;
+  flex: none;
+  gap: 0.25rem;
+  padding: 0 1rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.work-info-tabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 0.65rem 0.55rem;
+  white-space: nowrap;
+  background: transparent;
+}
+.work-info-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.work-info-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.work-info-body h3 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+.work-info-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.85rem;
+  margin: 0;
+}
+.work-info-facts div {
+  padding: 0.75rem;
+  background: var(--bg-alt);
+  border-radius: 6px;
+}
+.work-info-facts dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.work-info-facts dd {
+  margin: 0.2rem 0 0;
+}
+.work-info-license {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.work-info-book-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.45rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.work-info-book-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.work-info-book-list small {
+  flex: none;
+  color: var(--muted);
 }
 .pane-close {
   position: absolute;
