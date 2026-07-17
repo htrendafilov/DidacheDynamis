@@ -19,10 +19,11 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Python tooling + importer
+      - name: Install Python tooling + packages
         run: |
           python -m pip install --upgrade pip ruff pytest
           if [ -f apps/importer/pyproject.toml ]; then pip install -e "apps/importer[dev]"; fi
+          if [ -f apps/api/pyproject.toml ]; then pip install -e "apps/api[dev]"; fi
 
       - name: Run checks
         run: bash scripts/check.sh
