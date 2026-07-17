@@ -5,18 +5,22 @@ Rights status of every text we might ship, and the gate before publishing any of
 rights.** We are not lawyers; when a text is copyrighted we get the rights holder's written permission
 before shipping, and store that evidence with the work.
 
-## v1 ships (all public domain)
+## v1 ships (redistributable with recorded terms)
 
 | Work | Type | Language | License | Notes |
 |---|---|---|---|---|
 | World English Bible (WEB) | Bible | EN | Public domain | Red-letter (words-of-Jesus) capable. Primary EN text. |
 | KJV | Bible | EN | Public domain | Fallback EN if red-letter WEB is fiddly. |
-| Matthew Henry's Complete Commentary | Commentary | EN | Public domain | CCEL source (ThML). |
-| Easton's Bible Dictionary | Dictionary | EN | Public domain | |
-| Treasury of Scripture Knowledge (TSK) | Cross-refs | — | Public domain | Translation-independent. |
+| Matthew Henry's Complete Commentary | Commentary | EN | Public domain | CrossWire MHC 2.2 module; exported with official SWORD tools. |
+| Easton's Bible Dictionary | Dictionary | EN | Public domain | CrossWire Easton module; exported with official SWORD tools. |
+| Treasury of Scripture Knowledge-derived mapping | Cross-refs | — | CC BY 4.0 | CrossReferences.org KJV mapping; explicit attribution stored and shown. |
 
 **v1 is English-only.** The pane system and canonical addressing already support additional
 translations, so Bulgarian can be added later with no rework once its rights are cleared.
+
+Production does not republish CCEL's downloadable XML editions: CCEL's policy asks users to contact
+them before republishing CCEL works. CrossWire's MHC and Easton module pages explicitly mark their
+distributions **Public Domain—Copy Freely**, which is the recorded basis for the committed exports.
 
 ## Bulgarian Bible — DEFERRED (rights not yet cleared)
 

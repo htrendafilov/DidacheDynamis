@@ -74,3 +74,52 @@ class SearchResult(BaseModel):
 class Meta(BaseModel):
     content_version: str | None
     works: int
+
+
+class DocumentBlock(BaseModel):
+    kind: str  # 'heading' | 'paragraph'
+    text: str
+
+
+class Document(BaseModel):
+    blocks: list[DocumentBlock]
+
+
+class CommentaryEntry(BaseModel):
+    verse_start: int | None
+    verse_end: int | None
+    body: Document
+
+
+class CommentaryPassage(BaseModel):
+    work_id: str
+    osis: str
+    chapter: int
+    entries: list[CommentaryEntry]
+
+
+class DictionaryHeadword(BaseModel):
+    headword: str
+
+
+class DictionaryEntry(BaseModel):
+    work_id: str
+    headword: str
+    body: Document
+
+
+class CrossReference(BaseModel):
+    target_ref: str
+    target_osis: str
+    target_chapter: int
+    target_verse: int
+    votes: int
+    preview: str | None
+
+
+class CrossReferences(BaseModel):
+    osis: str
+    chapter: int
+    verse: int
+    source_work_id: str
+    references: list[CrossReference]

@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .pipeline import BibleSpec, build_bible
+from .pipeline import BibleSpec, append_study_content, build_bible
 
 WEB_SPEC = BibleSpec(
     work_id="web",
@@ -58,6 +58,18 @@ def _cmd_build(args) -> int:
     return _report(diag)
 
 
+def _cmd_add_study(args) -> int:
+    stats = append_study_content(
+        args.out,
+        commentary_sources=args.mhc_source,
+        dictionary_source=args.easton_source,
+        xref_source=args.xref_source,
+    )
+    print(" ".join(f"{key}={value}" for key, value in stats.items()))
+    print("OK")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="bibleimport", description="Build content.sqlite from Bible sources.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -82,6 +94,17 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--source-version", default=None)
     b.add_argument("--direction", default="ltr")
     b.set_defaults(func=_cmd_build)
+
+    s = sub.add_parser("add-study", help="Append Matthew Henry, Easton's, and TSK data.")
+    s.add_argument("--out", required=True, help="existing content.sqlite path")
+    s.add_argument(
+        "--mhc-source", action="append", required=True, help="CrossWire IMP(.gz) or CCEL ThML"
+    )
+    s.add_argument(
+        "--easton-source", required=True, help="CrossWire IMP(.gz) or CCEL ThML"
+    )
+    s.add_argument("--xref-source", required=True, help="TSK-derived crossreferences_kjv.tsv")
+    s.set_defaults(func=_cmd_add_study)
 
     args = p.parse_args(argv)
     return args.func(args)

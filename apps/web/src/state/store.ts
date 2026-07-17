@@ -31,6 +31,7 @@ interface AppState {
   addPane: () => void;
   removePane: (id: string) => void;
   updatePane: (id: string, patch: Partial<Pane>) => void;
+  changePaneType: (id: string, type: PaneSourceType) => void;
   setSettings: (patch: Partial<Settings>) => void;
   goToRef: (osis: string, chapter: number, fromPaneId?: string) => void;
 }
@@ -64,12 +65,19 @@ export const useStore = create<AppState>()(
         set((s) => (s.panes.length <= 1 ? s : { panes: s.panes.filter((p) => p.id !== id) })),
       updatePane: (id, patch) =>
         set((s) => ({ panes: s.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+      changePaneType: (id, type) => {
+        const workId =
+          type === "bible" ? "web" : type === "commentary" ? "mhc" : type === "dictionary" ? "easton" : "";
+        set((s) => ({
+          panes: s.panes.map((p) => (p.id === id ? { ...p, type, workId } : p)),
+        }));
+      },
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       goToRef: (osis, chapter, fromPaneId) => {
         const { settings, panes } = get();
         set({
           panes: panes.map((p) => {
-            if (p.type !== "bible") return p;
+            if (p.type !== "bible" && p.type !== "commentary") return p;
             if (settings.sync || p.id === fromPaneId) return { ...p, osis, chapter };
             return p;
           }),

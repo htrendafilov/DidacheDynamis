@@ -6,7 +6,7 @@ database the API serves. Runs offline, never in the request path.
 
 See [`../../plan/backend/backend_design.md`](../../plan/backend/backend_design.md) §2–6.
 
-## Status (M1)
+## Status (M3)
 - Schema + FTS5 (`schema.py`), canonical book table (`books.py`), CIR (`canonical.py`).
 - **USFX adapter** (`formats/usfx.py`) — handles words-of-Jesus (`<wj>`), poetry (`<q>`), Psalm titles
   (`<d>`), paragraph structure; skips footnotes/cross-refs.
@@ -31,5 +31,8 @@ bibleimport build --format usfx --work-id web --title "World English Bible" --ab
 pytest -q
 ```
 
-Adapters planned next: ThML (Matthew Henry, Easton's — M3), and the Bulgarian source once rights clear
-(M6). Adding a format = a new file in `formats/` + fixtures; no change to the passage API or reader.
+The M3 study adapter imports official SWORD `mod2imp -s` exports for Matthew Henry and Easton's, CCEL
+ThML, and TSK-derived TSV cross-references. The production sources and provenance are documented in
+[`../../data/sources/README.md`](../../data/sources/README.md). The Bulgarian source remains deferred
+until rights clear (M6). Adding a format = a new file in `formats/` + fixtures; no change to the
+passage API or reader.

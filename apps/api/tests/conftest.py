@@ -24,7 +24,7 @@ MINI_USFX = """<?xml version="1.0" encoding="utf-8"?>
 
 @pytest.fixture(scope="session")
 def db_path(tmp_path_factory) -> Path:
-    from bibleimport.pipeline import BibleSpec, build_bible
+    from bibleimport.pipeline import BibleSpec, append_study_content, build_bible
 
     src = tmp_path_factory.mktemp("src") / "mini_usfx.xml"
     src.write_text(MINI_USFX, encoding="utf-8")
@@ -35,6 +35,13 @@ def db_path(tmp_path_factory) -> Path:
     )
     diag = build_bible(src, spec, out, fmt="usfx")
     assert diag.ok, diag.errors
+    fixture_dir = Path(__file__).parents[2] / "importer" / "tests" / "fixtures"
+    append_study_content(
+        out,
+        [fixture_dir / "mini_commentary.xml"],
+        fixture_dir / "mini_dictionary.xml",
+        fixture_dir / "mini_xrefs.tsv",
+    )
     return out
 
 

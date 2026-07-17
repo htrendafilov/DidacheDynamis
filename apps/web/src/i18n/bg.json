@@ -30,6 +30,14 @@
   "search.resultsFor": "Резултати за",
   "reader.loading": "Зареждане…",
   "reader.error": "Пасажът не можа да се зареди.",
+  "commentary.error": "Коментарът не можа да се зареди.",
+  "commentary.noEntries": "Няма наличен коментар за тази глава.",
+  "dictionary.search": "Търсене на дума…",
+  "dictionary.headwords": "Думи в речника",
+  "dictionary.choose": "Изберете дума, за да прочетете определението.",
+  "xref.title": "Препратки",
+  "xref.close": "Затвори препратките",
+  "xref.none": "Няма препратки за този стих.",
   "notes.placeholder": "Личните бележки се съхраняват само в този браузър.",
   "notes.comingSoon": "Редактируемите бележки идват в следваща версия."
 }

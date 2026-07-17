@@ -16,7 +16,7 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 
 ## 2. Layout
 
-- **Top bar:** global search, interface-language toggle (EN/BG), reading-settings menu,
+- **Top bar:** global search, reading-settings menu (including EN/BG interface language),
   add/remove pane (max 3).
 > **v1 ships English-only.** The Bulgarian Bible source is deferred until rights are cleared
 > (see [`../content_and_licensing.md`](../content_and_licensing.md)); the source list is data-driven

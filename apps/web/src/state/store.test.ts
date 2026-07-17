@@ -47,4 +47,23 @@ describe("store", () => {
     expect(panes.find((p) => p.id === "a")).toMatchObject({ osis: "Ps", chapter: 23 });
     expect(panes.find((p) => p.id === "b")).toMatchObject({ osis: "Gen", chapter: 1 });
   });
+
+  it("selects the canonical work when a pane changes source type", () => {
+    useStore.getState().changePaneType("a", "commentary");
+    expect(useStore.getState().panes[0]).toMatchObject({ type: "commentary", workId: "mhc" });
+    useStore.getState().changePaneType("a", "dictionary");
+    expect(useStore.getState().panes[0]).toMatchObject({ type: "dictionary", workId: "easton" });
+  });
+
+  it("syncs commentary panes to Bible navigation", () => {
+    useStore.setState({
+      panes: [
+        biblePane("a", "John", 3),
+        { ...biblePane("b", "John", 3), type: "commentary", workId: "mhc" },
+      ],
+      settings: { ...useStore.getState().settings, sync: true },
+    });
+    useStore.getState().goToRef("Ps", 23, "a");
+    expect(useStore.getState().panes[1]).toMatchObject({ osis: "Ps", chapter: 23 });
+  });
 });

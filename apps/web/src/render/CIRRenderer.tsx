@@ -19,8 +19,14 @@ function Runs({ runs }: { runs: Run[] }) {
   );
 }
 
-function VNum({ n }: { n: number }) {
-  return <sup className="vnum">{n}</sup>;
+function VNum({ n, onClick }: { n: number; onClick?: (verse: number) => void }) {
+  return onClick ? (
+    <button type="button" className="vnum" onClick={() => onClick(n)} aria-label={`Verse ${n}`}>
+      {n}
+    </button>
+  ) : (
+    <sup className="vnum">{n}</sup>
+  );
 }
 
 function HeadingView({ h }: { h: Heading }) {
@@ -37,7 +43,15 @@ function headingMap(headings: Heading[]): Map<number, Heading[]> {
   return m;
 }
 
-function PerLine({ verses, headings }: { verses: Verse[]; headings: Heading[] }) {
+function PerLine({
+  verses,
+  headings,
+  onVerseClick,
+}: {
+  verses: Verse[];
+  headings: Heading[];
+  onVerseClick?: (verse: number) => void;
+}) {
   const hmap = headingMap(headings);
   return (
     <>
@@ -48,7 +62,7 @@ function PerLine({ verses, headings }: { verses: Verse[]; headings: Heading[] })
           ))}
           {v.lines.map((ln: Line, i) => (
             <div key={i} className={ln.kind === "q" ? `line q q${ln.level}` : "line p"}>
-              {i === 0 && <VNum n={v.verse} />} <Runs runs={ln.runs} />
+              {i === 0 && <VNum n={v.verse} onClick={onVerseClick} />} <Runs runs={ln.runs} />
             </div>
           ))}
         </div>
@@ -62,7 +76,15 @@ type Block =
   | { type: "poetry"; level: number; verseNum?: number; runs: Run[] }
   | { type: "para"; segs: { verseNum?: number; runs: Run[] }[] };
 
-function Flowing({ verses, headings }: { verses: Verse[]; headings: Heading[] }) {
+function Flowing({
+  verses,
+  headings,
+  onVerseClick,
+}: {
+  verses: Verse[];
+  headings: Heading[];
+  onVerseClick?: (verse: number) => void;
+}) {
   const hmap = headingMap(headings);
   const blocks: Block[] = [];
   let para: Extract<Block, { type: "para" }> | null = null;
@@ -94,7 +116,10 @@ function Flowing({ verses, headings }: { verses: Verse[]; headings: Heading[] })
         if (b.type === "poetry")
           return (
             <div key={i} className={`line q q${b.level}`}>
-              {b.verseNum !== undefined && <VNum n={b.verseNum} />} <Runs runs={b.runs} />
+              {b.verseNum !== undefined && (
+                <VNum n={b.verseNum} onClick={onVerseClick} />
+              )}{" "}
+              <Runs runs={b.runs} />
             </div>
           );
         return (
@@ -102,7 +127,10 @@ function Flowing({ verses, headings }: { verses: Verse[]; headings: Heading[] })
             {b.segs.map((s, j) => (
               <span key={j}>
                 {j > 0 ? " " : ""}
-                {s.verseNum !== undefined && <VNum n={s.verseNum} />} <Runs runs={s.runs} />
+                {s.verseNum !== undefined && (
+                  <VNum n={s.verseNum} onClick={onVerseClick} />
+                )}{" "}
+                <Runs runs={s.runs} />
               </span>
             ))}
           </p>
@@ -117,18 +145,20 @@ export function CIRRenderer({
   headings,
   layout,
   wordsOfChrist,
+  onVerseClick,
 }: {
   verses: Verse[];
   headings: Heading[];
   layout: VerseLayout;
   wordsOfChrist: WordsOfChrist;
+  onVerseClick?: (verse: number) => void;
 }) {
   return (
     <div className="reader" data-woc={wordsOfChrist} data-layout={layout}>
       {layout === "per-line" ? (
-        <PerLine verses={verses} headings={headings} />
+        <PerLine verses={verses} headings={headings} onVerseClick={onVerseClick} />
       ) : (
-        <Flowing verses={verses} headings={headings} />
+        <Flowing verses={verses} headings={headings} onVerseClick={onVerseClick} />
       )}
     </div>
   );

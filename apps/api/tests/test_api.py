@@ -10,14 +10,14 @@ def test_ready_has_content(client):
 
 def test_meta(client):
     body = client.get("/api/v1/meta").json()
-    assert body["works"] == 1
+    assert body["works"] == 4
     assert body["content_version"]
 
 
 def test_works_lists_web_with_attribution(client):
     works = client.get("/api/v1/works").json()
-    assert len(works) == 1
-    w = works[0]
+    assert len(works) == 4
+    w = next(work for work in works if work["id"] == "web")
     assert w["id"] == "web" and w["type"] == "bible"
     assert w["license"] == "Public Domain"
     assert "public domain" in w["attribution"].lower()
@@ -77,3 +77,28 @@ def test_cache_headers_and_304(client):
     assert etag
     r2 = client.get("/api/v1/works/web/passage/John/3", headers={"If-None-Match": etag})
     assert r2.status_code == 304
+
+
+def test_commentary_can_be_filtered_to_a_verse(client):
+    body = client.get("/api/v1/commentary/mhc/John/3", params={"verse": 16}).json()
+    assert body["entries"][0]["verse_start"] == 16
+    text = " ".join(block["text"] for block in body["entries"][0]["body"]["blocks"])
+    assert "love of God" in text
+    assert "For God so loved" not in text
+
+
+def test_dictionary_prefix_and_entry(client):
+    words = client.get(
+        "/api/v1/dictionary/easton/entries", params={"prefix": "shep"}
+    ).json()
+    assert words == [{"headword": "Shepherd"}]
+    entry = client.get("/api/v1/dictionary/easton/entry/Shepherd").json()
+    assert entry["body"]["blocks"][0]["text"] == "One who tends a flock."
+
+
+def test_cross_references_include_normalized_target_and_preview(client):
+    body = client.get("/api/v1/xref/John/3/16").json()
+    rom = next(ref for ref in body["references"] if ref["target_ref"] == "Rom.5.8")
+    assert rom["votes"] == 2
+    assert rom["target_osis"] == "Rom"
+    assert rom["preview"] is None  # the tiny fixture has no Romans text

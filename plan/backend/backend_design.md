@@ -103,9 +103,9 @@ apps/importer/
   formats/{osis,usfm,vpl,thml,sword}.py
 ```
 
-- `osis.py`, `usfm.py` — Bibles. `thml.py` — Matthew Henry + Easton's (CCEL ThML). `vpl.py` — plain
-  verse-per-line fallback for the BG file if needed. `sword.py` — **optional**, via official libsword
-  tools in a subprocess; never parse SWORD binaries directly.
+- `osis.py`, `usfm.py` — Bibles. `study.py` — Matthew Henry + Easton's from official SWORD
+  `mod2imp -s` exports (plus CCEL ThML compatibility) and TSK-derived TSV. `vpl.py` — plain
+  verse-per-line fallback for the BG file if needed. SWORD binaries are never parsed directly.
 - **Validation** aligns EN↔BG by canonical ref and emits a diff report; publication of a misaligned
   work is blocked with an actionable message.
 - **Untrusted-file safety:** size/entropy limits; XML parsed with DTD/external-entity/network

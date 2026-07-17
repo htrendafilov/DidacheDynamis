@@ -43,7 +43,9 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
 - **M2** — reader: FastAPI passage/search API (`apps/api`) + React SPA (`apps/web`) with resizable
   panes, verse-per-line/flowing toggle, words-of-Christ off/bold/red, book/chapter nav, EN/BG
   interface, and search. ✅
-- **M3** — commentary + dictionary + cross-references. ⏳ next.
+- **M3** — Matthew Henry commentary + Easton's dictionary panes, and TSK-derived cross-references
+  with WEB verse previews. ✅
+- **M4** — local personal notes + search refinements. ⏳ next.
 
 ## Run it locally
 

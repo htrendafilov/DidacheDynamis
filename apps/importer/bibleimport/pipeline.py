@@ -8,8 +8,9 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from .books import BY_OSIS
 from .canonical import BookMeta, HeadingRow, VerseRow, WorkMeta
-from .formats import usfx
+from .formats import study, usfx
 from .schema import create_schema
 from .validation import Diagnostics, validate
 
@@ -36,6 +37,36 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _combined_sha256(paths: list[Path]) -> str:
+    h = hashlib.sha256()
+    for path in paths:
+        h.update(path.name.encode())
+        h.update(bytes.fromhex(_sha256(path)))
+    return h.hexdigest()
+
+
+def _insert_work(conn: sqlite3.Connection, meta: WorkMeta) -> None:
+    conn.execute(
+        "INSERT INTO works(id,type,language,title,abbrev,direction,versification,"
+        "license,attribution,source_url,source_version,checksum) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            meta.id,
+            meta.type,
+            meta.language,
+            meta.title,
+            meta.abbrev,
+            meta.direction,
+            meta.versification,
+            meta.license,
+            meta.attribution,
+            meta.source_url,
+            meta.source_version,
+            meta.checksum,
+        ),
+    )
+
+
 def _write_work(
     conn: sqlite3.Connection,
     meta: WorkMeta,
@@ -43,14 +74,7 @@ def _write_work(
     verses: list[VerseRow],
     headings: list[HeadingRow],
 ) -> None:
-    conn.execute(
-        "INSERT INTO works(id,type,language,title,abbrev,direction,versification,"
-        "license,attribution,source_url,source_version,checksum) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-        (meta.id, meta.type, meta.language, meta.title, meta.abbrev, meta.direction,
-         meta.versification, meta.license, meta.attribution, meta.source_url,
-         meta.source_version, meta.checksum),
-    )
+    _insert_work(conn, meta)
     conn.executemany(
         "INSERT INTO books(work_id,osis_code,name,sort_order,chapter_count) VALUES(?,?,?,?,?)",
         [(meta.id, b.osis, b.name, b.order, b.chapter_count) for b in books],
@@ -111,3 +135,169 @@ def build_bible(
     finally:
         conn.close()
     return diag
+
+
+def append_study_content(
+    out_db: str | Path,
+    commentary_sources: list[str | Path],
+    dictionary_source: str | Path,
+    xref_source: str | Path,
+) -> dict[str, int]:
+    """Append the fixed M3 public-domain study library to an existing Bible DB."""
+    out_db = Path(out_db)
+    commentary_paths = [Path(path) for path in commentary_sources]
+    dictionary_path = Path(dictionary_source)
+    xref_path = Path(xref_source)
+    if not out_db.exists():
+        raise ValueError(f"content database does not exist: {out_db}")
+    if not commentary_paths:
+        raise ValueError("at least one commentary source is required")
+
+    sword_commentary = all(path.name.endswith((".imp", ".imp.gz")) for path in commentary_paths)
+    sword_dictionary = dictionary_path.name.endswith((".imp", ".imp.gz"))
+    commentary = (
+        study.load_sword_commentary(commentary_paths)
+        if sword_commentary
+        else study.load_commentary(commentary_paths)
+    )
+    dictionary = (
+        study.load_sword_dictionary(dictionary_path)
+        if sword_dictionary
+        else study.load_dictionary(dictionary_path)
+    )
+    xrefs = study.load_xrefs(xref_path)
+    if not commentary or not dictionary or not xrefs:
+        raise ValueError("a study source parsed to zero entries")
+
+    mhc = WorkMeta(
+        id="mhc",
+        type="commentary",
+        language="en",
+        title="Matthew Henry's Commentary on the Whole Bible",
+        abbrev="MHC",
+        direction="ltr",
+        versification="kjv",
+        license="Public Domain",
+        attribution=(
+            "Matthew Henry, Commentary on the Whole Bible (1706). "
+            "Public-domain CrossWire SWORD module."
+        ),
+        source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=MHC",
+        source_version="CrossWire MHC 2.2" if sword_commentary else "CCEL ThML",
+        checksum=_combined_sha256(commentary_paths),
+    )
+    easton = WorkMeta(
+        id="easton",
+        type="dictionary",
+        language="en",
+        title="Easton's Bible Dictionary",
+        abbrev="EBD",
+        direction="ltr",
+        versification="kjv",
+        license="Public Domain",
+        attribution=(
+            "M. G. Easton, Illustrated Bible Dictionary, Third Edition (1897). "
+            "Public-domain CrossWire SWORD module."
+        ),
+        source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=Easton",
+        source_version="CrossWire Easton" if sword_dictionary else "CCEL ThML",
+        checksum=_sha256(dictionary_path),
+    )
+    tsk = WorkMeta(
+        id="tsk",
+        type="xref",
+        language="en",
+        title="Treasury of Scripture Knowledge Cross-References",
+        abbrev="TSK",
+        direction="ltr",
+        versification="kjv",
+        license="CC BY 4.0",
+        attribution=(
+            "Cross-reference data derived from the Treasury of Scripture Knowledge; "
+            "CrossReferences.org, CC BY 4.0."
+        ),
+        source_url="https://github.com/CrossReferences-org/bible-cross-references",
+        source_version="KJV mapping",
+        checksum=_sha256(xref_path),
+    )
+
+    conn = sqlite3.connect(out_db)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("BEGIN")
+        for meta in (mhc, easton, tsk):
+            _insert_work(conn, meta)
+
+        chapter_counts: dict[str, int] = {}
+        for row in commentary:
+            chapter_counts[row.osis] = max(chapter_counts.get(row.osis, 0), row.chapter)
+        conn.executemany(
+            "INSERT INTO books(work_id,osis_code,name,sort_order,chapter_count) VALUES(?,?,?,?,?)",
+            [
+                (mhc.id, osis, BY_OSIS[osis].name_en, BY_OSIS[osis].order, chapters)
+                for osis, chapters in sorted(
+                    chapter_counts.items(), key=lambda item: BY_OSIS[item[0]].order
+                )
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO commentary_entries"
+            "(work_id,osis_code,chapter,verse_start,verse_end,body_json) VALUES(?,?,?,?,?,?)",
+            [
+                (
+                    mhc.id,
+                    row.osis,
+                    row.chapter,
+                    row.verse_start,
+                    row.verse_end,
+                    json.dumps(row.body, ensure_ascii=False),
+                )
+                for row in commentary
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO commentary_fts(text,work_id,ref) VALUES(?,?,?)",
+            [
+                (
+                    row.plain_text,
+                    mhc.id,
+                    f"{row.osis}.{row.chapter}"
+                    + (f".{row.verse_start}" if row.verse_start is not None else ""),
+                )
+                for row in commentary
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO dictionary_entries(work_id,headword,sort_key,language,body_json) "
+            "VALUES(?,?,?,?,?)",
+            [
+                (
+                    easton.id,
+                    row.headword,
+                    row.sort_key,
+                    row.language,
+                    json.dumps(row.body, ensure_ascii=False),
+                )
+                for row in dictionary
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO dictionary_fts(text,work_id,headword) VALUES(?,?,?)",
+            [(row.plain_text, easton.id, row.headword) for row in dictionary],
+        )
+        conn.executemany(
+            "INSERT INTO xrefs(osis_code,chapter,verse,target_ref,votes) VALUES(?,?,?,?,?)",
+            [(row.osis, row.chapter, row.verse, row.target_ref, row.votes) for row in xrefs],
+        )
+        conn.commit()
+        conn.execute("PRAGMA optimize")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {
+        "commentary_entries": len(commentary),
+        "dictionary_entries": len(dictionary),
+        "xrefs": len(xrefs),
+    }

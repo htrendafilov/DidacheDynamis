@@ -105,6 +105,34 @@ class HeadingRow:
 
 
 @dataclass
+class CommentaryRow:
+    osis: str
+    chapter: int
+    verse_start: int | None
+    verse_end: int | None
+    body: dict
+    plain_text: str
+
+
+@dataclass
+class DictionaryRow:
+    headword: str
+    sort_key: str
+    language: str
+    body: dict
+    plain_text: str
+
+
+@dataclass(frozen=True)
+class XrefRow:
+    osis: str
+    chapter: int
+    verse: int
+    target_ref: str
+    votes: int = 1
+
+
+@dataclass
 class WorkMeta:
     id: str
     type: str

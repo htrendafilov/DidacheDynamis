@@ -5,14 +5,26 @@ cd "$(dirname "$0")/.."
 
 echo "==> importer: ruff + pytest"
 if [ -f apps/importer/pyproject.toml ]; then
-  ruff check apps/importer
-  python3 -m pytest apps/importer -q
+  if [ -x apps/importer/.venv/bin/python ]; then
+    IMPORTER_PY=apps/importer/.venv/bin/python
+    RUFF=apps/importer/.venv/bin/ruff
+  else
+    IMPORTER_PY=python3
+    RUFF=ruff
+  fi
+  "$RUFF" check apps/importer
+  "$IMPORTER_PY" -m pytest apps/importer -q
 fi
 
 echo "==> api: ruff + pytest"
 if [ -f apps/api/pyproject.toml ]; then
-  ruff check apps/api
-  python3 -m pytest apps/api -q
+  if [ -x apps/api/.venv/bin/python ]; then
+    API_PY=apps/api/.venv/bin/python
+  else
+    API_PY=python3
+  fi
+  "$RUFF" check apps/api
+  "$API_PY" -m pytest apps/api -q
 fi
 
 echo "==> frontend: lint + type-check + test + build"

@@ -1,22 +1,25 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { PassageSelector } from "../components/PassageSelector";
 import { SourceSelector } from "../components/SourceSelector";
-import { useBooks, usePassage, useWorks } from "../data/hooks";
+import { useBooks, useCrossReferences, usePassage, useWorks } from "../data/hooks";
+import { bookName } from "../i18n/bookNames";
 import { CIRRenderer } from "../render/CIRRenderer";
 import { useStore, type Pane } from "../state/store";
 
 export function BiblePane({ pane }: { pane: Pane }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const settings = useStore((s) => s.settings);
-  const updatePane = useStore((s) => s.updatePane);
+  const changePaneType = useStore((s) => s.changePaneType);
   const goToRef = useStore((s) => s.goToRef);
+  const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
 
   const books = useBooks(pane.workId);
   const works = useWorks();
   const work = works?.find((w) => w.id === pane.workId);
   const { loading, error, data } = usePassage(pane.workId, pane.osis, pane.chapter);
+  const xrefs = useCrossReferences(pane.osis, pane.chapter, selectedVerse, pane.workId);
 
   const { prev, next } = useMemo(() => {
     if (!books) return { prev: null, next: null };
@@ -43,7 +46,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
   return (
     <div className="pane bible-pane">
       <div className="pane-header">
-        <SourceSelector type={pane.type} onChange={(type) => updatePane(pane.id, { type })} />
+        <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
         <PassageSelector
           workId={pane.workId}
           osis={pane.osis}
@@ -79,7 +82,53 @@ export function BiblePane({ pane }: { pane: Pane }) {
             headings={data.headings}
             layout={settings.verseLayout}
             wordsOfChrist={settings.wordsOfChrist}
+            onVerseClick={(verse) => setSelectedVerse((current) => (current === verse ? null : verse))}
           />
+        )}
+        {selectedVerse !== null && (
+          <aside className="verse-tools" aria-label={t("xref.title")}>
+            <div className="verse-tools-header">
+              <strong>
+                {t("xref.title")}: {bookName(pane.osis, i18n.language, pane.osis)} {pane.chapter}:
+                {selectedVerse}
+              </strong>
+              <button type="button" onClick={() => setSelectedVerse(null)} aria-label={t("xref.close")}>
+                ✕
+              </button>
+            </div>
+            {xrefs === null && <p className="muted">{t("reader.loading")}</p>}
+            {xrefs?.references.length === 0 && <p className="muted">{t("xref.none")}</p>}
+            {xrefs && xrefs.references.length > 0 && (
+              <ul className="xref-list">
+                {xrefs.references.map((reference) => {
+                  const versePart = reference.target_ref.split(".").slice(2).join(".");
+                  return (
+                    <li key={reference.target_ref}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          goToRef(reference.target_osis, reference.target_chapter, pane.id);
+                          setSelectedVerse(null);
+                        }}
+                      >
+                        <span className="result-ref">
+                          {bookName(
+                            reference.target_osis,
+                            i18n.language,
+                            reference.target_osis,
+                          )}{" "}
+                          {reference.target_chapter}:{versePart}
+                        </span>
+                        {reference.preview && (
+                          <span className="xref-preview">{reference.preview}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </aside>
         )}
       </div>
 

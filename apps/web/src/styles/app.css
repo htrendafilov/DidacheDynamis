@@ -177,6 +177,20 @@ input[type="search"] {
   margin-right: 0.15em;
   vertical-align: super;
 }
+.reader button.vnum {
+  display: inline;
+  min-width: 0;
+  border: 0;
+  border-radius: 2px;
+  padding: 0 0.1em;
+  background: transparent;
+  cursor: pointer;
+}
+.reader button.vnum:hover,
+.reader button.vnum:focus-visible {
+  color: var(--accent);
+  outline: 1px solid var(--accent);
+}
 .reader .heading {
   margin: 1.1em 0 0.3em;
   font-size: 0.95em;
@@ -297,6 +311,103 @@ input[type="search"] {
   color: var(--muted);
 }
 
+/* Study panes */
+.study-document {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: calc(1rem * var(--font-scale));
+  line-height: 1.65;
+  max-width: 48rem;
+}
+.study-document h4 {
+  margin: 1.2em 0 0.35em;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.study-document p {
+  margin: 0 0 0.9em;
+}
+.commentary-entry + .commentary-entry {
+  border-top: 1px solid var(--border);
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+}
+.study-ref {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.dictionary-layout {
+  display: grid;
+  grid-template-columns: minmax(8rem, 30%) 1fr;
+  flex: 1;
+  min-height: 0;
+}
+.headword-list {
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 0.5rem;
+}
+.headword-list button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 3px;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  background: transparent;
+}
+.headword-list button.active {
+  color: #fff;
+  background: var(--accent);
+}
+.dictionary-entry h3 {
+  margin-top: 0;
+}
+.verse-tools {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-alt);
+}
+.verse-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.verse-tools-header button {
+  border: 0;
+  padding: 0.1rem 0.3rem;
+  background: transparent;
+}
+.xref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.xref-list li + li {
+  border-top: 1px solid var(--border);
+}
+.xref-list button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  background: transparent;
+}
+.xref-preview {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -315,5 +426,8 @@ input[type="search"] {
   }
   .topbar {
     flex-wrap: wrap;
+  }
+  .dictionary-layout {
+    grid-template-columns: minmax(7rem, 38%) 1fr;
   }
 }

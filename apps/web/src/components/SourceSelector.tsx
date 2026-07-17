@@ -2,9 +2,8 @@ import { useTranslation } from "react-i18next";
 
 import type { PaneSourceType } from "../state/store";
 
-// M2 ships Bible only; other source types are shown but disabled ("coming soon").
 const TYPES: PaneSourceType[] = ["bible", "commentary", "dictionary", "notes"];
-const ENABLED: PaneSourceType[] = ["bible"];
+const ENABLED: PaneSourceType[] = ["bible", "commentary", "dictionary"];
 
 export function SourceSelector({
   type,

@@ -30,6 +30,14 @@
   "search.resultsFor": "Results for",
   "reader.loading": "Loading…",
   "reader.error": "Could not load passage.",
+  "commentary.error": "Could not load commentary.",
+  "commentary.noEntries": "No commentary is available for this chapter.",
+  "dictionary.search": "Find a word…",
+  "dictionary.headwords": "Dictionary headwords",
+  "dictionary.choose": "Choose a word to read its definition.",
+  "xref.title": "Cross-references",
+  "xref.close": "Close cross-references",
+  "xref.none": "No cross-references for this verse.",
   "notes.placeholder": "Personal notes are stored only in this browser.",
   "notes.comingSoon": "Editable notes arrive in a later version."
 }
