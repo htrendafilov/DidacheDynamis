@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+apps/web/dist/
+*.local
+.vite/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Build artifacts / data
+# content.sqlite is tracked via Git LFS once it exists (added in M1); ignore stray/local copies:
+*.sqlite-wal
+*.sqlite-shm
+data/sources/*
+!data/sources/.gitkeep
+!data/sources/README.md

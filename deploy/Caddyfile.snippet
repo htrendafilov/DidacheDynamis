@@ -1,0 +1,5 @@
+# Append to /etc/caddy/Caddyfile on the VM (see plan/deployment/deployment_design.md §4).
+bible.trendafilovi.net {
+    reverse_proxy 127.0.0.1:8080
+    encode zstd gzip
+}

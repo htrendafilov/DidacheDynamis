@@ -1,0 +1,15 @@
+# Runs on the VM. The pipeline sets IMAGE_TAG; the box only pulls from GHCR.
+services:
+  app:
+    image: ghcr.io/htrendafilov/bible_app_bg:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"   # Caddy reverse-proxies to this; not publicly exposed
+    environment:
+      - API_PORT=8080
+      - CACHE_MAX_AGE=86400
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
