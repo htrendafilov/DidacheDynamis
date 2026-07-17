@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<usfx>
+<languageCode>eng</languageCode>
+<book id="FRT"><id id="FRT">front matter</id><h>Preface</h><p style="ip">ignore this text</p></book>
+<book id="PSA"><id id="PSA">World English Bible</id><h>Psalms</h>
+<c id="23" />
+<d style="d">A Psalm by David.</d>
+<q style="q1"><v id="1" bcv="PSA.23.1" /><w>The</w> <w>LORD</w> is my shepherd;
+</q>
+<q level="2" style="q2">I shall lack nothing.
+<ve />
+</q>
+</book>
+<book id="JHN"><id id="JHN">World English Bible</id><h>John</h>
+<c id="3" />
+<p style="p"><v id="16" bcv="JHN.3.16" /><wj>For God so loved the world</wj><f caller="+"><fr>3:16</fr><ft>a translator footnote</ft></f><wj>, that he gave his Son.</wj>
+<ve />
+</p>
+</book>
+</usfx>

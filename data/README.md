@@ -1,6 +1,7 @@
 # data/
 
-- `sources/` — source texts used by the importer (gitignored; keep licensing/attribution notes here).
-  Only redistributable/public-domain sources belong in git; owner-provided texts stay local.
-- `content.sqlite` — the built, read-only database the API serves. Produced by `bibleimport`.
-  Tracked via **Git LFS** once it first exists (added in M1); it is a build artifact, never hand-edited.
+- `sources/` — source texts used by the importer. **Public-domain sources are committed** (see
+  `sources/README.md`); owner-provided/licensed texts stay local (use a `*.private.*` name).
+- `content.sqlite` — the built, read-only database the API serves. Produced by `bibleimport` from
+  `sources/`. It is a **build artifact, gitignored** (rebuilt locally and in the Docker build), never
+  hand-edited.

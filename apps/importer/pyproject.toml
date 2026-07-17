@@ -1,0 +1,28 @@
+[project]
+name = "bibleimport"
+version = "0.1.0"
+description = "CLI that parses Bible source texts into the read-only content.sqlite the API serves."
+requires-python = ">=3.11"
+dependencies = [
+    "defusedxml>=0.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+bibleimport = "bibleimport.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["bibleimport", "bibleimport.formats"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

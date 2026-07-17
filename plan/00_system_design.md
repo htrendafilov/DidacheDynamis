@@ -91,7 +91,7 @@ bible_app_bg/                    # git repo root (GitHub: htrendafilov/bible_app
 │   ├── web/                     # React + Vite SPA
 │   ├── api/                     # FastAPI (serves API + built SPA)
 │   └── importer/                # bibleimport CLI (builds content.sqlite)
-├── data/{sources/,content.sqlite}   # sources + built artifact (LFS/release asset)
+├── data/{sources/,content.sqlite}   # committed PD sources; DB is a gitignored build artifact
 ├── deploy/{Dockerfile,docker-compose.yml,Caddyfile.snippet}
 ├── plan/                        # these design docs
 ├── scripts/{check.sh,dev.sh}

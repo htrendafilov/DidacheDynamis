@@ -42,10 +42,10 @@ headroom for this app — it is not at risk of being overloaded.
 
 ## 2. Portable artifact
 
-One **Docker image** (multi-stage: Vite build → copied into the FastAPI runtime; Gunicorn+Uvicorn
-entrypoint). `content.sqlite` is **baked into the image** in v1 (immutable, re-tag per content
-version). This is what makes moving hosts a one-liner: push image to GHCR, deploy elsewhere, repoint
-DNS.
+One **Docker image** (multi-stage: Vite build → SPA; importer stage **builds `content.sqlite` from the
+committed public-domain sources**; FastAPI runtime with Gunicorn+Uvicorn). The DB is baked in
+(immutable, re-tag per content version) but never lives in git. This is what makes moving hosts a
+one-liner: push image to GHCR, deploy elsewhere, repoint DNS.
 
 ## 3. CI/CD pipeline (GitHub Actions → VM)
 
@@ -106,9 +106,11 @@ After this, everything is pipeline-driven.
 
 ## 7. Content update flow
 
-Run `bibleimport` → new `content.sqlite` + diagnostics → commit (**Git LFS**, added in M1 when the
-binary first exists) → `deploy.yml` rebuilds the image and rolls it out → new `?v=` busts caches.
-Reverting the commit / re-deploying the previous SHA is the instant rollback.
+`content.sqlite` is a **build artifact**, not committed. Public-domain **sources** live in
+`data/sources/` (committed); the Docker build's `content` stage runs `bibleimport` to regenerate the DB
+reproducibly. So a content change = update the source (or importer) → commit → `deploy.yml` rebuilds the
+image (DB rebuilt inside) and rolls it out → new `?v=` busts caches. Reverting the commit / re-deploying
+the previous SHA is the instant rollback. (No Git LFS — the DB never enters git.)
 
 ## 8. Native fallback (no Docker)
 

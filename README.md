@@ -37,4 +37,9 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
 
 ## Status
 
-Scaffolding stage (milestone **M0**). See the milestone list in `plan/00_system_design.md`.
+- **M0** — repo, CI/CD pipeline, deploy path. ✅
+- **M1** — schema + importer + **World English Bible** imported (66 books, ~31,098 verses, red-letter,
+  poetry, FTS search). ✅ (`apps/importer`)
+- **M2** — reader API + SPA. ⏳ next.
+
+See the milestone list in `plan/00_system_design.md`.

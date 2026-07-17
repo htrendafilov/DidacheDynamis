@@ -22,9 +22,12 @@ apps/web/dist/
 .vscode/
 
 # Build artifacts / data
-# content.sqlite is tracked via Git LFS once it exists (added in M1); ignore stray/local copies:
+# content.sqlite is a BUILD ARTIFACT rebuilt from data/sources by the importer
+# (locally and in the Docker build) — do not commit it.
+data/content.sqlite
+*.sqlite
 *.sqlite-wal
 *.sqlite-shm
-data/sources/*
-!data/sources/.gitkeep
-!data/sources/README.md
+# Public-domain sources ARE committed (see data/sources/README.md); owner-provided/licensed
+# texts must not be — keep those out with a *.private.* suffix.
+data/sources/*.private.*

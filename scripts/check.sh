@@ -3,14 +3,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "==> backend: ruff"
-if [ -d apps/api ] && command -v ruff >/dev/null 2>&1; then
-  ruff check apps/api apps/importer || true   # TODO: drop `|| true` once code exists (M0/M1)
+echo "==> importer: ruff + pytest"
+if [ -f apps/importer/pyproject.toml ]; then
+  ruff check apps/importer
+  python3 -m pytest apps/importer -q
 fi
 
-echo "==> backend: pytest"
-if [ -d apps/api ] && command -v pytest >/dev/null 2>&1; then
-  pytest apps/api apps/importer -q || true    # TODO: drop `|| true` once tests exist
+echo "==> api: ruff + pytest"
+if [ -f apps/api/pyproject.toml ]; then
+  ruff check apps/api
+  python3 -m pytest apps/api -q
 fi
 
 echo "==> frontend: lint + type-check + test + build"
