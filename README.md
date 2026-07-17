@@ -40,6 +40,25 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
 - **M0** — repo, CI/CD pipeline, deploy path. ✅
 - **M1** — schema + importer + **World English Bible** imported (66 books, ~31,098 verses, red-letter,
   poetry, FTS search). ✅ (`apps/importer`)
-- **M2** — reader API + SPA. ⏳ next.
+- **M2** — reader: FastAPI passage/search API (`apps/api`) + React SPA (`apps/web`) with resizable
+  panes, verse-per-line/flowing toggle, words-of-Christ off/bold/red, book/chapter nav, EN/BG
+  interface, and search. ✅
+- **M3** — commentary + dictionary + cross-references. ⏳ next.
+
+## Run it locally
+
+```bash
+# 1) build the content DB (once)
+python3 -m venv apps/importer/.venv && . apps/importer/.venv/bin/activate
+pip install -e apps/importer
+bibleimport build-web --source data/sources/engwebp_usfx.zip --out data/content.sqlite
+
+# 2) API on :8080
+python3 -m venv apps/api/.venv && . apps/api/.venv/bin/activate && pip install -e apps/api
+uvicorn app.main:app --app-dir apps/api --port 8080
+
+# 3) SPA dev server on :5173 (proxies /api to :8080)
+cd apps/web && npm install && npm run dev
+```
 
 See the milestone list in `plan/00_system_design.md`.

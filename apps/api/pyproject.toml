@@ -1,0 +1,27 @@
+[project]
+name = "bible-api"
+version = "0.1.0"
+description = "FastAPI reader service over the read-only content.sqlite."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "gunicorn>=21",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5", "httpx>=0.27"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app", "app.routers"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

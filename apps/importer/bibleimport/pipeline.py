@@ -105,6 +105,9 @@ def build_bible(
         _write_work(conn, meta, books, verses, headings)
         conn.commit()
         conn.execute("PRAGMA optimize")
+        # Ship a clean single-file DB (no -wal) so the API can open it read-only trivially.
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.execute("PRAGMA journal_mode=DELETE")
     finally:
         conn.close()
     return diag
