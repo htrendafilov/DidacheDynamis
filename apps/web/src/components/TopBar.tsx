@@ -10,8 +10,6 @@ export function TopBar({
   onToggleSettings: () => void;
 }) {
   const { t } = useTranslation();
-  const settings = useStore((s) => s.settings);
-  const setSettings = useStore((s) => s.setSettings);
   const addPane = useStore((s) => s.addPane);
   const panes = useStore((s) => s.panes);
 
@@ -27,14 +25,6 @@ export function TopBar({
         </button>
         <button type="button" onClick={onToggleSettings}>
           {t("topbar.settings")}
-        </button>
-        <button
-          type="button"
-          className="lang-toggle"
-          aria-label={t("topbar.language")}
-          onClick={() => setSettings({ uiLang: settings.uiLang === "en" ? "bg" : "en" })}
-        >
-          {settings.uiLang === "en" ? "БГ" : "EN"}
         </button>
       </div>
     </header>

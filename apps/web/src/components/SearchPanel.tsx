@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, type SearchHit } from "../data/api";
+import { bookName } from "../i18n/bookNames";
 import { useStore } from "../state/store";
 
 export function SearchPanel({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [searched, setSearched] = useState(false);
@@ -48,7 +49,7 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
                 }}
               >
                 <span className="result-ref">
-                  {h.osis} {h.chapter}:{h.verse}
+                  {bookName(h.osis, i18n.language, h.osis)} {h.chapter}:{h.verse}
                 </span>{" "}
                 <span
                   className="result-snippet"

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { useBooks } from "../data/hooks";
+import { bookName } from "../i18n/bookNames";
 
 export function PassageSelector({
   workId,
@@ -13,7 +14,7 @@ export function PassageSelector({
   chapter: number;
   onChange: (osis: string, chapter: number) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const books = useBooks(workId);
   const current = books?.find((b) => b.osis === osis);
   const chapterCount = current?.chapter_count ?? 1;
@@ -29,7 +30,7 @@ export function PassageSelector({
         >
           {(books ?? []).map((b) => (
             <option key={b.osis} value={b.osis}>
-              {b.name}
+              {bookName(b.osis, i18n.language, b.name)}
             </option>
           ))}
         </select>

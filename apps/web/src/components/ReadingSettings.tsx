@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useStore, type VerseLayout, type WordsOfChrist, type Theme } from "../state/store";
+import { useStore, type UiLang, type VerseLayout, type WordsOfChrist, type Theme } from "../state/store";
 
 function Segmented<T extends string>({
   label,
@@ -40,6 +40,17 @@ export function ReadingSettings() {
 
   return (
     <div className="reading-settings" role="dialog" aria-label={t("topbar.settings")}>
+      <div className="setting">
+        <span className="setting-label">{t("topbar.language")}</span>
+        <select
+          aria-label={t("topbar.language")}
+          value={settings.uiLang}
+          onChange={(e) => setSettings({ uiLang: e.target.value as UiLang })}
+        >
+          <option value="en">English</option>
+          <option value="bg">Български</option>
+        </select>
+      </div>
       <Segmented<VerseLayout>
         label={t("settings.verseLayout")}
         value={settings.verseLayout}
