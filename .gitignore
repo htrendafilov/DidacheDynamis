@@ -31,3 +31,7 @@ data/content.sqlite
 # Public-domain sources ARE committed (see data/sources/README.md); owner-provided/licensed
 # texts must not be — keep those out with a *.private.* suffix.
 data/sources/*.private.*
+
+# Session handoff artifacts (local only)
+.continues-handoff.md
+*-handoff.md
