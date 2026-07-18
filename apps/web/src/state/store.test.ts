@@ -15,6 +15,10 @@ describe("store", () => {
     useStore.setState({ panes: [biblePane("a", "John", 3)] });
   });
 
+  it("defaults the interface to Bulgarian", () => {
+    expect(useStore.getState().settings.uiLang).toBe("bg");
+  });
+
   it("adds panes up to a maximum of 3", () => {
     const { addPane } = useStore.getState();
     addPane();

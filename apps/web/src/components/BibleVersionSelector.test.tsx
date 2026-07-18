@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Work } from "../data/api";
-import "../i18n";
+import i18n from "../i18n";
 import { BibleVersionSelector } from "./BibleVersionSelector";
 
 const work = (id: string, abbrev: string): Work => ({
@@ -20,6 +20,10 @@ const work = (id: string, abbrev: string): Work => ({
 });
 
 describe("BibleVersionSelector", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
   it("selects between WEB and KJV works", () => {
     const onChange = vi.fn();
     render(

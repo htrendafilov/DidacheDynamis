@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Book, Work } from "../data/api";
-import "../i18n";
+import i18n from "../i18n";
 import { WorkFooter } from "./WorkFooter";
 
 const web: Work = {
@@ -26,6 +26,10 @@ const books: Book[] = [
 ];
 
 describe("WorkFooter", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
   it("keeps attribution visible and opens all source-information tabs", () => {
     render(<WorkFooter work={web} books={books} />);
 

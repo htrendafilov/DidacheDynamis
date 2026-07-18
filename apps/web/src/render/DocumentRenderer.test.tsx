@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Document } from "../data/api";
-import "../i18n";
+import i18n from "../i18n";
 import { DocumentRenderer } from "./DocumentRenderer";
 
 const commentary: Document = {
@@ -29,6 +29,10 @@ const commentary: Document = {
 };
 
 describe("DocumentRenderer", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
   it("visually separates the quoted KJV passage from the commentary", () => {
     const { container } = render(<DocumentRenderer document={commentary} />);
 

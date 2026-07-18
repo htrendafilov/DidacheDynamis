@@ -56,7 +56,7 @@ export const useStore = create<AppState>()(
         wordsOfChrist: "red",
         theme: "light",
         fontScale: 1,
-        uiLang: "en",
+        uiLang: "bg",
         sync: true,
       },
       addPane: () =>

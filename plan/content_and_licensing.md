@@ -65,13 +65,34 @@ license agreement is in hand. Everything below is the supporting analysis and fa
   Testament only.** Not usable for us.
 - **There is no public-domain Bulgarian module on CrossWire.**
 
+### 1940 Protestant revision (BG1940) — not cleared
+
+- The 1940 printing is the second revision of the 1871 Protestant Bible, but the commonly available
+  **BG1940 digital text is a later edited edition**, not a scan/transcription with an established
+  public-domain chain. Bibliata.com claims copyright in the 1995–2005/2008 digital edition, its text
+  revision, and its computer typesetting.
+- BibleGateway publishes conditional terms saying that this digital text may be reproduced
+  electronically only in its entirety, with its word order, meaning, and verse numbering preserved;
+  direct quotations require a complete bibliographical note. Those conditions do not clearly cover
+  this app's normal operation: chapter-at-a-time API responses, search snippets, and independently
+  formatted verse display.
+- The publisher's current YouVersion entry instead labels BG1940 **“© Bibliata.com. All rights
+  reserved.”** Because these public statements conflict, they are not sufficient evidence for
+  republishing the full text here. Obtain written permission from Bibliata.com that explicitly covers
+  full-text web display, local SQLite storage, chapter API delivery, search snippets, and formatting
+  before importing BG1940.
+- This conclusion is about the available **digital revision**. Whether the exact underlying 1940
+  print text is out of copyright would require identifying the revision's contributors and applicable
+  terms, then creating or locating a digital transcription whose own rights are clear. Publication
+  date alone is not enough to establish that.
+
 ### Public-domain fallback (only if ББД permission cannot be obtained)
 - **Tsarigrad / Constantinople Bible of 1871** (Slaveykov, Riggs, Long, et al.) — the first modern
   Bulgarian full-Bible translation. Public domain by age (>150 years). The *text* is PD; a specific
   *digital edition* may carry its own editorial copyright, so we'd need a clean PD-sourced digital copy
   (Bulgarian Wikisource, eBible.org, etc.). Archaic language; no words-of-Jesus markup.
-- The 1940 Protestant revision and 1925/1926 Orthodox Synodal Bible have **uncertain** copyright status
-  — treat as not-clear until verified.
+- The 1925/1926 Orthodox Synodal Bible also has **uncertain** copyright status — treat it as not-clear
+  until verified.
 
 ### Options to add Bulgarian later (in preference order)
 - **A. ББД Revised Edition 2015 via written permission (PREFERRED).** Owner requests permission/license
@@ -81,7 +102,9 @@ license agreement is in hand. Everything below is the supporting analysis and fa
 - **B. Public-domain 1871 Tsarigrad** — fallback if A is refused/unaffordable: source + verify a clean
   PD digital full-Bible text. No permission needed, but archaic language.
 - **C. Owner-provided file** — any Bulgarian text the owner holds rights to, with attestation.
+- **D. BG1940 with written permission** — viable only if Bibliata.com grants the specific storage,
+  display, search, and formatting rights described above.
 
-**Decision gate:** obtain ББД permission (A) — or fall back to B/C — and record the rights evidence
+**Decision gate:** obtain ББД permission (A) — or fall back to B/C/D — and record the rights evidence
 (and any delivery/storage constraints) before importing/publishing the Bulgarian Bible. Until then it
 stays out of the shipped app; v1 ships English-only regardless.
