@@ -360,6 +360,13 @@ def _normalize_target(value: str) -> str | None:
     if osis is None:
         return None
     verses = re.sub(r"\s+", "", match.group("verses"))
+    # A ":" here means a cross-chapter range (e.g. "1-2:3"); keep only the starting
+    # verse in this chapter so the target is always a well-formed osis.chapter.verse(-range).
+    if ":" in verses:
+        start = re.match(r"\d+", verses)
+        if not start:
+            return None
+        verses = start.group(0)
     return f"{osis}.{int(match.group('chapter'))}.{verses}"
 
 

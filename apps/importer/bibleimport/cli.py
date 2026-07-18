@@ -10,8 +10,18 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from .pipeline import BibleSpec, append_bible, append_study_content, build_bible
+
+# Canonical filenames under data/sources/ used by `build-all`.
+SOURCE_FILES = {
+    "web": "engwebp_usfx.zip",
+    "kjv": "KJV.imp.gz",
+    "mhc": "MHC.imp.gz",
+    "easton": "Easton.imp.gz",
+    "tsk": "crossreferences_kjv.tsv",
+}
 
 WEB_SPEC = BibleSpec(
     work_id="web",
@@ -92,6 +102,39 @@ def _cmd_add_kjv(args) -> int:
     return _report(diag)
 
 
+def _cmd_build_all(args) -> int:
+    """Build the complete content DB (WEB + KJV + study library) in one step.
+
+    This is the single source of truth for the build sequence — the Docker image and any
+    rebuild use it, so deploys always match the documented content set.
+    """
+    src = Path(args.sources_dir)
+    out = args.out
+    for name in SOURCE_FILES.values():
+        if not (src / name).exists():
+            print(f"missing source: {src / name}", file=sys.stderr)
+            return 1
+
+    print("==> WEB")
+    diag = build_bible(src / SOURCE_FILES["web"], WEB_SPEC, out, fmt="usfx")
+    if not diag.ok:
+        return _report(diag)
+    print("==> KJV")
+    diag = append_bible(src / SOURCE_FILES["kjv"], KJV_SPEC, out)
+    if not diag.ok:
+        return _report(diag)
+    print("==> study library (Matthew Henry, Easton's, TSK)")
+    stats = append_study_content(
+        out,
+        commentary_sources=[src / SOURCE_FILES["mhc"]],
+        dictionary_source=src / SOURCE_FILES["easton"],
+        xref_source=src / SOURCE_FILES["tsk"],
+    )
+    print(" ".join(f"{key}={value}" for key, value in stats.items()))
+    print("OK")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="bibleimport", description="Build content.sqlite from Bible sources.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -105,6 +148,13 @@ def main(argv: list[str] | None = None) -> int:
     k.add_argument("--source", required=True, help="KJV.imp.gz from official mod2imp")
     k.add_argument("--out", required=True, help="existing content.sqlite path")
     k.set_defaults(func=_cmd_add_kjv)
+
+    a = sub.add_parser(
+        "build-all", help="Build the full content DB (WEB + KJV + Matthew Henry + Easton's + TSK)."
+    )
+    a.add_argument("--sources-dir", default="data/sources", help="dir holding the source files")
+    a.add_argument("--out", required=True, help="output content.sqlite path")
+    a.set_defaults(func=_cmd_build_all)
 
     b = sub.add_parser("build", help="Import a Bible with explicit metadata.")
     b.add_argument("--format", default="usfx", choices=["usfx"])

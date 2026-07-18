@@ -14,7 +14,16 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 **World English Bible attribution (required):** "The World English Bible is in the Public Domain. That
 means that it is not copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
 
-Rebuild the database from these sources:
+These large binaries are stored via **Git LFS** (see the repo `.gitattributes`). After cloning, run
+`git lfs install` once and `git lfs pull` to fetch the real files; the Docker build checks out with LFS.
+
+Rebuild the whole database in one step (the Docker build uses exactly this):
+
+```
+bibleimport build-all --sources-dir data/sources --out data/content.sqlite
+```
+
+Or run the stages individually:
 
 ```
 bibleimport build-web --source data/sources/engwebp_usfx.zip --out data/content.sqlite

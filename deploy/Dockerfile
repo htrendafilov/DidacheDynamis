@@ -20,7 +20,7 @@ COPY apps/importer/ ./importer/
 COPY data/sources/ ./data/sources/
 RUN pip install --no-cache-dir ./importer \
  && mkdir -p /out \
- && bibleimport build-web --source data/sources/engwebp_usfx.zip --out /out/content.sqlite
+ && bibleimport build-all --sources-dir data/sources --out /out/content.sqlite
 
 # --- Stage 3: API runtime ---
 FROM python:3.13-slim AS runtime

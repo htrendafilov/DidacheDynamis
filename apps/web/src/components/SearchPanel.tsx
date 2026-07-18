@@ -1,10 +1,25 @@
-import { useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, type SearchHit } from "../data/api";
 import { useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
 import { useStore } from "../state/store";
+
+// The API's FTS snippet marks matches with <b>…</b> only. Render it without
+// dangerouslySetInnerHTML: split on those markers and let React escape the text,
+// so any stray markup in the source can never be interpreted as HTML.
+function Snippet({ html }: { html: string }) {
+  const parts = html.split(/(<b>|<\/b>)/);
+  let bold = false;
+  const nodes: ReactNode[] = [];
+  parts.forEach((part, i) => {
+    if (part === "<b>") bold = true;
+    else if (part === "</b>") bold = false;
+    else if (part) nodes.push(bold ? <b key={i}>{part}</b> : <Fragment key={i}>{part}</Fragment>);
+  });
+  return <>{nodes}</>;
+}
 
 export function SearchPanel({ onClose }: { onClose: () => void }) {
   const { t, i18n } = useTranslation();
@@ -62,10 +77,9 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
                 <span className="result-version">
                   {works?.find((work) => work.id === h.work_id)?.abbrev ?? h.work_id.toUpperCase()}
                 </span>{" "}
-                <span
-                  className="result-snippet"
-                  dangerouslySetInnerHTML={{ __html: h.snippet }}
-                />
+                <span className="result-snippet">
+                  <Snippet html={h.snippet} />
+                </span>
               </button>
             </li>
           ))}

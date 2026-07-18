@@ -25,29 +25,40 @@ def cross_references(
         "ORDER BY votes DESC,target_ref LIMIT ?",
         (osis, chapter, verse, limit),
     ).fetchall()
-    references: list[CrossReference] = []
+
+    # Parse targets once, then fetch all previews in a single query (avoids N+1).
+    parsed: list[tuple[str, str, int, int, int]] = []  # (target_ref, osis, chapter, verse, votes)
     for row in rows:
         match = _TARGET.match(row["target_ref"])
         if not match:
             continue
-        target_osis = match.group("osis")
-        target_chapter = int(match.group("chapter"))
-        target_verse = int(match.group("verse"))
-        preview_row = conn.execute(
-            "SELECT plain_text FROM verses WHERE work_id=? AND osis_code=? "
-            "AND chapter=? AND verse=?",
-            (preview_work, target_osis, target_chapter, target_verse),
-        ).fetchone()
-        references.append(
-            CrossReference(
-                target_ref=row["target_ref"],
-                target_osis=target_osis,
-                target_chapter=target_chapter,
-                target_verse=target_verse,
-                votes=row["votes"],
-                preview=preview_row["plain_text"] if preview_row else None,
-            )
+        parsed.append(
+            (row["target_ref"], match.group("osis"), int(match.group("chapter")),
+             int(match.group("verse")), row["votes"])
         )
+
+    previews: dict[str, str] = {}
+    keys = sorted({f"{p[1]}.{p[2]}.{p[3]}" for p in parsed})
+    if keys:
+        placeholders = ",".join("?" * len(keys))
+        query = (
+            "SELECT osis_code||'.'||chapter||'.'||verse AS k, plain_text FROM verses "
+            f"WHERE work_id=? AND osis_code||'.'||chapter||'.'||verse IN ({placeholders})"
+        )
+        for prow in conn.execute(query, (preview_work, *keys)).fetchall():
+            previews[prow["k"]] = prow["plain_text"]
+
+    references = [
+        CrossReference(
+            target_ref=target_ref,
+            target_osis=t_osis,
+            target_chapter=t_chapter,
+            target_verse=t_verse,
+            votes=votes,
+            preview=previews.get(f"{t_osis}.{t_chapter}.{t_verse}"),
+        )
+        for target_ref, t_osis, t_chapter, t_verse, votes in parsed
+    ]
     return CrossReferences(
         osis=osis,
         chapter=chapter,

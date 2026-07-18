@@ -3,14 +3,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Resolve ruff once, independent of which package blocks run below.
+if [ -x apps/importer/.venv/bin/ruff ]; then
+  RUFF=apps/importer/.venv/bin/ruff
+elif [ -x apps/api/.venv/bin/ruff ]; then
+  RUFF=apps/api/.venv/bin/ruff
+else
+  RUFF=ruff
+fi
+
 echo "==> importer: ruff + pytest"
 if [ -f apps/importer/pyproject.toml ]; then
   if [ -x apps/importer/.venv/bin/python ]; then
     IMPORTER_PY=apps/importer/.venv/bin/python
-    RUFF=apps/importer/.venv/bin/ruff
   else
     IMPORTER_PY=python3
-    RUFF=ruff
   fi
   "$RUFF" check apps/importer
   "$IMPORTER_PY" -m pytest apps/importer -q
