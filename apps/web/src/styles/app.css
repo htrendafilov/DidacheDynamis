@@ -247,6 +247,13 @@ input[type="search"] {
   font-size: 1.05rem;
   font-weight: 700;
 }
+.work-info-note {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--bg-alt);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 5px 5px 0;
+}
 .work-info-book-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -432,6 +439,14 @@ input[type="search"] {
   color: var(--accent);
   white-space: nowrap;
 }
+.result-version {
+  padding: 0.08rem 0.25rem;
+  color: var(--muted);
+  background: var(--bg-alt);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
 .result-snippet b {
   background: var(--mark);
 }
@@ -447,11 +462,54 @@ input[type="search"] {
   max-width: 48rem;
 }
 .study-document h4 {
-  margin: 1.2em 0 0.35em;
+  margin: 1.5em 0 0.45em;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1.05em;
+  line-height: 1.35;
+  color: var(--fg);
 }
 .study-document p {
   margin: 0 0 0.9em;
+}
+.study-quotation {
+  margin: 0.75rem 0 1.4rem;
+  padding: 0.85rem 1rem;
+  color: var(--muted);
+  background: var(--bg-alt);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 7px 7px 0;
+}
+.study-quotation p {
+  margin: 0;
+  font-size: 0.94em;
+  line-height: 1.6;
+}
+.study-quotation-label,
+.study-section-label {
+  display: block;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.study-quotation-label {
+  margin-bottom: 0.45rem;
+  color: var(--accent);
+}
+.study-section-label {
+  margin: 1.4rem 0 0.8rem;
+  padding-top: 0.8rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+.study-verse-number {
+  margin-right: 0.16em;
+  color: var(--accent);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.68em;
+  font-weight: 700;
+  vertical-align: super;
 }
 .commentary-entry + .commentary-entry {
   border-top: 1px solid var(--border);

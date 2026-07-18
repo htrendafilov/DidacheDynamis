@@ -37,11 +37,11 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 
 ## 4. Panes behavior
 
-- **Bible pane** — renders CIR (paragraphs / poetry / headings / verses). Verse numbers are
+- **Bible pane** — selects WEB or KJV and renders CIR (paragraphs / poetry / headings / verses). Verse numbers are
   interactive → **verse popover**: cross-references (`/xref`), a commentary snippet, "open in
   commentary pane", "add note here".
-- **Commentary pane** — Matthew Henry for the current ref; auto-follows the linked Bible pane when
-  sync is on.
+- **Commentary pane** — Matthew Henry for the current ref; its embedded KJV quotation is visually
+  separated from the commentary, while the pane follows any linked Bible by canonical reference.
 - **Dictionary pane** — prefix search box + headword list; entry view; internal links between entries.
 - **Notes pane** — editable notes in **IndexedDB (Dexie)**. Two modes: free notes and verse-attached
   notes (keyed by canonical ref). Because storage is local-only, the pane shows a first-use warning

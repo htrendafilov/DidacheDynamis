@@ -109,6 +109,126 @@ def _plain_document(text: str, *, skip_first_line: bool = False) -> tuple[dict, 
     return {"blocks": blocks}, "\n\n".join(paragraphs)
 
 
+def _append_document_run(
+    runs: list[dict],
+    text: str | None,
+    *,
+    emphasis: bool = False,
+    strong: bool = False,
+    superscript: bool = False,
+) -> None:
+    if not text:
+        return
+    flags = {
+        "emphasis": emphasis,
+        "strong": strong,
+        "superscript": superscript,
+    }
+    if runs and all(runs[-1].get(key, False) == value for key, value in flags.items()):
+        runs[-1]["t"] += text
+        return
+    run: dict[str, str | bool] = {"t": text}
+    run.update({key: value for key, value in flags.items() if value})
+    runs.append(run)
+
+
+def _collect_document_runs(
+    runs: list[dict],
+    element,
+    *,
+    emphasis: bool = False,
+    strong: bool = False,
+    superscript: bool = False,
+) -> None:
+    tag = element.tag.rsplit("}", 1)[-1]
+    hi_type = element.attrib.get("type", "") if tag == "hi" else ""
+    own_emphasis = emphasis or hi_type == "italic"
+    own_strong = strong or hi_type == "bold"
+    own_superscript = superscript or hi_type == "super"
+    _append_document_run(
+        runs,
+        element.text,
+        emphasis=own_emphasis,
+        strong=own_strong,
+        superscript=own_superscript,
+    )
+    for child in element:
+        _collect_document_runs(
+            runs,
+            child,
+            emphasis=own_emphasis,
+            strong=own_strong,
+            superscript=own_superscript,
+        )
+        _append_document_run(
+            runs,
+            child.tail,
+            emphasis=own_emphasis,
+            strong=own_strong,
+            superscript=own_superscript,
+        )
+
+
+def _finish_document_runs(runs: list[dict]) -> tuple[list[dict], str]:
+    if not runs:
+        return [], ""
+    runs[0]["t"] = runs[0]["t"].lstrip()
+    runs[-1]["t"] = runs[-1]["t"].rstrip()
+    runs = [run for run in runs if run["t"]]
+    text = norm_ws("".join(str(run["t"]) for run in runs)).strip()
+    return runs, text
+
+
+def _sword_osis_document(text: str) -> tuple[dict, str]:
+    """Convert raw OSIS markup from ``mod2imp`` to the study-document CIR."""
+    try:
+        root = DefusedET.fromstring(
+            f"<root>{text}</root>",
+            forbid_dtd=True,
+            forbid_entities=True,
+            forbid_external=True,
+        )
+    except Exception as exc:
+        raise ValueError("invalid OSIS fragment in SWORD commentary export") from exc
+
+    blocks: list[dict] = []
+    current: list[dict] | None = None
+
+    def flush() -> None:
+        nonlocal current
+        if current is None:
+            return
+        runs, plain = _finish_document_runs(current)
+        if plain:
+            kind = "quotation" if any(run.get("superscript") for run in runs) else "paragraph"
+            blocks.append({"kind": kind, "text": plain, "runs": runs})
+        current = None
+
+    for child in root:
+        tag = child.tag.rsplit("}", 1)[-1]
+        is_paragraph = tag == "div" and child.attrib.get("type") == "x-p"
+        if tag == "title":
+            flush()
+            title = _text(child)
+            if title:
+                blocks.append({"kind": "heading", "text": title})
+            continue
+        if is_paragraph and "sID" in child.attrib:
+            flush()
+            current = []
+            _append_document_run(current, child.tail)
+            continue
+        if is_paragraph and "eID" in child.attrib:
+            flush()
+            continue
+        if current is not None:
+            _collect_document_runs(current, child)
+            _append_document_run(current, child.tail)
+    flush()
+    plain = "\n\n".join(block["text"] for block in blocks)
+    return {"blocks": blocks}, plain
+
+
 def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
     """Load CCEL Matthew Henry ThML volumes into reference-bound entries."""
     rows: list[CommentaryRow] = []
@@ -142,7 +262,7 @@ def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
 
 
 def load_sword_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
-    """Load plain IMP produced by the official ``mod2imp MHC -s`` utility."""
+    """Load raw OSIS or legacy stripped IMP produced by official SWORD tools."""
     rows: list[CommentaryRow] = []
     for path in paths:
         for key, text in _imp_entries(path):
@@ -154,7 +274,11 @@ def load_sword_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
             verse = int(match.group("verse"))
             if osis is None or chapter < 1 or verse < 1 or not text:
                 continue
-            body, plain = _plain_document(text)
+            body, plain = (
+                _sword_osis_document(text)
+                if text.lstrip().startswith("<")
+                else _plain_document(text)
+            )
             if body["blocks"]:
                 rows.append(
                     CommentaryRow(

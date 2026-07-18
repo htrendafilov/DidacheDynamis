@@ -10,7 +10,7 @@ before shipping, and store that evidence with the work.
 | Work | Type | Language | License | Notes |
 |---|---|---|---|---|
 | World English Bible (WEB) | Bible | EN | Public domain | Red-letter (words-of-Jesus) capable. Primary EN text. |
-| KJV | Bible | EN | Public domain | Fallback EN if red-letter WEB is fiddly. |
+| KJV (CrossWire 3.1) | Bible | EN | CrossWire general public license; module distribution: GPL | Second selectable EN Bible; raw module/export and attribution are shipped. |
 | Matthew Henry's Complete Commentary | Commentary | EN | Public domain | CrossWire MHC 2.2 module; exported with official SWORD tools. |
 | Easton's Bible Dictionary | Dictionary | EN | Public domain | CrossWire Easton module; exported with official SWORD tools. |
 | Treasury of Scripture Knowledge-derived mapping | Cross-refs | — | CC BY 4.0 | CrossReferences.org KJV mapping; explicit attribution stored and shown. |
@@ -21,6 +21,12 @@ translations, so Bulgarian can be added later with no rework once its rights are
 Production does not republish CCEL's downloadable XML editions: CCEL's policy asks users to contact
 them before republishing CCEL works. CrossWire's MHC and Easton module pages explicitly mark their
 distributions **Public Domain—Copy Freely**, which is the recorded basis for the committed exports.
+
+CrossWire's KJV 3.1 page expressly grants a general public license to use its KJV2003 Project text
+for any purpose and lists the module distribution license as GPL. It also states that rights to the
+base text are held by the Crown of England, so the app does **not** label this edition public domain;
+it displays CrossWire's terms and source, and the repository includes the exact source export and
+conversion code.
 
 ## Bulgarian Bible — DEFERRED (rights not yet cleared)
 

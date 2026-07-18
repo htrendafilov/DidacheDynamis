@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { BibleVersionSelector } from "../components/BibleVersionSelector";
 import { PassageSelector } from "../components/PassageSelector";
 import { SourceSelector } from "../components/SourceSelector";
 import { WorkFooter } from "../components/WorkFooter";
@@ -13,6 +14,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const { t, i18n } = useTranslation();
   const settings = useStore((s) => s.settings);
   const changePaneType = useStore((s) => s.changePaneType);
+  const updatePane = useStore((s) => s.updatePane);
   const goToRef = useStore((s) => s.goToRef);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
 
@@ -48,6 +50,11 @@ export function BiblePane({ pane }: { pane: Pane }) {
     <div className="pane bible-pane">
       <div className="pane-header">
         <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
+        <BibleVersionSelector
+          works={works}
+          workId={pane.workId}
+          onChange={(workId) => updatePane(pane.id, { workId })}
+        />
         <PassageSelector
           workId={pane.workId}
           osis={pane.osis}

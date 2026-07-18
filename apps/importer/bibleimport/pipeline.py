@@ -10,9 +10,9 @@ from pathlib import Path
 
 from .books import BY_OSIS
 from .canonical import BookMeta, HeadingRow, VerseRow, WorkMeta
-from .formats import study, usfx
+from .formats import study, sword_bible, usfx
 from .schema import create_schema
-from .validation import Diagnostics, validate
+from .validation import Diagnostics, align_versification, validate
 
 
 @dataclass
@@ -301,3 +301,72 @@ def append_study_content(
         "dictionary_entries": len(dictionary),
         "xrefs": len(xrefs),
     }
+
+
+def append_bible(
+    source: str | Path,
+    spec: BibleSpec,
+    out_db: str | Path,
+    fmt: str = "sword-imp",
+) -> Diagnostics:
+    """Append another immutable Bible work to an existing content database."""
+    source = Path(source)
+    out_db = Path(out_db)
+    if not out_db.exists():
+        raise ValueError(f"content database does not exist: {out_db}")
+    if fmt != "sword-imp":
+        raise ValueError(f"unsupported append format: {fmt}")
+    books, verses, headings = sword_bible.load_sword_bible(source)
+    diag = validate(books, verses, headings)
+    if not diag.ok:
+        return diag
+    meta = WorkMeta(
+        id=spec.work_id,
+        type="bible",
+        language=spec.language,
+        title=spec.title,
+        abbrev=spec.abbrev,
+        direction=spec.direction,
+        versification=spec.versification,
+        license=spec.license,
+        attribution=spec.attribution,
+        source_url=spec.source_url,
+        source_version=spec.source_version,
+        checksum=_sha256(source),
+    )
+    conn = sqlite3.connect(out_db)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        base_work = conn.execute(
+            "SELECT id FROM works WHERE type='bible' ORDER BY id LIMIT 1"
+        ).fetchone()
+        if base_work:
+            base_keys = {
+                (row[0], row[1], row[2])
+                for row in conn.execute(
+                    "SELECT osis_code,chapter,verse FROM verses WHERE work_id=?",
+                    (base_work[0],),
+                )
+            }
+            other_keys = {(verse.osis, verse.chapter, verse.verse) for verse in verses}
+            alignment = align_versification(base_keys, other_keys)
+            for side, refs in alignment.items():
+                if refs:
+                    preview = ", ".join(
+                        f"{osis}.{chapter}.{verse}" for osis, chapter, verse in refs[:8]
+                    )
+                    diag.warnings.append(
+                        f"versification {side}: {len(refs)} refs ({preview})"
+                    )
+        conn.execute("BEGIN")
+        _write_work(conn, meta, books, verses, headings)
+        conn.commit()
+        conn.execute("PRAGMA optimize")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.execute("PRAGMA journal_mode=DELETE")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return diag

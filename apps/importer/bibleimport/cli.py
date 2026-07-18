@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .pipeline import BibleSpec, append_study_content, build_bible
+from .pipeline import BibleSpec, append_bible, append_study_content, build_bible
 
 WEB_SPEC = BibleSpec(
     work_id="web",
@@ -25,6 +25,23 @@ WEB_SPEC = BibleSpec(
         '"World English Bible" is a Trademark of eBible.org.'
     ),
     source_url="https://ebible.org/find/details.php?id=engwebp",
+)
+
+KJV_SPEC = BibleSpec(
+    work_id="kjv",
+    title="King James Version (1769)",
+    abbrev="KJV",
+    language="en",
+    versification="kjv",
+    license="CrossWire general public license; module distribution license: GPL",
+    attribution=(
+        "King James Version (1769), CrossWire KJV module 3.1. "
+        "CrossWire grants a general public license to use its KJV2003 Project text "
+        "for any purpose; module distribution license: GPL. "
+        "The rights to the base text are held by the Crown of England."
+    ),
+    source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV",
+    source_version="CrossWire KJV 3.1 (2023-07-19)",
 )
 
 
@@ -70,6 +87,11 @@ def _cmd_add_study(args) -> int:
     return 0
 
 
+def _cmd_add_kjv(args) -> int:
+    diag = append_bible(args.source, KJV_SPEC, args.out)
+    return _report(diag)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="bibleimport", description="Build content.sqlite from Bible sources.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -78,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--source", required=True, help="engwebp_usfx.zip or .xml")
     w.add_argument("--out", required=True, help="output content.sqlite path")
     w.set_defaults(func=_cmd_build_web)
+
+    k = sub.add_parser("add-kjv", help="Append CrossWire's KJV 3.1 raw SWORD export.")
+    k.add_argument("--source", required=True, help="KJV.imp.gz from official mod2imp")
+    k.add_argument("--out", required=True, help="existing content.sqlite path")
+    k.set_defaults(func=_cmd_add_kjv)
 
     b = sub.add_parser("build", help="Import a Bible with explicit metadata.")
     b.add_argument("--format", default="usfx", choices=["usfx"])

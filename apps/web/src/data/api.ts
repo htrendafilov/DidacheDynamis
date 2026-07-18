@@ -74,8 +74,16 @@ export interface Meta {
 }
 
 export interface DocumentBlock {
-  kind: "heading" | "paragraph";
+  kind: "heading" | "paragraph" | "quotation";
   text: string;
+  runs?: DocumentRun[];
+}
+
+export interface DocumentRun {
+  t: string;
+  emphasis?: boolean;
+  strong?: boolean;
+  superscript?: boolean;
 }
 
 export interface Document {

@@ -97,6 +97,9 @@ export function WorkFooter({ work, books }: WorkFooterProps) {
               {tab === "about" && (
                 <>
                   <h3>{t("workInfo.aboutTitle", { title: work.title })}</h3>
+                  {work.id === "mhc" && (
+                    <p className="work-info-note">{t("workInfo.mhcTranslation")}</p>
+                  )}
                   <dl className="work-info-facts">
                     <div>
                       <dt>{t("workInfo.abbreviation")}</dt>

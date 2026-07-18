@@ -14,7 +14,7 @@
 A responsive SPA. Desktop shows **1–3 resizable panes**; mobile collapses to a single pane with a
 source switcher. Each pane is bound to a **source**:
 
-- **Bible pane** — English (public-domain) with a book/chapter selector. (A second Bible — Bulgarian —
+- **Bible pane** — selectable WEB or KJV English text with a book/chapter selector. (A Bulgarian Bible —
   is a supported source type but deferred until rights are cleared; see §7.)
 - **Commentary pane** — follows a reference (book/chapter[/verse]).
 - **Dictionary pane** — headword lookup + list.
@@ -34,7 +34,7 @@ commentary / second-Bible pane to the same verse. A per-session toggle controls 
 | Requirement | Decision |
 |---|---|
 | 1/2/3 panes, any pane = bible/commentary/dictionary/notes | `react-resizable-panels`, source-bound panes |
-| 1 EN Bible, 1 BG Bible, 1 commentary | WEB (EN, PD) + Matthew Henry (PD). **BG deferred** — no rights-clear Bulgarian text yet (see [`content_and_licensing.md`](content_and_licensing.md)) |
+| EN Bibles, 1 BG Bible, 1 commentary | WEB + CrossWire KJV 3.1 + Matthew Henry. **BG deferred** — no rights-clear Bulgarian text yet (see [`content_and_licensing.md`](content_and_licensing.md)) |
 | + dictionary + cross-references (clarified in scope) | Easton's (PD) + Treasury of Scripture Knowledge (PD) |
 | verse-per-line vs continuous | render mode over one canonical representation |
 | words of Christ bold/red | `wordsOfJesus` node flag toggled by CSS class |
@@ -100,12 +100,12 @@ bible_app_bg/                    # git repo root (GitHub: htrendafilov/bible_app
 
 ## 7. Content set
 
-**v1 ships English-only** — all public domain. See [`content_and_licensing.md`](content_and_licensing.md)
+**v1 ships English-only.** See [`content_and_licensing.md`](content_and_licensing.md)
 for full rights analysis.
 
 | Slot | v1 source | License |
 |---|---|---|
-| English Bible | World English Bible (WEB), red-letter capable | Public domain |
+| English Bibles | WEB + CrossWire KJV 3.1, both red-letter capable | WEB: public domain; KJV: CrossWire general public license / GPL module |
 | Commentary | Matthew Henry's Complete Commentary (CCEL) | Public domain |
 | Dictionary | Easton's Bible Dictionary | Public domain |
 | Cross-references | Treasury of Scripture Knowledge (TSK) | Public domain |
@@ -119,8 +119,8 @@ system and canonical addressing already support a second translation, so Bulgari
 no rework once rights are cleared. Details + decision gate: [`content_and_licensing.md`](content_and_licensing.md).
 
 Every work records `title, abbrev, language, direction, versification, license, attribution,
-source_url, source_version, checksum`; attribution is shown in the UI. KJV is the fallback English if
-red-letter WEB proves fiddly.
+source_url, source_version, checksum`; attribution is shown in the UI. KJV is selectable alongside
+WEB and matches the wording embedded in the Matthew Henry edition.
 
 ## 8. Build order (milestones)
 
@@ -143,5 +143,5 @@ red-letter WEB proves fiddly.
 ## 9. v1 non-goals
 
 User accounts / server-side sync; audio; AI explanations; native apps; in-browser admin/import UI;
-end-user uploads; multiple EN or multiple BG translations at once; Postgres/Redis/queues; SWORD binary
+end-user uploads; multiple BG translations at once; Postgres/Redis/queues; SWORD binary
 parsing. These are future triggers, not v1 work.

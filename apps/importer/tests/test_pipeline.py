@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from bibleimport.pipeline import BibleSpec, build_bible
+from bibleimport.pipeline import BibleSpec, append_bible, build_bible
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_usfx.xml"
 
@@ -57,3 +57,28 @@ def test_build_is_deterministic(tmp_path):
     v1 = c1.execute("SELECT nodes_json FROM verses ORDER BY osis_code,chapter,verse").fetchall()
     v2 = c2.execute("SELECT nodes_json FROM verses ORDER BY osis_code,chapter,verse").fetchall()
     assert v1 == v2
+
+
+def test_append_bible_adds_a_second_read_only_work(tmp_path):
+    db = build(tmp_path)
+    kjv_spec = BibleSpec(
+        work_id="kjv",
+        title="King James Version",
+        abbrev="KJV",
+        language="en",
+        versification="kjv",
+        license="GPL",
+        attribution="CrossWire KJV test fixture",
+    )
+    diag = append_bible(
+        Path(__file__).parent / "fixtures" / "mini_kjv.imp",
+        kjv_spec,
+        db,
+    )
+    assert diag.ok
+    conn = sqlite3.connect(db)
+    assert conn.execute("SELECT count(*) FROM works WHERE type='bible'").fetchone()[0] == 2
+    text = conn.execute(
+        "SELECT plain_text FROM verses WHERE work_id='kjv' AND osis_code='John'"
+    ).fetchone()[0]
+    assert text == "For God so loved the world."

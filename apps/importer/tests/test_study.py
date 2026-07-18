@@ -50,6 +50,21 @@ def test_sword_imp_parsers_use_canonical_refs_and_display_headwords():
     assert len(dictionary[0].body["blocks"]) == 2
 
 
+def test_sword_raw_osis_preserves_commentary_structure_and_formatting():
+    row = load_sword_commentary([FIXTURES / "mini_commentary_raw.imp"])[0]
+    assert [block["kind"] for block in row.body["blocks"]] == [
+        "heading",
+        "quotation",
+        "paragraph",
+    ]
+    quotation = row.body["blocks"][1]
+    commentary = row.body["blocks"][2]
+    assert any(run.get("superscript") and run["t"] == "16" for run in quotation["runs"])
+    assert any(run.get("emphasis") and "only begotten" in run["t"] for run in quotation["runs"])
+    assert any(run.get("emphasis") and "divine love" in run["t"] for run in commentary["runs"])
+    assert "*" not in row.plain_text
+
+
 def test_entity_declarations_are_rejected(tmp_path):
     malicious = tmp_path / "entity.xml"
     malicious.write_text(

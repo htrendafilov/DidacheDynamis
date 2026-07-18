@@ -13,6 +13,7 @@ router = APIRouter(prefix=settings.API_V1, tags=["commentary"])
 @router.get(
     "/commentary/{work_id}/{osis}/{chapter}",
     response_model=CommentaryPassage,
+    response_model_exclude_defaults=True,
 )
 def commentary(
     work_id: str,

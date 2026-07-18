@@ -31,8 +31,10 @@ bibleimport build --format usfx --work-id web --title "World English Bible" --ab
 pytest -q
 ```
 
-The M3 study adapter imports official SWORD `mod2imp -s` exports for Matthew Henry and Easton's, CCEL
-ThML, and TSK-derived TSV cross-references. The production sources and provenance are documented in
+The study adapter imports a raw-OSIS SWORD `mod2imp` export for Matthew Henry (preserving headings,
+paragraphs, quotations, verse numbers, and emphasis), a stripped Easton's export, CCEL ThML, and
+TSK-derived TSV cross-references. The Bible adapters import WEB USFX and CrossWire KJV raw-OSIS IMP.
+The production sources and provenance are documented in
 [`../../data/sources/README.md`](../../data/sources/README.md). The Bulgarian source remains deferred
 until rights clear (M6). Adding a format = a new file in `formats/` + fixtures; no change to the
 passage API or reader.

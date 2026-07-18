@@ -78,9 +78,17 @@ class Meta(BaseModel):
     works: int
 
 
+class DocumentRun(BaseModel):
+    t: str
+    emphasis: bool = False
+    strong: bool = False
+    superscript: bool = False
+
+
 class DocumentBlock(BaseModel):
-    kind: str  # 'heading' | 'paragraph'
+    kind: str  # 'heading' | 'paragraph' | 'quotation'
     text: str
+    runs: list[DocumentRun] | None = None
 
 
 class Document(BaseModel):

@@ -1,1 +1,1 @@
-"""Format adapters (M1: usfx)."""
+"""Format adapters for Bible and study-content sources."""
