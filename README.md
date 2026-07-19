@@ -46,7 +46,10 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
 - **M3** — WEB + selectable KJV, formatted Matthew Henry commentary, Easton's dictionary panes, and
   TSK-derived cross-references
   with WEB verse previews. ✅
-- **M4** — local personal notes + search refinements. ⏳ next.
+- **M4** — local personal notes: rich-text editor (bold/headings/lists/links + inline images),
+  topical notes and passage-anchored notes tied to book+chapter, PDF export (browser print) and
+  JSON backup/restore. All in-browser (IndexedDB), no account. ✅
+- **M5** — hardening (Cloudflare CDN, Playwright smoke, a11y/mobile, uptime, backup rehearsal). ⏳ next.
 
 ## Run it locally
 

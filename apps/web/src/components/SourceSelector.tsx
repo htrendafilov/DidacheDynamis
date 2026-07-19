@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { PaneSourceType } from "../state/store";
 
 const TYPES: PaneSourceType[] = ["bible", "commentary", "dictionary", "notes"];
-const ENABLED: PaneSourceType[] = ["bible", "commentary", "dictionary"];
+const ENABLED: PaneSourceType[] = ["bible", "commentary", "dictionary", "notes"];
 
 export function SourceSelector({
   type,

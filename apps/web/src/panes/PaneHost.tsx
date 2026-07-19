@@ -1,28 +1,10 @@
 import { useTranslation } from "react-i18next";
 
-import { SourceSelector } from "../components/SourceSelector";
 import { useStore, type Pane } from "../state/store";
 import { BiblePane } from "./BiblePane";
 import { CommentaryPane } from "./CommentaryPane";
 import { DictionaryPane } from "./DictionaryPane";
-
-// Placeholder for source types arriving in later milestones (commentary/dictionary M3, notes M4).
-function PlaceholderPane({ pane }: { pane: Pane }) {
-  const { t } = useTranslation();
-  const changePaneType = useStore((s) => s.changePaneType);
-  return (
-    <div className="pane placeholder-pane">
-      <div className="pane-header">
-        <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
-      </div>
-      <div className="pane-body">
-        <p className="muted">
-          {pane.type === "notes" ? t("notes.comingSoon") : t("source.soon")}
-        </p>
-      </div>
-    </div>
-  );
-}
+import { NotesPane } from "./NotesPane";
 
 export function PaneHost({ pane }: { pane: Pane }) {
   const removePane = useStore((s) => s.removePane);
@@ -47,7 +29,7 @@ export function PaneHost({ pane }: { pane: Pane }) {
       ) : pane.type === "dictionary" ? (
         <DictionaryPane pane={pane} />
       ) : (
-        <PlaceholderPane pane={pane} />
+        <NotesPane pane={pane} />
       )}
     </section>
   );
