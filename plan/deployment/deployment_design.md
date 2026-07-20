@@ -66,6 +66,12 @@ injects it as a Docker build argument; GHCR builds read repository secret `DROPB
 app key is stored as a secret at the owner's request. The Dropbox app secret is never used. See the
 setup steps in the repository README.
 
+When M5 adds a Content Security Policy, its `connect-src` directive must include `'self'`,
+`https://api.dropboxapi.com`, and `https://content.dropboxapi.com`; otherwise Dropbox OAuth token
+exchange and notes upload/download will fail. The access token is deliberately short-lived, scoped
+to the app folder, and held only in `sessionStorage`, but—as with any browser-held token—it remains
+readable by JavaScript running in the same origin, so a strict CSP is part of the XSS defense.
+
 The VM only ever **pulls** images from GHCR — the pipeline pushes, the box pulls. No source, secrets,
 or build toolchain live on the VM.
 

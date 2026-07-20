@@ -1,10 +1,15 @@
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useStore, type Pane } from "../state/store";
 import { BiblePane } from "./BiblePane";
 import { CommentaryPane } from "./CommentaryPane";
 import { DictionaryPane } from "./DictionaryPane";
-import { NotesPane } from "./NotesPane";
+
+const NotesPane = lazy(async () => {
+  const module = await import("./NotesPane");
+  return { default: module.NotesPane };
+});
 
 export function PaneHost({ pane }: { pane: Pane }) {
   const removePane = useStore((s) => s.removePane);
@@ -29,7 +34,15 @@ export function PaneHost({ pane }: { pane: Pane }) {
       ) : pane.type === "dictionary" ? (
         <DictionaryPane pane={pane} />
       ) : (
-        <NotesPane pane={pane} />
+        <Suspense
+          fallback={
+            <div className="pane notes-pane pane-loading" role="status">
+              {t("notes.loading")}
+            </div>
+          }
+        >
+          <NotesPane pane={pane} />
+        </Suspense>
       )}
     </section>
   );

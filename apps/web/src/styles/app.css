@@ -644,6 +644,11 @@ input[type="search"] {
 }
 
 /* Notes pane */
+.pane-loading {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
 .notes-header {
   gap: 0.5rem;
 }

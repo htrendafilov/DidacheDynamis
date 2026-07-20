@@ -65,6 +65,7 @@
   "workInfo.chapters_one": "{{count}} глава",
   "workInfo.chapters_other": "{{count}} глави",
   "notes.localOnly": "Бележките се съхраняват само в този браузър. Правете резервни копия редовно.",
+  "notes.loading": "Зареждане на бележките…",
   "notes.topics": "Теми",
   "notes.passages": "Пасажи",
   "notes.newTopic": "Нова тема",

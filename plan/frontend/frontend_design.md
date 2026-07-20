@@ -49,7 +49,9 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
   navigation/export paths flush pending changes first. Deletion is recoverable and retained as a
   tombstone for future synchronization. Inline images are restricted to bounded local raster data;
   remote images are removed for privacy. Strict **Export / Import JSON** validation preserves
-  divergent records as conflict copies rather than silently overwriting them.
+  divergent records as conflict copies rather than silently overwriting them. The complete notes
+  pane is lazy-loaded, keeping TipTap and its extensions out of the initial reader bundle unless a
+  saved layout or a user action opens Notes.
 - **Dropbox sync (optional)** — the browser uses OAuth code flow with PKCE and short-lived tokens;
   only `files.content.read` / `files.content.write` are requested against an **App Folder** app. A
   revision-guarded `/notes-v1.json` stores notes including deletion tombstones. Three-way merge bases

@@ -65,6 +65,7 @@
   "workInfo.chapters_one": "{{count}} chapter",
   "workInfo.chapters_other": "{{count}} chapters",
   "notes.localOnly": "Notes are stored only in this browser. Back them up regularly.",
+  "notes.loading": "Loading notes…",
   "notes.topics": "Topics",
   "notes.passages": "Passages",
   "notes.newTopic": "New topic",
