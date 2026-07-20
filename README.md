@@ -83,7 +83,7 @@ and reads/writes only `/notes-v1.json` inside the app's private App Folder.
    `http://localhost:5173/`).
 3. Put the public app key in `apps/web/.env.local` as `VITE_DROPBOX_APP_KEY=...` for local builds.
    For Render, set the same environment variable and choose **Save, rebuild, and deploy**. For the
-   GHCR workflow, create the repository variable `DROPBOX_APP_KEY`.
+   GHCR workflow, create the repository secret `DROPBOX_APP_KEY`. The app secret is not used.
 
 No Dropbox app secret belongs in this repository or in the browser build. Dropbox recommends OAuth
 code flow with PKCE and short-lived tokens (without refresh tokens) for pure JavaScript apps, so a

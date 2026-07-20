@@ -62,8 +62,9 @@ Vitest + `vite build`. Required check before merge to `main`.
 4. **Rollback** = re-run the deploy with the previous SHA tag (or revert the commit).
 
 The optional Dropbox notes feature needs the public `VITE_DROPBOX_APP_KEY` at SPA build time. Render
-injects it as a Docker build argument; GHCR builds read repository variable `DROPBOX_APP_KEY`. The
-Dropbox app secret is never used. See the setup steps in the repository README.
+injects it as a Docker build argument; GHCR builds read repository secret `DROPBOX_APP_KEY`. The
+app key is stored as a secret at the owner's request. The Dropbox app secret is never used. See the
+setup steps in the repository README.
 
 The VM only ever **pulls** images from GHCR — the pipeline pushes, the box pulls. No source, secrets,
 or build toolchain live on the VM.
