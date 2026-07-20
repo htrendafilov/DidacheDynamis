@@ -8,12 +8,22 @@ import { TopBar } from "./components/TopBar";
 import i18n from "./i18n";
 import { PaneHost } from "./panes/PaneHost";
 import { useStore } from "./state/store";
+import { installDropboxAutoSync, useDropboxSync } from "./sync/dropboxState";
 
 export default function App() {
   const panes = useStore((s) => s.panes);
   const settings = useStore((s) => s.settings);
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const initializeDropbox = useDropboxSync((state) => state.initialize);
+
+  useEffect(() => {
+    if (new URL(window.location.href).searchParams.get("state")?.startsWith("dbx-")) {
+      setShowSettings(true);
+    }
+    void initializeDropbox();
+    return installDropboxAutoSync();
+  }, [initializeDropbox]);
 
   useEffect(() => {
     void i18n.changeLanguage(settings.uiLang);

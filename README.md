@@ -6,7 +6,8 @@ Bilingual, multi-pane Bible reading web app served at **bible.trendafilovi.net**
 - English (public-domain) Bible, a commentary, a dictionary, and cross-references. A Bulgarian Bible is
   deferred until rights are cleared (see [`plan/content_and_licensing.md`](plan/content_and_licensing.md)).
 - Verse-per-line or continuous layout; words of Christ off / bold / red.
-- Bilingual interface (EN/BG). Local (browser-side) personal notes. Full-text search.
+- Bilingual interface (EN/BG). Browser-side personal notes with optional Dropbox App Folder sync.
+  Full-text search.
 
 ## Design docs
 
@@ -49,7 +50,7 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
 - **M4** — local personal notes: rich-text editor (bold/headings/lists/links + inline images),
   topical notes and passage/verse-anchored notes, recoverable deletion, guarded image storage,
   PDF export (browser print), and validated JSON backup/restore with conflict copies. All
-  in-browser (IndexedDB), no account. ✅
+  in-browser (IndexedDB), with optional Dropbox App Folder sync and explicit conflict copies. ✅
 - **M5** — hardening (Cloudflare CDN, Playwright smoke, a11y/mobile, uptime, backup rehearsal). ⏳ next.
 
 ## Run it locally
@@ -69,3 +70,21 @@ cd apps/web && npm install && npm run dev
 ```
 
 See the milestone list in `plan/00_system_design.md`.
+
+## Dropbox notes sync setup
+
+The reader never sends notes or Dropbox tokens to its API. The browser uses Dropbox OAuth with PKCE
+and reads/writes only `/notes-v1.json` inside the app's private App Folder.
+
+1. In the [Dropbox App Console](https://www.dropbox.com/developers/apps), create a **Scoped access**
+   app with **App Folder** access. Do not select Full Dropbox.
+2. Enable only `files.content.read` and `files.content.write`, disable implicit grant, and register
+   the exact redirect URIs (for example `https://bible.trendafilovi.net/` and
+   `http://localhost:5173/`).
+3. Put the public app key in `apps/web/.env.local` as `VITE_DROPBOX_APP_KEY=...` for local builds.
+   For Render, set the same environment variable and choose **Save, rebuild, and deploy**. For the
+   GHCR workflow, create the repository variable `DROPBOX_APP_KEY`.
+
+No Dropbox app secret belongs in this repository or in the browser build. Dropbox recommends OAuth
+code flow with PKCE and short-lived tokens (without refresh tokens) for pure JavaScript apps, so a
+browser session occasionally needs to reconnect.

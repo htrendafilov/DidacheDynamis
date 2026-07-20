@@ -41,21 +41,22 @@ commentary / second-Bible pane to the same verse. A per-session toggle controls 
 | served at bible.trendafilovi.net behind Cloudflare | Caddy vhost → container; Cloudflare orange-cloud |
 | EN/BG interface | `react-i18next`; book names localized per work |
 | cheap + good uptime | **Render Free** for easy GitHub-native deploy (recommended launch), or self-host on the idle VM; Cloudflare caching in front. Same Docker image either way — see [`deployment/deployment_design.md`](deployment/deployment_design.md) §0 |
-| editable notes | client-side only (IndexedDB), no accounts in v1 |
+| editable notes | client-side IndexedDB; optional direct Dropbox App Folder sync, no app accounts |
 | full-text search | SQLite FTS5 |
 
 ## 3. Key architectural decision: stateless read-only server
 
-Notes are **client-side only** and content is imported **rarely by the owner**. So the production
-server owns **no mutable state** — it serves a **read-only SQLite database** built offline by a CLI
-importer. Consequences:
+Notes are owned by the browser (IndexedDB), with optional direct browser-to-Dropbox App Folder sync,
+and content is imported **rarely by the owner**. So the production server owns **no mutable state** —
+it serves a **read-only SQLite database** built offline by a CLI importer. Consequences:
 
 1. Trivially handles **≥100 concurrent** readers (SQLite WAL read path + Cloudflare caching).
 2. "Switch hosts" = copy one `.sqlite` file + repoint DNS — no data migration.
-3. **No admin UI, no OAuth, no server sessions** in v1 (removed vs. the old plan doc).
+3. **No admin UI, app accounts, or server sessions** in v1. Dropbox PKCE OAuth runs entirely in the
+   browser and its token never reaches the production server.
 
-The future trigger to revisit this is **cloud-synced notes / accounts**, which is where a writable DB
-(Postgres) + managed host would be introduced.
+The future trigger to revisit this is **first-party accounts / server-owned note sharing**, which is
+where a writable DB (Postgres) + managed host would be introduced.
 
 ## 4. Canonical addressing (why EN and BG align)
 
@@ -71,7 +72,7 @@ versification and emits a diff report for owner review.
 ## 5. Runtime
 
 ```
-Browser (SPA + local notes in IndexedDB)
+Browser (SPA + notes in IndexedDB; optional direct Dropbox App Folder sync)
    │  HTTPS
 Cloudflare (CDN + cache: static assets + immutable GET /api responses)
    │

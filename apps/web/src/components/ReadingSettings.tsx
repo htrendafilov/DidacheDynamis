@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { useStore, type UiLang, type VerseLayout, type WordsOfChrist, type Theme } from "../state/store";
+import { DropboxSyncSettings } from "./DropboxSyncSettings";
 
 function Segmented<T extends string>({
   label,
@@ -98,6 +99,7 @@ export function ReadingSettings() {
         />
         {t("settings.sync")}
       </label>
+      <DropboxSyncSettings />
     </div>
   );
 }

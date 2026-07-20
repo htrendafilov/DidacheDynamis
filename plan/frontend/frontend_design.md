@@ -50,6 +50,12 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
   tombstone for future synchronization. Inline images are restricted to bounded local raster data;
   remote images are removed for privacy. Strict **Export / Import JSON** validation preserves
   divergent records as conflict copies rather than silently overwriting them.
+- **Dropbox sync (optional)** — the browser uses OAuth code flow with PKCE and short-lived tokens;
+  only `files.content.read` / `files.content.write` are requested against an **App Folder** app. A
+  revision-guarded `/notes-v1.json` stores notes including deletion tombstones. Three-way merge bases
+  distinguish one-sided changes from true conflicts; if both browsers changed a note, the local note
+  stays in place and the remote version becomes a clearly titled topic note for manual resolution.
+  The Dropbox token lives only in `sessionStorage` and never reaches the Bible Reader API.
 - **Search** — modal or dedicated pane; scope chips (which works, which language); results show
   snippet + ref; clicking opens the result in a chosen pane and highlights the verse.
 

@@ -24,6 +24,7 @@ import { NoteImageError } from "../notes/images";
 import { printNotesToPdf } from "../notes/print";
 import { NoteSaveQueue, type SaveStatus } from "../notes/saveQueue";
 import { useStore, type Pane } from "../state/store";
+import { useDropboxSync } from "../sync/dropboxState";
 
 const EMPTY_NOTES: Note[] = [];
 
@@ -46,6 +47,7 @@ export function NotesPane({ pane }: { pane: Pane }) {
   const changePaneType = useStore((state) => state.changePaneType);
   const noteTargetId = useStore((state) => state.noteTargetId);
   const clearNoteTarget = useStore((state) => state.clearNoteTarget);
+  const dropboxConnected = useDropboxSync((state) => state.connected);
 
   const queriedNotes = useLiveQuery(
     async () => (await db.notes.orderBy("updatedAt").reverse().toArray()).filter((n) => !n.deletedAt),
@@ -366,7 +368,7 @@ export function NotesPane({ pane }: { pane: Pane }) {
 
       <div className="pane-footer notes-footer">
         <div>
-          <span>{t("notes.localOnly")}</span>{" "}
+          <span>{t(dropboxConnected ? "notes.localAndDropbox" : "notes.localOnly")}</span>{" "}
           <span className={saveStatus === "error" ? "save-status error" : "save-status"} title={saveError ? String(saveError) : undefined}>
             {statusText}
           </span>

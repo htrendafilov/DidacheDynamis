@@ -16,6 +16,10 @@ services:
     envVars:
       - key: CACHE_MAX_AGE
         value: "86400"
+      # Public OAuth app identifier, injected into the Vite build via Docker ARG.
+      # Existing services must set this manually in the Render dashboard.
+      - key: VITE_DROPBOX_APP_KEY
+        sync: false
     # Custom domain bible.trendafilovi.net is added in the Render dashboard;
     # Cloudflare stays in front (proxied) with SSL mode Full. Add a keep-warm
     # ping (UptimeRobot ~10 min) to avoid 15-min spin-down cold starts.

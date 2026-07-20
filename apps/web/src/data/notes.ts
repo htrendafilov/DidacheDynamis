@@ -21,8 +21,22 @@ export interface Note {
   conflictOf?: string;
 }
 
+export interface NoteSyncBase {
+  id: string;
+  fingerprint: string;
+}
+
+export interface NoteSyncMeta {
+  id: "dropbox";
+  accountId: string;
+  remoteRev?: string;
+  lastSyncAt?: number;
+}
+
 class NotesDB extends Dexie {
   notes!: Table<Note, string>;
+  syncBases!: Table<NoteSyncBase, string>;
+  syncMeta!: Table<NoteSyncMeta, string>;
 
   constructor() {
     super("bible-notes");
@@ -32,6 +46,11 @@ class NotesDB extends Dexie {
     this.version(2).stores({
       notes: "id, kind, updatedAt, deletedAt, [osis+chapter], [osis+chapter+verseStart]",
     });
+    this.version(3).stores({
+      notes: "id, kind, updatedAt, deletedAt, [osis+chapter], [osis+chapter+verseStart]",
+      syncBases: "id",
+      syncMeta: "id",
+    });
   }
 }
 
@@ -39,7 +58,11 @@ export const db = new NotesDB();
 
 export const MAX_NOTE_TITLE_LENGTH = 500;
 export const MAX_NOTE_HTML_LENGTH = 12_000_000;
+export const NOTES_CHANGED_EVENT = "bible-notes-changed";
 const now = () => Date.now();
+const notifyNotesChanged = () => {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
+};
 export const newNoteId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -56,6 +79,7 @@ export async function createTopic(title: string): Promise<string> {
     createdAt: timestamp,
     updatedAt: timestamp,
   });
+  notifyNotesChanged();
   return id;
 }
 
@@ -91,6 +115,7 @@ export async function ensurePassageNote(
     createdAt: timestamp,
     updatedAt: timestamp,
   });
+  notifyNotesChanged();
   return id;
 }
 
@@ -111,6 +136,7 @@ export async function updateNote(
   };
   const changed = await db.notes.update(id, safePatch);
   if (!changed) throw new Error("Note no longer exists");
+  notifyNotesChanged();
 }
 
 /** Soft-delete so another browser can receive the deletion during synchronization. */
@@ -118,11 +144,13 @@ export async function deleteNote(id: string): Promise<void> {
   const timestamp = now();
   const changed = await db.notes.update(id, { deletedAt: timestamp, updatedAt: timestamp });
   if (!changed) throw new Error("Note no longer exists");
+  notifyNotesChanged();
 }
 
 export async function restoreDeletedNote(id: string): Promise<void> {
   const changed = await db.notes.update(id, { deletedAt: undefined, updatedAt: now() });
   if (!changed) throw new Error("Note no longer exists");
+  notifyNotesChanged();
 }
 
 export async function getNote(id: string): Promise<Note | undefined> {
@@ -181,7 +209,7 @@ function optionalInteger(value: unknown, max: number): number | undefined {
   return Number(value);
 }
 
-function parseImportedNote(value: unknown): Note {
+export function parseNoteRecord(value: unknown): Note {
   if (!value || typeof value !== "object") throw new Error("Invalid note record");
   const raw = value as Record<string, unknown>;
   if (
@@ -252,6 +280,7 @@ export function noteContentSignature(note: Note): string {
     verseStart: note.verseStart,
     verseEnd: note.verseEnd,
     deletedAt: note.deletedAt,
+    conflictOf: note.conflictOf,
   });
 }
 
@@ -268,6 +297,16 @@ function importedConflictCopy(note: Note): Note {
   };
 }
 
+export function validateNoteRecords(values: unknown[]): Note[] {
+  const incoming = values.map(parseNoteRecord);
+  const ids = new Set<string>();
+  for (const note of incoming) {
+    if (ids.has(note.id)) throw new Error("Duplicate note id in import");
+    ids.add(note.id);
+  }
+  return incoming;
+}
+
 /** Validate every record, then merge atomically without overwriting divergent local content. */
 export async function importNotes(data: unknown): Promise<ImportResult> {
   if (
@@ -280,14 +319,9 @@ export async function importNotes(data: unknown): Promise<ImportResult> {
   ) {
     throw new Error("Not a valid notes export file");
   }
-  const incoming = (data as NotesExport).notes.map(parseImportedNote);
-  const ids = new Set<string>();
-  for (const note of incoming) {
-    if (ids.has(note.id)) throw new Error("Duplicate note id in import");
-    ids.add(note.id);
-  }
+  const incoming = validateNoteRecords((data as NotesExport).notes);
 
-  return db.transaction("rw", db.notes, async () => {
+  const result = await db.transaction("rw", db.notes, async () => {
     let imported = 0;
     let unchanged = 0;
     let conflicts = 0;
@@ -319,4 +353,6 @@ export async function importNotes(data: unknown): Promise<ImportResult> {
     }
     return { imported, unchanged, conflicts };
   });
+  if (result.imported || result.conflicts) notifyNotesChanged();
+  return result;
 }

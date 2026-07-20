@@ -408,6 +408,44 @@ input[type="search"] {
   background: var(--accent);
   color: #fff;
 }
+.dropbox-settings {
+  flex: 1 0 100%;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+}
+.dropbox-settings h3,
+.dropbox-settings p {
+  margin: 0 0 0.45rem;
+}
+.dropbox-settings h3 {
+  font-size: 0.95rem;
+}
+.dropbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.sync-message {
+  font-size: 0.85rem;
+}
+.sync-message.warning {
+  color: #9a5a00;
+  font-weight: 600;
+}
+.sync-message.error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.conflict-notice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.sync-privacy {
+  max-width: 70rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
 
 /* Search */
 .search-form {

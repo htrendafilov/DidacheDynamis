@@ -8,6 +8,8 @@
 # --- Stage 1: build the web SPA ---
 FROM node:22-slim AS web
 WORKDIR /web
+ARG VITE_DROPBOX_APP_KEY=""
+ENV VITE_DROPBOX_APP_KEY=${VITE_DROPBOX_APP_KEY}
 COPY apps/web/package*.json ./
 RUN npm ci
 COPY apps/web/ ./
