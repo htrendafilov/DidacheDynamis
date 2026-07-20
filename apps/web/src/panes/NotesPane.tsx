@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useLiveQuery } from "dexie-react-hooks";
 
-import { RichTextEditor } from "../components/RichTextEditor";
 import { SourceSelector } from "../components/SourceSelector";
 import {
   createTopic,
@@ -25,6 +24,12 @@ import { printNotesToPdf } from "../notes/print";
 import { NoteSaveQueue, type SaveStatus } from "../notes/saveQueue";
 import { useStore, type Pane } from "../state/store";
 import { useDropboxSync } from "../sync/dropboxState";
+
+// The rich-text editor pulls in TipTap; load it only when a note is actually opened
+// so it stays out of the initial bundle for readers who never use notes.
+const RichTextEditor = lazy(() =>
+  import("../components/RichTextEditor").then((module) => ({ default: module.RichTextEditor })),
+);
 
 const EMPTY_NOTES: Note[] = [];
 
@@ -353,13 +358,15 @@ export function NotesPane({ pane }: { pane: Pane }) {
                 <button type="button" className="danger" onClick={() => void removeActive()}>{t("notes.delete")}</button>
               </div>
             </div>
-            <RichTextEditor
-              noteId={active.id}
-              initialHtml={saveQueue.currentHtml(active.id, active.contentHtml)}
-              onChange={onContentChange}
-              onCommit={() => void saveQueue.flush(active.id)}
-              onError={imageError}
-            />
+            <Suspense fallback={<p className="muted note-empty">{t("reader.loading")}</p>}>
+              <RichTextEditor
+                noteId={active.id}
+                initialHtml={saveQueue.currentHtml(active.id, active.contentHtml)}
+                onChange={onContentChange}
+                onCommit={() => void saveQueue.flush(active.id)}
+                onError={imageError}
+              />
+            </Suspense>
           </div>
         ) : (
           <p className="muted note-empty">{t("notes.selectOrCreate")}</p>
