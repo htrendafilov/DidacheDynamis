@@ -78,7 +78,7 @@
   "notes.exportAllPdf": "Експорт на всички (PDF)",
   "notes.backup": "Резервно копие (JSON)",
   "notes.restore": "Възстанови…",
-  "notes.restored": "Възстановени {{count}} бележки.",
+  "notes.restored": "Импортирани: {{imported}}; без промяна: {{unchanged}}; запазени конфликтни копия: {{conflicts}}.",
   "notes.restoreFailed": "Файлът с бележки не можа да се прочете.",
   "notes.delete": "Изтрий",
   "notes.editor": "Текст на бележката",
@@ -95,5 +95,17 @@
   "notes.link": "Добави връзка",
   "notes.linkPrompt": "URL адрес на връзката",
   "notes.image": "Вмъкни изображение",
-  "notes.undo": "Отмени"
+  "notes.undo": "Отмени",
+  "notes.addForVerse": "Добави бележка към този стих",
+  "notes.deleteConfirm": "Да се изтрие ли тази бележка? Можете да отмените действието, докато панелът с бележки е отворен.",
+  "notes.undoDelete": "Отмени изтриването",
+  "notes.saving": "Запазване…",
+  "notes.saved": "Запазено",
+  "notes.saveFailed": "Бележката не можа да се запази. Проверете свободното място в браузъра и опитайте отново.",
+  "notes.storageUsed": "използвани {{size}} MB",
+  "notes.imageError.type": "Могат да се вмъкват само PNG, JPEG, GIF и WebP изображения.",
+  "notes.imageError.size": "Изображението е твърде голямо. Изберете файл под 12 MB; съхраненото изображение е ограничено до 3 MB.",
+  "notes.imageError.decode": "Изображението не можа да се прочете.",
+  "notes.imageError.encode": "Изображението не можа да се преоразмери за бележката.",
+  "notes.imageError.unknown": "Изображението не можа да се вмъкне."
 }

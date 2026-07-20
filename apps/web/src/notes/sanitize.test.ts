@@ -25,4 +25,10 @@ describe("sanitizeHtml", () => {
     expect(sanitizeHtml('<img src="javascript:alert(1)">')).not.toContain("javascript:");
     expect(sanitizeHtml('<img src="data:image/svg+xml;base64,PHN2Zz4=">')).not.toContain("svg+xml");
   });
+
+  it("drops remote images to avoid loading third-party trackers", () => {
+    expect(sanitizeHtml('<p>safe</p><img src="https://tracker.example/pixel.png">')).toBe(
+      "<p>safe</p>",
+    );
+  });
 });

@@ -14,14 +14,16 @@ const CONFIG = {
   ALLOWED_ATTR: ["href", "title", "target", "rel", "src", "alt", "width", "height"],
 };
 
-// Restrict image sources to http(s) or inline raster data-URLs. DOMPurify allows data: on
-// <img> for any subtype by default, so we explicitly drop data:image/svg+xml (can carry script)
-// and anything else (javascript:, etc.).
-const SAFE_IMG_SRC = /^(?:https?:\/\/|data:image\/(?:png|jpe?g|gif|webp);base64,)/i;
+// Notes are private and local. Remote images would contact a third party whenever a note is
+// opened or printed, so only bounded inline raster formats are retained.
+const SAFE_IMG_SRC = /^data:image\/(?:png|jpe?g|gif|webp);base64,/i;
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if (node.nodeName === "IMG") {
     const src = node.getAttribute("src");
-    if (src && !SAFE_IMG_SRC.test(src)) node.removeAttribute("src");
+    if (!src || !SAFE_IMG_SRC.test(src)) node.remove();
+  }
+  if (node.nodeName === "A" && node.getAttribute("target") === "_blank") {
+    node.setAttribute("rel", "noopener noreferrer");
   }
 });
 

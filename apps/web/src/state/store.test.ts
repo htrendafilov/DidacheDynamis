@@ -70,4 +70,10 @@ describe("store", () => {
     useStore.getState().goToRef("Ps", 23, "a");
     expect(useStore.getState().panes[1]).toMatchObject({ osis: "Ps", chapter: 23 });
   });
+
+  it("opens a requested verse note in a notes pane", () => {
+    useStore.getState().requestOpenNote("note-1", "John", 3);
+    expect(useStore.getState().noteTargetId).toBe("note-1");
+    expect(useStore.getState().panes.some((pane) => pane.type === "notes")).toBe(true);
+  });
 });

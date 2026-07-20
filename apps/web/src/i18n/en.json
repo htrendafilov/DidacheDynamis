@@ -78,7 +78,7 @@
   "notes.exportAllPdf": "Export all (PDF)",
   "notes.backup": "Back up (JSON)",
   "notes.restore": "Restore…",
-  "notes.restored": "Restored {{count}} note(s).",
+  "notes.restored": "Imported {{imported}} note(s); {{unchanged}} unchanged; {{conflicts}} preserved as conflict copies.",
   "notes.restoreFailed": "Could not read that notes file.",
   "notes.delete": "Delete",
   "notes.editor": "Note text",
@@ -95,5 +95,17 @@
   "notes.link": "Add link",
   "notes.linkPrompt": "Link URL",
   "notes.image": "Insert image",
-  "notes.undo": "Undo"
+  "notes.undo": "Undo",
+  "notes.addForVerse": "Add note for this verse",
+  "notes.deleteConfirm": "Delete this note? You can undo this action until you leave the notes pane.",
+  "notes.undoDelete": "Undo deletion",
+  "notes.saving": "Saving…",
+  "notes.saved": "Saved",
+  "notes.saveFailed": "The note could not be saved. Check available browser storage and try again.",
+  "notes.storageUsed": "{{size}} MB used",
+  "notes.imageError.type": "Only PNG, JPEG, GIF, and WebP images can be inserted.",
+  "notes.imageError.size": "That image is too large. Use an image smaller than 12 MB; stored images are limited to 3 MB.",
+  "notes.imageError.decode": "That image could not be read.",
+  "notes.imageError.encode": "That image could not be resized for the note.",
+  "notes.imageError.unknown": "That image could not be inserted."
 }

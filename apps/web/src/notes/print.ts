@@ -27,9 +27,11 @@ const PRINT_CSS = `
 export function printNotesToPdf(
   notes: Note[],
   documentTitle: string,
-  refLabel: (osis: string, chapter: number) => string,
+  refLabel: (osis: string, chapter: number, verseStart?: number, verseEnd?: number) => string,
 ): void {
-  const printable = notes.filter((n) => n.contentHtml.trim() || n.title.trim());
+  const printable = notes.filter(
+    (n) => !n.deletedAt && (n.contentHtml.trim() || n.title.trim()),
+  );
   if (!printable.length) return;
 
   const sections = printable
@@ -37,7 +39,7 @@ export function printNotesToPdf(
       const heading = escapeText(n.title || "Untitled");
       const ref =
         n.kind === "passage" && n.osis && n.chapter
-          ? `<p class="ref">${escapeText(refLabel(n.osis, n.chapter))}</p>`
+          ? `<p class="ref">${escapeText(refLabel(n.osis, n.chapter, n.verseStart, n.verseEnd))}</p>`
           : "";
       return `<section class="note"><h1>${heading}</h1>${ref}<div>${sanitizeHtml(n.contentHtml)}</div></section>`;
     })
@@ -50,17 +52,27 @@ export function printNotesToPdf(
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-  iframe.onload = () => {
+  iframe.onload = async () => {
     const win = iframe.contentWindow;
     if (!win) return;
+    const images = [...(iframe.contentDocument?.images ?? [])];
+    await Promise.all(
+      images.map(
+        (image) =>
+          new Promise<void>((resolve) => {
+            if (image.complete) resolve();
+            else {
+              image.addEventListener("load", () => resolve(), { once: true });
+              image.addEventListener("error", () => resolve(), { once: true });
+            }
+          }),
+      ),
+    );
     win.focus();
+    win.addEventListener("afterprint", () => iframe.remove(), { once: true });
     win.print();
-    setTimeout(() => iframe.remove(), 1000);
+    setTimeout(() => iframe.remove(), 60_000);
   };
+  iframe.srcdoc = html;
   document.body.appendChild(iframe);
-  const doc = iframe.contentWindow?.document;
-  if (!doc) return;
-  doc.open();
-  doc.write(html);
-  doc.close();
 }

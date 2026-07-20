@@ -10,6 +10,7 @@ React + TypeScript + Vite SPA. See [`../00_system_design.md`](../00_system_desig
 - `zustand` — small store for panes / sync / reading settings.
 - `react-i18next` — EN/BG interface strings.
 - `dexie` — IndexedDB wrapper for local notes.
+- `tiptap` — structured, accessible rich-text editing without deprecated browser editing commands.
 - Vitest + React Testing Library, Playwright (a few E2E flows).
 
 Kept out of v1: Redux, a component/design-system framework, GraphQL.
@@ -43,9 +44,12 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 - **Commentary pane** — Matthew Henry for the current ref; its embedded KJV quotation is visually
   separated from the commentary, while the pane follows any linked Bible by canonical reference.
 - **Dictionary pane** — prefix search box + headword list; entry view; internal links between entries.
-- **Notes pane** — editable notes in **IndexedDB (Dexie)**. Two modes: free notes and verse-attached
-  notes (keyed by canonical ref). Because storage is local-only, the pane shows a first-use warning
-  and offers **Export / Import JSON** for backup.
+- **Notes pane** — editable notes in **IndexedDB (Dexie)**. Two modes: free notes and passage/verse-
+  attached notes (keyed by canonical ref). Edits use independent per-note save queues, and all
+  navigation/export paths flush pending changes first. Deletion is recoverable and retained as a
+  tombstone for future synchronization. Inline images are restricted to bounded local raster data;
+  remote images are removed for privacy. Strict **Export / Import JSON** validation preserves
+  divergent records as conflict copies rather than silently overwriting them.
 - **Search** — modal or dedicated pane; scope chips (which works, which language); results show
   snippet + ref; clicking opens the result in a chosen pane and highlights the verse.
 
@@ -100,7 +104,8 @@ apps/web/src/
 ## 9. Testing
 
 - Vitest + RTL: CIRRenderer (per-line vs flowing; words-of-Christ off/bold/red), pane source
-  switching, notes CRUD in IndexedDB, i18n switch, book-name localization.
+  switching, notes CRUD/import conflicts/save queue/image safety in IndexedDB, i18n switch,
+  book-name localization.
 - Playwright (few flows): open EN+BG synced panes; toggle verse layout + red-letter; add a note and
   reopen after reload; search and open a result; click a cross-reference and land on the verse.
 - Accessibility: keyboard nav, visible focus, semantic landmarks, contrast, scalable text,

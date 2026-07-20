@@ -6,6 +6,7 @@ import { PassageSelector } from "../components/PassageSelector";
 import { SourceSelector } from "../components/SourceSelector";
 import { WorkFooter } from "../components/WorkFooter";
 import { useBooks, useCrossReferences, usePassage, useWorks } from "../data/hooks";
+import { ensurePassageNote } from "../data/notes";
 import { bookName } from "../i18n/bookNames";
 import { CIRRenderer } from "../render/CIRRenderer";
 import { useStore, type Pane } from "../state/store";
@@ -16,6 +17,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const changePaneType = useStore((s) => s.changePaneType);
   const updatePane = useStore((s) => s.updatePane);
   const goToRef = useStore((s) => s.goToRef);
+  const requestOpenNote = useStore((s) => s.requestOpenNote);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
 
   const books = useBooks(pane.workId);
@@ -104,6 +106,21 @@ export function BiblePane({ pane }: { pane: Pane }) {
                 ✕
               </button>
             </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const title = `${bookName(pane.osis, i18n.language, pane.osis)} ${pane.chapter}:${selectedVerse}`;
+                const noteId = await ensurePassageNote(
+                  pane.osis,
+                  pane.chapter,
+                  title,
+                  selectedVerse,
+                );
+                requestOpenNote(noteId, pane.osis, pane.chapter);
+              }}
+            >
+              {t("notes.addForVerse")}
+            </button>
             {xrefs === null && <p className="muted">{t("reader.loading")}</p>}
             {xrefs?.references.length === 0 && <p className="muted">{t("xref.none")}</p>}
             {xrefs && xrefs.references.length > 0 && (

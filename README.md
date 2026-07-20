@@ -47,8 +47,9 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   TSK-derived cross-references
   with WEB verse previews. ✅
 - **M4** — local personal notes: rich-text editor (bold/headings/lists/links + inline images),
-  topical notes and passage-anchored notes tied to book+chapter, PDF export (browser print) and
-  JSON backup/restore. All in-browser (IndexedDB), no account. ✅
+  topical notes and passage/verse-anchored notes, recoverable deletion, guarded image storage,
+  PDF export (browser print), and validated JSON backup/restore with conflict copies. All
+  in-browser (IndexedDB), no account. ✅
 - **M5** — hardening (Cloudflare CDN, Playwright smoke, a11y/mobile, uptime, backup rehearsal). ⏳ next.
 
 ## Run it locally

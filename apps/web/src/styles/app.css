@@ -722,6 +722,19 @@ button.danger {
   line-height: 1.7;
   outline: none;
 }
+.rte-editor-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rte-editor-content > .rte-content {
+  min-height: 100%;
+}
+.rte-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
 .rte-content:empty::before {
   content: attr(aria-label);
   color: var(--muted);
@@ -755,6 +768,23 @@ button.danger {
   display: flex;
   gap: 0.4rem;
   align-items: center;
+}
+.save-status {
+  white-space: nowrap;
+}
+.save-status.error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.storage-usage {
+  color: var(--muted);
+}
+.link-button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  padding: 0 0.35rem;
 }
 .linklike {
   cursor: pointer;

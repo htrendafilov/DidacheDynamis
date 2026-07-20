@@ -28,12 +28,15 @@ export interface Settings {
 interface AppState {
   panes: Pane[];
   settings: Settings;
+  noteTargetId: string | null;
   addPane: () => void;
   removePane: (id: string) => void;
   updatePane: (id: string, patch: Partial<Pane>) => void;
   changePaneType: (id: string, type: PaneSourceType) => void;
   setSettings: (patch: Partial<Settings>) => void;
   goToRef: (osis: string, chapter: number, fromPaneId?: string) => void;
+  requestOpenNote: (noteId: string, osis: string, chapter: number) => void;
+  clearNoteTarget: () => void;
 }
 
 let seq = 0;
@@ -59,6 +62,7 @@ export const useStore = create<AppState>()(
         uiLang: "bg",
         sync: true,
       },
+      noteTargetId: null,
       addPane: () =>
         set((s) => (s.panes.length >= 3 ? s : { panes: [...s.panes, defaultPane()] })),
       removePane: (id) =>
@@ -83,7 +87,29 @@ export const useStore = create<AppState>()(
           }),
         });
       },
+      requestOpenNote: (noteId, osis, chapter) =>
+        set((state) => {
+          const hasNotesPane = state.panes.some((pane) => pane.type === "notes");
+          const panes =
+            !hasNotesPane && state.panes.length < 3
+              ? [
+                  ...state.panes,
+                  {
+                    id: newId(),
+                    type: "notes" as const,
+                    workId: "",
+                    osis,
+                    chapter,
+                  },
+                ]
+              : state.panes;
+          return { panes, noteTargetId: noteId };
+        }),
+      clearNoteTarget: () => set({ noteTargetId: null }),
     }),
-    { name: "bible-app" },
+    {
+      name: "bible-app",
+      partialize: (state) => ({ panes: state.panes, settings: state.settings }),
+    },
   ),
 );
