@@ -13,6 +13,7 @@ const SEED = {
       fontScale: 1,
       uiLang: "en",
       sync: true,
+      bookMode: "paged",
     },
   },
   version: 0,
@@ -83,10 +84,12 @@ test("opens the 1689 Confession through the General Books pane", async ({ page }
   await expect(toc).toBeHidden();
   await page.getByRole("button", { name: /Show contents/ }).click();
   await expect(toc).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
   await page
-    .getByRole("group", { name: "Reading mode" })
-    .getByRole("button", { name: "Scroll" })
+    .getByRole("group", { name: "Book view" })
+    .getByRole("button", { name: "Scrolling" })
     .click();
+  await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.locator(".book-scroll-section")).toHaveCount(35);
   await toc.getByRole("button", { name: /Chapter 1 — Of the Holy Scriptures/i }).click();
   await expect(page.getByText(/The Holy Scripture is the only sufficient/i)).toBeVisible();

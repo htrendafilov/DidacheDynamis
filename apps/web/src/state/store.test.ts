@@ -17,6 +17,7 @@ describe("store", () => {
 
   it("defaults the interface to Bulgarian", () => {
     expect(useStore.getState().settings.uiLang).toBe("bg");
+    expect(useStore.getState().settings.bookMode).toBe("paged");
   });
 
   it("adds panes up to a maximum of 3", () => {

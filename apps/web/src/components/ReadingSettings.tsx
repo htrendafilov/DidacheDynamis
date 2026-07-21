@@ -1,6 +1,13 @@
 import { useTranslation } from "react-i18next";
 
-import { useStore, type UiLang, type VerseLayout, type WordsOfChrist, type Theme } from "../state/store";
+import {
+  useStore,
+  type BookReadingMode,
+  type Theme,
+  type UiLang,
+  type VerseLayout,
+  type WordsOfChrist,
+} from "../state/store";
 import { DropboxSyncSettings } from "./DropboxSyncSettings";
 
 function Segmented<T extends string>({
@@ -100,6 +107,15 @@ export function ReadingSettings() {
         />
         {t("settings.sync")}
       </label>
+      <Segmented<BookReadingMode>
+        label={t("settings.bookView")}
+        value={settings.bookMode ?? "paged"}
+        onChange={(bookMode) => setSettings({ bookMode })}
+        options={[
+          { value: "paged", label: t("settings.bookPaged") },
+          { value: "scroll", label: t("settings.bookScroll") },
+        ]}
+      />
       <DropboxSyncSettings />
     </div>
   );

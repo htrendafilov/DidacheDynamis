@@ -85,8 +85,9 @@ FTS pattern, cache/attribution/WorkFooter) is reused.
 - Schema, General Book IMP adapter, `append_book`/`add-book`/`build-all`, and attributed PD source.
 - Cacheable `/api/v1/books` and `/api/v1/book/{id}` endpoints.
 - General Book pane with hierarchical TOC, shared Document CIR rendering, source info, and EN/BG UI.
-- Reader controls to show/hide the TOC and switch between section-by-section pages or continuous
-  scrolling. On narrow screens the TOC is an overlay and closes after section selection.
+- A show/hide TOC control follows the book selector in the pane header. The persisted global Settings
+  panel switches all book panes between section-by-section pages and continuous scrolling, immediately
+  above Dropbox note sync. On narrow screens the TOC is an overlay and closes after section selection.
 
 ## Remaining M6 follow-ups
 - Add URL deep links for the selected section.

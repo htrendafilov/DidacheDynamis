@@ -50,6 +50,7 @@ export function BookPane({ pane }: { pane: Pane }) {
   const { t } = useTranslation();
   const changePaneType = useStore((state) => state.changePaneType);
   const updatePane = useStore((state) => state.updatePane);
+  const settings = useStore((state) => state.settings);
   const works = useWorks();
   const bookWorks = works?.filter((work) => work.type === "book") ?? [];
   const work = bookWorks.find((item) => item.id === pane.workId);
@@ -63,7 +64,7 @@ export function BookPane({ pane }: { pane: Pane }) {
     ? readableSections.findIndex((section) => section.section_id === selected.section_id)
     : -1;
   const tocOpen = pane.bookTocOpen ?? true;
-  const mode = pane.bookMode ?? "paged";
+  const mode = settings.bookMode ?? "paged";
   const tocId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
   const sectionElements = useRef(new Map<string, HTMLElement>());
@@ -120,34 +121,15 @@ export function BookPane({ pane }: { pane: Pane }) {
             </select>
           </label>
         )}
-        <div className="book-reader-controls">
-          <button
-            type="button"
-            aria-expanded={tocOpen}
-            aria-controls={tocId}
-            onClick={() => updatePane(pane.id, { bookTocOpen: !tocOpen })}
-          >
-            ☰ {t(tocOpen ? "book.hideContents" : "book.showContents")}
-          </button>
-          <div className="segmented" role="group" aria-label={t("book.readingMode")}>
-            <button
-              type="button"
-              className={`seg ${mode === "paged" ? "active" : ""}`}
-              aria-pressed={mode === "paged"}
-              onClick={() => updatePane(pane.id, { bookMode: "paged" })}
-            >
-              {t("book.paged")}
-            </button>
-            <button
-              type="button"
-              className={`seg ${mode === "scroll" ? "active" : ""}`}
-              aria-pressed={mode === "scroll"}
-              onClick={() => updatePane(pane.id, { bookMode: "scroll" })}
-            >
-              {t("book.scroll")}
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          className="book-toc-toggle"
+          aria-expanded={tocOpen}
+          aria-controls={tocId}
+          onClick={() => updatePane(pane.id, { bookTocOpen: !tocOpen })}
+        >
+          ☰ {t(tocOpen ? "book.hideContents" : "book.showContents")}
+        </button>
       </div>
       <div className={`book-layout ${tocOpen ? "" : "toc-hidden"}`}>
         {tocOpen && (

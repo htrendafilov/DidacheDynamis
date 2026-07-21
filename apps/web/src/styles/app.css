@@ -599,11 +599,9 @@ input[type="search"] {
 .book-work-select select {
   max-width: min(24rem, 42vw);
 }
-.book-reader-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-left: auto;
+.book-toc-toggle {
+  flex: none;
+  white-space: nowrap;
 }
 .book-toc-scrim {
   display: none;
@@ -997,13 +995,6 @@ button.danger {
   .book-work-select select {
     width: 100%;
     max-width: none;
-  }
-  .book-reader-controls {
-    width: 100%;
-    margin-left: 0;
-  }
-  .book-reader-controls > button {
-    flex: 1;
   }
   .book-toc-scrim {
     position: absolute;

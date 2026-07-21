@@ -64,6 +64,7 @@ describe("BookPane", () => {
           chapter: 3,
         },
       ],
+      settings: { ...useStore.getState().settings, bookMode: "paged" },
     });
   });
 
@@ -87,6 +88,16 @@ describe("BookPane", () => {
     expect(toc).toBeVisible();
   });
 
+  it("orders the source, book, and contents controls in the pane header", () => {
+    render(<Harness />);
+    const source = screen.getByRole("combobox", { name: "Source" });
+    const book = screen.getByRole("combobox", { name: "Book" });
+    const contents = screen.getByRole("button", { name: /Hide contents/ });
+
+    expect(source.compareDocumentPosition(book) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(book.compareDocumentPosition(contents) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("turns sections as pages with previous and next controls", () => {
     render(<Harness />);
     expect(screen.getByText("1 of 2")).toBeVisible();
@@ -98,11 +109,13 @@ describe("BookPane", () => {
   });
 
   it("renders every section in continuous scroll mode", () => {
+    useStore.setState({
+      settings: { ...useStore.getState().settings, bookMode: "scroll" },
+    });
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: "Scroll" }));
     expect(screen.getByText("The Scriptures are sufficient.")).toBeVisible();
     expect(screen.getByText("The Lord our God is one God.")).toBeVisible();
     expect(document.querySelectorAll(".book-scroll-section")).toHaveLength(2);
-    expect(useStore.getState().panes[0].bookMode).toBe("scroll");
+    expect(useStore.getState().settings.bookMode).toBe("scroll");
   });
 });

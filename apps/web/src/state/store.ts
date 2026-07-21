@@ -17,7 +17,6 @@ export interface Pane {
   chapter: number;
   sectionId?: string; // current section for a General Book pane
   bookTocOpen?: boolean;
-  bookMode?: BookReadingMode;
 }
 
 export interface Settings {
@@ -27,6 +26,7 @@ export interface Settings {
   fontScale: number; // 1 = 100%
   uiLang: UiLang;
   sync: boolean; // sync passage across bible panes
+  bookMode?: BookReadingMode;
 }
 
 interface AppState {
@@ -65,6 +65,7 @@ export const useStore = create<AppState>()(
         fontScale: 1,
         uiLang: "bg",
         sync: true,
+        bookMode: "paged",
       },
       noteTargetId: null,
       addPane: () =>
