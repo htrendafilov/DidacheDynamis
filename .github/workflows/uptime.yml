@@ -6,7 +6,12 @@ name: uptime
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Every 90 minutes (cron can't do */90, so two entries alternate :00 and :30).
+    # ~16 runs/day ≈ 490 Actions-min/month — stays well within the private-repo free
+    # budget and leaves room for CI/deploy. Planned: migrate to UptimeRobot (free,
+    # zero GitHub minutes) — see plan/deployment/live-runbook.md § Monitoring.
+    - cron: "0 0,3,6,9,12,15,18,21 * * *"
+    - cron: "30 1,4,7,10,13,16,19,22 * * *"
   workflow_dispatch:
 
 permissions:
