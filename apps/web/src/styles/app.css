@@ -583,6 +583,41 @@ input[type="search"] {
   color: #fff;
   background: var(--accent);
 }
+.book-layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 32%) 1fr;
+  flex: 1;
+  min-height: 0;
+}
+.book-toc {
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 0.5rem;
+}
+.book-toc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.book-toc-list .book-toc-list {
+  padding-left: 0.75rem;
+}
+.book-toc-list button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  background: transparent;
+}
+.book-toc-list button.active {
+  color: #fff;
+  background: var(--accent);
+}
+.book-content h3 {
+  margin-top: 0;
+}
 .dictionary-entry h3 {
   margin-top: 0;
 }
@@ -873,6 +908,9 @@ button.danger {
 .mobile-pane-tabs button.pane-tab-dictionary {
   border-left-color: #059669;
 }
+.mobile-pane-tabs button.pane-tab-book {
+  border-left-color: #a16207;
+}
 .mobile-pane-tabs button.pane-tab-notes {
   border-left-color: #d97706;
 }
@@ -895,5 +933,8 @@ button.danger {
   }
   .dictionary-layout {
     grid-template-columns: minmax(7rem, 38%) 1fr;
+  }
+  .book-layout {
+    grid-template-columns: minmax(9rem, 42%) 1fr;
   }
 }

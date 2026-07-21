@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type PaneSourceType = "bible" | "commentary" | "dictionary" | "notes";
+export type PaneSourceType = "bible" | "commentary" | "dictionary" | "book" | "notes";
 export type VerseLayout = "per-line" | "flowing";
 export type WordsOfChrist = "off" | "bold" | "red";
 export type Theme = "light" | "dark";
@@ -14,6 +14,7 @@ export interface Pane {
   workId: string; // for bible/commentary/dictionary
   osis: string; // current book (bible/commentary)
   chapter: number;
+  sectionId?: string; // current section for a General Book pane
 }
 
 export interface Settings {
@@ -71,9 +72,19 @@ export const useStore = create<AppState>()(
         set((s) => ({ panes: s.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
       changePaneType: (id, type) => {
         const workId =
-          type === "bible" ? "web" : type === "commentary" ? "mhc" : type === "dictionary" ? "easton" : "";
+          type === "bible"
+            ? "web"
+            : type === "commentary"
+              ? "mhc"
+              : type === "dictionary"
+                ? "easton"
+                : type === "book"
+                  ? "baptist1689"
+                  : "";
         set((s) => ({
-          panes: s.panes.map((p) => (p.id === id ? { ...p, type, workId } : p)),
+          panes: s.panes.map((p) =>
+            p.id === id ? { ...p, type, workId, sectionId: undefined } : p,
+          ),
         }));
       },
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),

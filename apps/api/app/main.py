@@ -15,7 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import settings
 from .db import content_version
-from .routers import commentary, dictionary, health, passages, search, works, xrefs
+from .routers import commentary, dictionary, general_books, health, passages, search, works, xrefs
 
 
 @asynccontextmanager
@@ -85,6 +85,7 @@ app.include_router(search.router)
 app.include_router(commentary.router)
 app.include_router(dictionary.router)
 app.include_router(xrefs.router)
+app.include_router(general_books.router)
 
 
 # Serve the built SPA in production (absent in dev, where Vite serves it).

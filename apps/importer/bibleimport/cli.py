@@ -12,7 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .pipeline import BibleSpec, append_bible, append_study_content, build_bible
+from .pipeline import BookSpec, BibleSpec, append_bible, append_book, append_study_content, build_bible
 
 # Canonical filenames under data/sources/ used by `build-all`.
 SOURCE_FILES = {
@@ -21,6 +21,7 @@ SOURCE_FILES = {
     "mhc": "MHC.imp.gz",
     "easton": "Easton.imp.gz",
     "tsk": "crossreferences_kjv.tsv",
+    "baptist1689": "BaptistConfession1689.imp.gz",
 }
 
 WEB_SPEC = BibleSpec(
@@ -52,6 +53,22 @@ KJV_SPEC = BibleSpec(
     ),
     source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV",
     source_version="CrossWire KJV 3.1 (2023-07-19)",
+)
+
+BAPTIST_1689_SPEC = BookSpec(
+    work_id="baptist1689",
+    title="The Baptist Confession of Faith of 1689",
+    abbrev="1689",
+    language="en",
+    license="Public Domain",
+    attribution=(
+        "The Baptist Confession of Faith of 1689. Public-domain CrossWire SWORD module; "
+        "obtained from reformed.org with thanks to Ed Walsh."
+    ),
+    source_url=(
+        "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=BaptistConfession1689"
+    ),
+    source_version="CrossWire BaptistConfession1689 1.0.2 (2020-06-01)",
 )
 
 
@@ -102,8 +119,26 @@ def _cmd_add_kjv(args) -> int:
     return _report(diag)
 
 
+def _cmd_add_book(args) -> int:
+    spec = BookSpec(
+        work_id=args.work_id,
+        title=args.title,
+        abbrev=args.abbrev,
+        language=args.language,
+        license=args.license,
+        attribution=args.attribution,
+        source_url=args.source_url,
+        source_version=args.source_version,
+        direction=args.direction,
+    )
+    count = append_book(args.source, spec, args.out)
+    print(f"book_sections={count}")
+    print("OK")
+    return 0
+
+
 def _cmd_build_all(args) -> int:
-    """Build the complete content DB (WEB + KJV + study library) in one step.
+    """Build the complete content DB (WEB + KJV + study library + General Books) in one step.
 
     This is the single source of truth for the build sequence — the Docker image and any
     rebuild use it, so deploys always match the documented content set.
@@ -131,6 +166,9 @@ def _cmd_build_all(args) -> int:
         xref_source=src / SOURCE_FILES["tsk"],
     )
     print(" ".join(f"{key}={value}" for key, value in stats.items()))
+    print("==> General Books (1689 Baptist Confession)")
+    count = append_book(src / SOURCE_FILES["baptist1689"], BAPTIST_1689_SPEC, out)
+    print(f"book_sections={count}")
     print("OK")
     return 0
 
@@ -149,8 +187,23 @@ def main(argv: list[str] | None = None) -> int:
     k.add_argument("--out", required=True, help="existing content.sqlite path")
     k.set_defaults(func=_cmd_add_kjv)
 
+    g = sub.add_parser("add-book", help="Append a SWORD General Book IMP export.")
+    g.add_argument("--source", required=True, help="mod2imp output (.imp or .imp.gz)")
+    g.add_argument("--out", required=True, help="existing content.sqlite path")
+    g.add_argument("--work-id", required=True)
+    g.add_argument("--title", required=True)
+    g.add_argument("--abbrev", required=True)
+    g.add_argument("--language", required=True)
+    g.add_argument("--license", required=True)
+    g.add_argument("--attribution", required=True)
+    g.add_argument("--source-url", default=None)
+    g.add_argument("--source-version", default=None)
+    g.add_argument("--direction", default="ltr")
+    g.set_defaults(func=_cmd_add_book)
+
     a = sub.add_parser(
-        "build-all", help="Build the full content DB (WEB + KJV + Matthew Henry + Easton's + TSK)."
+        "build-all",
+        help="Build the full content DB (Bibles + study library + General Books).",
     )
     a.add_argument("--sources-dir", default="data/sources", help="dir holding the source files")
     a.add_argument("--out", required=True, help="output content.sqlite path")

@@ -113,10 +113,12 @@ export function WorkFooter({ work, books }: WorkFooterProps) {
                       <dt>{t("workInfo.language")}</dt>
                       <dd>{t(`workInfo.language.${work.language}`)}</dd>
                     </div>
-                    <div>
-                      <dt>{t("workInfo.versification")}</dt>
-                      <dd>{work.versification.toUpperCase()}</dd>
-                    </div>
+                    {work.versification !== "none" && (
+                      <div>
+                        <dt>{t("workInfo.versification")}</dt>
+                        <dd>{work.versification.toUpperCase()}</dd>
+                      </div>
+                    )}
                     {work.source_version && (
                       <div>
                         <dt>{t("workInfo.edition")}</dt>

@@ -118,6 +118,19 @@ class DictionaryEntry(BaseModel):
     body: Document
 
 
+class GeneralBookSection(BaseModel):
+    section_id: str
+    title: str
+    level: int
+    body: Document
+    children: list[GeneralBookSection]
+
+
+class GeneralBook(BaseModel):
+    work_id: str
+    sections: list[GeneralBookSection]
+
+
 class CrossReference(BaseModel):
     target_ref: str
     target_osis: str

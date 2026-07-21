@@ -10,6 +10,7 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 | `MHC.imp.gz` | Matthew Henry's Complete Commentary | Public domain | CrossWire MHC 2.2 |
 | `Easton.imp.gz` | Easton's Bible Dictionary | Public domain | CrossWire Easton module |
 | `crossreferences_kjv.tsv` | TSK-derived cross-references | CC BY 4.0 | CrossReferences.org KJV mapping |
+| `BaptistConfession1689.imp.gz` | Baptist Confession of Faith of 1689 | Public domain | CrossWire BaptistConfession1689 1.0.2 |
 
 **World English Bible attribution (required):** "The World English Bible is in the Public Domain. That
 means that it is not copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
@@ -44,6 +45,8 @@ parsing SWORD binaries in this repository:
 SWORD_PATH=/path/to/unpacked/modules mod2imp KJV | gzip -9 > KJV.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp MHC | gzip -9 > MHC.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp Easton -s | gzip -9 > Easton.imp.gz
+SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
+  | gzip -n -9 > BaptistConfession1689.imp.gz
 ```
 
 - KJV module:
@@ -61,6 +64,11 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp Easton -s | gzip -9 > Easton.imp.gz
 - Cross-references: https://github.com/CrossReferences-org/bible-cross-references at source blob
   `47ed2af489e1212e057bc073e1844d382804aac2`, licensed CC BY 4.0.
   - committed TSV SHA-256: `0da9d809096e5b650f5c960e68000e580c9f4582beafe673ea1190e2e0105b9f`
+- Baptist Confession 1689 module:
+  https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=BaptistConfession1689
+  - CrossWire metadata records `RawGenBook`, version 1.0.2, and `Public Domain`.
+  - downloaded raw ZIP SHA-256: `d6210b1114ea1a6fcd3336524813c08ca3ad57c761814246b15fa278eb8fc98a`
+  - committed raw-OSIS export SHA-256: `b59db23d63355091d4ffc976334bbd514b2ef4545c303b7aba5e6d7e527b4c7b`
 
 The imported `works` records carry the same license and attribution. CCEL ThML remains supported by
 the adapter and test fixtures, but production uses CrossWire's explicitly redistributable editions.

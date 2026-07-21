@@ -18,6 +18,7 @@ source switcher. Each pane is bound to a **source**:
   is a supported source type but deferred until rights are cleared; see §7.)
 - **Commentary pane** — follows a reference (book/chapter[/verse]).
 - **Dictionary pane** — headword lookup + list.
+- **General Book pane** — hierarchical table of contents + standalone reference/theology documents.
 - **Notes pane** — free / verse-attached personal notes, stored **locally in the browser**.
 
 Panes can be **verse-synced**: changing the passage in one Bible pane scrolls a linked
@@ -33,7 +34,7 @@ commentary / second-Bible pane to the same verse. A per-session toggle controls 
 
 | Requirement | Decision |
 |---|---|
-| 1/2/3 panes, any pane = bible/commentary/dictionary/notes | `react-resizable-panels`, source-bound panes |
+| 1/2/3 panes, any pane = bible/commentary/dictionary/book/notes | `react-resizable-panels`, source-bound panes |
 | EN Bibles, 1 BG Bible, 1 commentary | WEB + CrossWire KJV 3.1 + Matthew Henry. **BG deferred** — no rights-clear Bulgarian text yet (see [`content_and_licensing.md`](content_and_licensing.md)) |
 | + dictionary + cross-references (clarified in scope) | Easton's (PD) + Treasury of Scripture Knowledge (PD) |
 | verse-per-line vs continuous | render mode over one canonical representation |
@@ -110,6 +111,7 @@ for full rights analysis.
 | Commentary | Matthew Henry's Complete Commentary (CCEL) | Public domain |
 | Dictionary | Easton's Bible Dictionary | Public domain |
 | Cross-references | Treasury of Scripture Knowledge (TSK) | Public domain |
+| General Book | Baptist Confession of Faith of 1689 (CrossWire 1.0.2) | Public domain |
 | Bulgarian Bible | **DEFERRED** — no rights-clear source yet | see below |
 
 **Bulgarian is deferred, not cancelled.** Neither CrossWire Bulgarian module is usable by a custom web
@@ -136,10 +138,11 @@ WEB and matches the wording embedded in the Matthew Henry edition.
 5. **M4 — Notes + search.** IndexedDB notes (free + verse-attached) + export/import; FTS search panel.
 6. **M5 — Hardening.** Cache tuning, Playwright smoke, mobile, accessibility, attribution, uptime,
    backup/rollback rehearsal → public beta.
-7. **M6 (later) — Bulgarian Bible.** Once rights are cleared (see
-   [`content_and_licensing.md`](content_and_licensing.md)): import the chosen BG text, enable the
-   second synced Bible pane and EN↔BG verse alignment. No architectural change — drops into the
-   existing pane/addressing system.
+7. **M6 — General Books.** Hierarchical SWORD General Book adapter + book API/TOC pane; ship the
+   public-domain 1689 Baptist Confession first. Follow with section deep links and book search.
+8. **Later — Bulgarian Bible.** Once rights are cleared (see
+   [`content_and_licensing.md`](content_and_licensing.md)), import the chosen BG text. No architectural
+   change — it drops into the existing pane/addressing system.
 
 ## 9. v1 non-goals
 

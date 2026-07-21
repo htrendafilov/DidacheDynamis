@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .books import BY_OSIS
 from .canonical import BookMeta, HeadingRow, VerseRow, WorkMeta
-from .formats import study, sword_bible, usfx
+from .formats import genbook, study, sword_bible, usfx
 from .schema import create_schema
 from .validation import Diagnostics, align_versification, validate
 
@@ -22,6 +22,19 @@ class BibleSpec:
     abbrev: str
     language: str
     versification: str
+    license: str
+    attribution: str
+    source_url: str | None = None
+    source_version: str | None = None
+    direction: str = "ltr"
+
+
+@dataclass
+class BookSpec:
+    work_id: str
+    title: str
+    abbrev: str
+    language: str
     license: str
     attribution: str
     source_url: str | None = None
@@ -370,3 +383,73 @@ def append_bible(
     finally:
         conn.close()
     return diag
+
+
+def append_book(
+    source: str | Path,
+    spec: BookSpec,
+    out_db: str | Path,
+    fmt: str = "sword-imp",
+) -> int:
+    """Append an immutable hierarchical General Book work to an existing content database."""
+    source = Path(source)
+    out_db = Path(out_db)
+    if not out_db.exists():
+        raise ValueError(f"content database does not exist: {out_db}")
+    if fmt != "sword-imp":
+        raise ValueError(f"unsupported General Book format: {fmt}")
+    sections = genbook.load_genbook(source)
+    if not sections:
+        raise ValueError("General Book source parsed to zero sections")
+    meta = WorkMeta(
+        id=spec.work_id,
+        type="book",
+        language=spec.language,
+        title=spec.title,
+        abbrev=spec.abbrev,
+        direction=spec.direction,
+        versification="none",
+        license=spec.license,
+        attribution=spec.attribution,
+        source_url=spec.source_url,
+        source_version=spec.source_version,
+        checksum=_sha256(source),
+    )
+    conn = sqlite3.connect(out_db)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("BEGIN")
+        _insert_work(conn, meta)
+        conn.executemany(
+            "INSERT INTO book_sections"
+            "(work_id,section_id,parent_id,sort_order,level,title,body_json) "
+            "VALUES(?,?,?,?,?,?,?)",
+            [
+                (
+                    meta.id,
+                    row.section_id,
+                    row.parent_id,
+                    row.sort_order,
+                    row.level,
+                    row.title,
+                    json.dumps(row.body, ensure_ascii=False),
+                )
+                for row in sections
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO book_fts(text,work_id,section_id) VALUES(?,?,?)",
+            [
+                (row.plain_text, meta.id, row.section_id)
+                for row in sections
+                if row.plain_text
+            ],
+        )
+        conn.commit()
+        conn.execute("PRAGMA optimize")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return len(sections)

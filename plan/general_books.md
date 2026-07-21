@@ -1,14 +1,16 @@
 # Plan: General Books support (+ 1689 Baptist Confession)
 
-**Status:** planned (post-M5). **Goal:** add a new work type for standalone theological/reference
+**Status:** in progress (M6; initial end-to-end slice implemented). **Goal:** add a new work type for standalone theological/reference
 *books* (CrossWire "GenBook" modules), and ship the **1689 Baptist Confession of Faith** as the first.
 
 ## Source (researched 2026-07-21)
 - CrossWire module **`BaptistConfession1689`**, type **RawGenBook**, **Public Domain** (v1.0.2, 2020;
   "obtained from reformed.org … with thanks to Ed Walsh"). No licensing friction — safe to bundle and
   redistribute, including in a future public repo (unlike KJV).
-- Structure: a hierarchical tree — 32 chapters, each with numbered paragraphs. RawGenBook keys are
-  paths like `/Chapter 1. Of the Holy Scriptures/1`.
+- The actual official `mod2imp` export was verified during implementation: it contains 35 top-level
+  keys (`/Content`, `/Foreword`, `/Chapter 1` … `/Chapter 32`, `/End`). Paragraphs are markup inside
+  each chapter, not child keys. The adapter nevertheless supports slash-delimited child keys for
+  other hierarchical GenBook modules.
 
 ## Design (heavy reuse of existing M3 machinery)
 
@@ -40,7 +42,7 @@ model or renderer needed.
 ### Importer (new adapter, existing toolchain)
 - Export the module with the official **`mod2imp`** (same tool already used for KJV/MHC/Easton — see
   `data/sources/README.md`): `mod2imp BaptistConfession1689 | gzip -9 > BaptistConfession1689.imp.gz`.
-- New `apps/importer/bibleimport/formats/genbook.py`: parse the hierarchical IMP keys into a section
+- `apps/importer/bibleimport/formats/genbook.py`: parse the hierarchical IMP keys into a section
   tree, converting each entry's markup to Document CIR via the existing helpers in `formats/study.py`
   (`_plain_document` / `_sword_osis_document`). Reject unsupported markup rather than dropping silently.
 - New `apps/importer/bibleimport/pipeline.py::append_book(...)` (mirrors `append_study_content`):
@@ -79,7 +81,12 @@ FTS pattern, cache/attribution/WorkFooter) is reused.
 - Live: rebuild `content.sqlite` with `build-all`, redeploy, confirm the 1689 opens with all 32
   chapters and correct attribution ("Public Domain").
 
-## Open items
-- Confirm the exact `mod2imp` key format for this module (chapter+paragraph granularity) when we run it,
-  and choose section-id scheme accordingly.
-- Decide whether book search is in-scope for v1 of this feature or deferred.
+## Initial slice delivered
+- Schema, General Book IMP adapter, `append_book`/`add-book`/`build-all`, and attributed PD source.
+- Cacheable `/api/v1/books` and `/api/v1/book/{id}` endpoints.
+- General Book pane with hierarchical TOC, shared Document CIR rendering, source info, and EN/BG UI.
+
+## Remaining M6 follow-ups
+- Add URL deep links for the selected section.
+- Extend global search/navigation to `book_fts` (the importer already populates it).
+- Add scripture-reference pop-ups/embeds under the separate linking plan.

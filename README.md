@@ -2,7 +2,7 @@
 
 Bilingual, multi-pane Bible reading web app served at **bible.trendafilovi.net**.
 
-- 1–3 resizable panes; each pane can be a Bible, commentary, dictionary, or notes.
+- 1–3 resizable panes; each pane can be a Bible, commentary, dictionary, General Book, or notes.
 - English (public-domain) Bible, a commentary, a dictionary, and cross-references. A Bulgarian Bible is
   deferred until rights are cleared (see [`plan/content_and_licensing.md`](plan/content_and_licensing.md)).
 - Verse-per-line or continuous layout; words of Christ off / bold / red.
@@ -55,8 +55,9 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   a **Content-Security-Policy** (Dropbox-scoped), Playwright smoke + axe accessibility tests, a
   keyboard-navigable mobile pane-tab layout, external uptime monitor (GitHub Actions + UptimeRobot),
   and a rehearsed atomic DB/SPA backup & rollback (versioned releases + symlink swap). ✅
-- **Next:** General Books (1689 Confession) → deep links + scripture pop-ups/embeds → open-source the repo
-  (see `plan/`).
+- **M6** — General Books: hierarchical SWORD `mod2imp` adapter, read-only book API, and a TOC reader
+  pane; the public-domain 1689 Baptist Confession is the first shipped book. 🚧 Initial slice complete.
+- **Next:** General Book deep links/search → scripture pop-ups/embeds → open-source the repo (see `plan/`).
 
 ## Run it locally
 
@@ -64,7 +65,7 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
 # 1) build the content DB (once)
 python3 -m venv apps/importer/.venv && . apps/importer/.venv/bin/activate
 pip install -e apps/importer
-bibleimport build-web --source data/sources/engwebp_usfx.zip --out data/content.sqlite
+bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 
 # 2) API on :8080
 python3 -m venv apps/api/.venv && . apps/api/.venv/bin/activate && pip install -e apps/api

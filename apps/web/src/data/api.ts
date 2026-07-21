@@ -113,6 +113,19 @@ export interface DictionaryEntry {
   body: Document;
 }
 
+export interface GeneralBookSection {
+  section_id: string;
+  title: string;
+  level: number;
+  body: Document;
+  children: GeneralBookSection[];
+}
+
+export interface GeneralBook {
+  work_id: string;
+  sections: GeneralBookSection[];
+}
+
 export interface CrossReference {
   target_ref: string;
   target_osis: string;
@@ -156,6 +169,8 @@ export const api = {
     ),
   dictionaryEntry: (workId: string, headword: string) =>
     get<DictionaryEntry>(`/dictionary/${workId}/entry/${encodeURIComponent(headword)}`),
+  generalBooks: () => get<Work[]>("/books"),
+  generalBook: (workId: string) => get<GeneralBook>(`/book/${encodeURIComponent(workId)}`),
   crossReferences: (osis: string, chapter: number, verse: number, previewWork = "web") =>
     get<CrossReferences>(
       `/xref/${osis}/${chapter}/${verse}?preview_work=${encodeURIComponent(previewWork)}`,

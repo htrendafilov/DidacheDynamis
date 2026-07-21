@@ -64,7 +64,7 @@ export default function App() {
   // Bible + commentary panes share a reference (e.g. "John 3"), so distinguish tabs by a
   // per-type icon (accessible — the full type is in aria-label, not conveyed by colour alone).
   const paneIcon = (type: Pane["type"]) =>
-    ({ bible: "📖", commentary: "💬", dictionary: "📔", notes: "📝" })[type];
+    ({ bible: "📖", commentary: "💬", dictionary: "📔", book: "📚", notes: "📝" })[type];
 
   const MOBILE_PANEL_ID = "mobile-pane-panel";
   const tabId = (p: Pane) => `mobile-tab-${p.id}`;

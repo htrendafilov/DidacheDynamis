@@ -1,7 +1,7 @@
 """SQLite schema for the read-only content database (see plan/backend/backend_design.md §2).
 
-Bible tables + FTS are populated in M1. Commentary/dictionary/xref tables are created now
-(stable, cheap) but populated later (M3), to avoid schema churn.
+Bible tables + FTS are populated in M1. Commentary/dictionary/xref tables were added in M3;
+general-book sections are populated in M6. Production continues to open this database read-only.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE works (
     id             TEXT PRIMARY KEY,      -- e.g. 'web'
-    type           TEXT NOT NULL,         -- bible | commentary | dictionary | xref
+    type           TEXT NOT NULL,         -- bible | commentary | dictionary | xref | book
     language       TEXT NOT NULL,         -- ISO code, e.g. 'en'
     title          TEXT NOT NULL,
     abbrev         TEXT NOT NULL,
@@ -77,6 +77,18 @@ CREATE TABLE dictionary_entries (
 );
 CREATE INDEX idx_dictionary_sort ON dictionary_entries(work_id, sort_key);
 
+CREATE TABLE book_sections (
+    work_id    TEXT NOT NULL REFERENCES works(id),
+    section_id TEXT NOT NULL,
+    parent_id  TEXT,
+    sort_order INTEGER NOT NULL,
+    level      INTEGER NOT NULL,
+    title      TEXT NOT NULL,
+    body_json  TEXT NOT NULL,
+    PRIMARY KEY (work_id, section_id)
+);
+CREATE INDEX idx_book_sections_tree ON book_sections(work_id, parent_id, sort_order);
+
 CREATE TABLE xrefs (
     osis_code  TEXT NOT NULL,
     chapter    INTEGER NOT NULL,
@@ -95,6 +107,9 @@ CREATE VIRTUAL TABLE commentary_fts USING fts5(
 );
 CREATE VIRTUAL TABLE dictionary_fts USING fts5(
     text, work_id UNINDEXED, headword UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
+);
+CREATE VIRTUAL TABLE book_fts USING fts5(
+    text, work_id UNINDEXED, section_id UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
 );
 """
 

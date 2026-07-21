@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useStore, type Pane } from "../state/store";
 import { BiblePane } from "./BiblePane";
+import { BookPane } from "./BookPane";
 import { CommentaryPane } from "./CommentaryPane";
 import { DictionaryPane } from "./DictionaryPane";
 
@@ -33,6 +34,8 @@ export function PaneHost({ pane }: { pane: Pane }) {
         <CommentaryPane pane={pane} />
       ) : pane.type === "dictionary" ? (
         <DictionaryPane pane={pane} />
+      ) : pane.type === "book" ? (
+        <BookPane pane={pane} />
       ) : (
         <Suspense
           fallback={

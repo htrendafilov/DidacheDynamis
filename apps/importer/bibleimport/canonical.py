@@ -123,6 +123,17 @@ class DictionaryRow:
     plain_text: str
 
 
+@dataclass
+class BookSectionRow:
+    section_id: str
+    parent_id: str | None
+    sort_order: int
+    level: int
+    title: str
+    body: dict
+    plain_text: str
+
+
 @dataclass(frozen=True)
 class XrefRow:
     osis: str

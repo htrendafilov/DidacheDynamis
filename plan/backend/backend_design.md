@@ -16,7 +16,7 @@ This split is what keeps the server stateless and portable.
 ```sql
 works(id, type, language, title, abbrev, direction, versification,
       license, attribution, source_url, source_version, checksum)
-      -- type ∈ {bible, commentary, dictionary, xref}
+      -- type ∈ {bible, commentary, dictionary, xref, book}
 
 books(work_id, osis_code, name, sort_order, chapter_count)   -- localized names per work
 
@@ -31,12 +31,15 @@ commentary_entries(work_id, osis_code, chapter, verse_start, verse_end, body_jso
 
 dictionary_entries(work_id, headword, sort_key, language, body_json)
 
+book_sections(work_id, section_id, parent_id, sort_order, level, title, body_json)
+
 xrefs(osis_code, chapter, verse, target_ref, votes)          -- TSK; translation-independent
 
 -- FTS5 (contentless external-content tables mirroring plain_text/body):
 bible_fts(text, work_id UNINDEXED, ref UNINDEXED)
 commentary_fts(text, work_id UNINDEXED, ref UNINDEXED)
 dictionary_fts(text, work_id UNINDEXED, headword UNINDEXED)
+book_fts(text, work_id UNINDEXED, section_id UNINDEXED)
 ```
 
 Indexes on `(work_id, osis_code, chapter)` for passage/commentary lookups; on
@@ -70,6 +73,8 @@ GET /works/{id}/passage/{osis}/{chapter}     → CIR nodes for a chapter (?verse
 GET /commentary/{id}/{osis}/{chapter}        → entries for a chapter (?verse= narrows)
 GET /dictionary/{id}/entries?prefix=&limit=  → headword list (autocomplete)
 GET /dictionary/{id}/entry/{headword}        → entry body
+GET /books                                   → General Book works
+GET /book/{id}                               → hierarchical TOC + Document CIR bodies
 GET /xref/{osis}/{chapter}/{verse}           → cross-references (+ target preview text)
 GET /search?q=&works=&lang=&limit=&offset=   → FTS5 across selected works; snippets + refs
 ```
@@ -104,7 +109,8 @@ apps/importer/
 ```
 
 - `osis.py`, `usfm.py` — Bibles. `study.py` — Matthew Henry + Easton's from official SWORD
-  `mod2imp -s` exports (plus CCEL ThML compatibility) and TSK-derived TSV. `vpl.py` — plain
+  `mod2imp -s` exports (plus CCEL ThML compatibility) and TSK-derived TSV. `genbook.py` converts
+  slash-keyed General Book `mod2imp` exports to the shared Document CIR. `vpl.py` — plain
   verse-per-line fallback for the BG file if needed. SWORD binaries are never parsed directly.
 - **Validation** aligns EN↔BG by canonical ref and emits a diff report; publication of a misaligned
   work is blocked with an actionable message.

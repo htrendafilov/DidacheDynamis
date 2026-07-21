@@ -24,7 +24,7 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 > from `/works`, so BG appears automatically once imported — no UI rework.
 
 - **Panes** (`react-resizable-panels`, horizontal split on desktop). Each pane header has:
-  - a **source selector** — Bible (EN; BG later) / Commentary / Dictionary / Notes;
+  - a **source selector** — Bible (EN; BG later) / Commentary / Dictionary / Books / Notes;
   - for Bible/commentary panes, a **passage selector** — book → chapter;
   - a **link/sync** toggle that groups panes to follow the same reference.
 - **Mobile:** one active pane + a bottom segmented control to switch source; "3 panes" degrades to
@@ -44,6 +44,8 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 - **Commentary pane** — Matthew Henry for the current ref; its embedded KJV quotation is visually
   separated from the commentary, while the pane follows any linked Bible by canonical reference.
 - **Dictionary pane** — prefix search box + headword list; entry view; internal links between entries.
+- **General Book pane** — selects an imported reference/theology book, displays its hierarchical TOC,
+  and renders sections with the same Document CIR used by commentary and dictionary entries.
 - **Notes pane** — editable notes in **IndexedDB (Dexie)**. Two modes: free notes and passage/verse-
   attached notes (keyed by canonical ref). Edits use independent per-note save queues, and all
   navigation/export paths flush pending changes first. Deletion is recoverable and retained as a
@@ -99,7 +101,7 @@ fetch.
 ```
 apps/web/src/
   App.tsx, router.tsx
-  panes/{PaneHost,BiblePane,CommentaryPane,DictionaryPane,NotesPane}.tsx
+  panes/{PaneHost,BiblePane,CommentaryPane,DictionaryPane,BookPane,NotesPane}.tsx
   components/{TopBar,PassageSelector,SourceSelector,VersePopover,SearchPanel,ReadingSettings}.tsx
   render/CIRRenderer.tsx
   state/store.ts                # zustand: panes, sync, settings

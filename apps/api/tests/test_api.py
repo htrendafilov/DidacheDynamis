@@ -34,13 +34,13 @@ def test_ready_503_when_no_content(client, monkeypatch):
 
 def test_meta(client):
     body = client.get("/api/v1/meta").json()
-    assert body["works"] == 4
+    assert body["works"] == 5
     assert body["content_version"]
 
 
 def test_works_lists_web_with_attribution(client):
     works = client.get("/api/v1/works").json()
-    assert len(works) == 4
+    assert len(works) == 5
     w = next(work for work in works if work["id"] == "web")
     assert w["id"] == "web" and w["type"] == "bible"
     assert w["license"] == "Public Domain"
@@ -54,6 +54,28 @@ def test_works_lists_web_with_attribution(client):
     assert dictionary["license"] == "Public Domain"
     assert commentary["source_url"]
     assert dictionary["source_url"]
+
+
+def test_general_books_list_and_tree(client):
+    books = client.get("/api/v1/books").json()
+    assert [(book["id"], book["type"]) for book in books] == [("baptist1689", "book")]
+    assert books[0]["license"] == "Public Domain"
+
+    response = client.get("/api/v1/book/baptist1689")
+    assert response.status_code == 200
+    book = response.json()
+    assert book["work_id"] == "baptist1689"
+    chapter_one = book["sections"][0]
+    assert chapter_one["section_id"] == "chapter-1-scripture"
+    assert [child["section_id"] for child in chapter_one["children"]] == [
+        "chapter-1-scripture.1",
+        "chapter-1-scripture.2",
+    ]
+    assert "Holy Scripture" in chapter_one["children"][0]["body"]["blocks"][1]["text"]
+
+
+def test_general_book_unknown_work_404(client):
+    assert client.get("/api/v1/book/nope").status_code == 404
 
 
 def test_books(client):

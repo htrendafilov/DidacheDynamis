@@ -74,6 +74,15 @@ test("a verse number opens the cross-reference popover", async ({ page }) => {
   await expect(page.locator(".verse-tools").getByText("Cross-references")).toBeVisible();
 });
 
+test("opens the 1689 Confession through the General Books pane", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Source" }).selectOption("book");
+  const toc = page.getByRole("navigation", { name: "Table of contents" });
+  await expect(toc).toBeVisible();
+  await toc.getByRole("button", { name: /Chapter 1 — Of the Holy Scriptures/i }).click();
+  await expect(page.getByText(/The Holy Scripture is the only sufficient/i)).toBeVisible();
+});
+
 test("creates a local note that survives a reload", async ({ page }) => {
   await page.goto("/");
   await addNotesPane(page);

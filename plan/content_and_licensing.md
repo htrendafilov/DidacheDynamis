@@ -14,6 +14,7 @@ before shipping, and store that evidence with the work.
 | Matthew Henry's Complete Commentary | Commentary | EN | Public domain | CrossWire MHC 2.2 module; exported with official SWORD tools. |
 | Easton's Bible Dictionary | Dictionary | EN | Public domain | CrossWire Easton module; exported with official SWORD tools. |
 | Treasury of Scripture Knowledge-derived mapping | Cross-refs | — | CC BY 4.0 | CrossReferences.org KJV mapping; explicit attribution stored and shown. |
+| Baptist Confession of Faith of 1689 | General Book | EN | Public domain | CrossWire `BaptistConfession1689` 1.0.2; exported with official SWORD tools. |
 
 **v1 is English-only.** The pane system and canonical addressing already support additional
 translations, so Bulgarian can be added later with no rework once its rights are cleared.

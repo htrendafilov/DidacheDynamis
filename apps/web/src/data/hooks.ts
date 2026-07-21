@@ -7,6 +7,7 @@ import {
   type CrossReferences,
   type DictionaryEntry,
   type DictionaryHeadword,
+  type GeneralBook,
   type Passage,
   type Work,
 } from "./api";
@@ -122,6 +123,26 @@ export function useDictionaryEntry(workId: string, headword: string | null): Dic
     };
   }, [workId, headword]);
   return entry;
+}
+
+export function useGeneralBook(workId: string) {
+  const [state, setState] = useState<{
+    loading: boolean;
+    error: boolean;
+    data: GeneralBook | null;
+  }>({ loading: true, error: false, data: null });
+  useEffect(() => {
+    let alive = true;
+    setState({ loading: true, error: false, data: null });
+    api
+      .generalBook(workId)
+      .then((data) => alive && setState({ loading: false, error: false, data }))
+      .catch(() => alive && setState({ loading: false, error: true, data: null }));
+    return () => {
+      alive = false;
+    };
+  }, [workId]);
+  return state;
 }
 
 export function useCrossReferences(

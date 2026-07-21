@@ -57,6 +57,8 @@ describe("store", () => {
     expect(useStore.getState().panes[0]).toMatchObject({ type: "commentary", workId: "mhc" });
     useStore.getState().changePaneType("a", "dictionary");
     expect(useStore.getState().panes[0]).toMatchObject({ type: "dictionary", workId: "easton" });
+    useStore.getState().changePaneType("a", "book");
+    expect(useStore.getState().panes[0]).toMatchObject({ type: "book", workId: "baptist1689" });
   });
 
   it("syncs commentary panes to Bible navigation", () => {
