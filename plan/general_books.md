@@ -1,0 +1,85 @@
+# Plan: General Books support (+ 1689 Baptist Confession)
+
+**Status:** planned (post-M5). **Goal:** add a new work type for standalone theological/reference
+*books* (CrossWire "GenBook" modules), and ship the **1689 Baptist Confession of Faith** as the first.
+
+## Source (researched 2026-07-21)
+- CrossWire module **`BaptistConfession1689`**, type **RawGenBook**, **Public Domain** (v1.0.2, 2020;
+  "obtained from reformed.org … with thanks to Ed Walsh"). No licensing friction — safe to bundle and
+  redistribute, including in a future public repo (unlike KJV).
+- Structure: a hierarchical tree — 32 chapters, each with numbered paragraphs. RawGenBook keys are
+  paths like `/Chapter 1. Of the Holy Scriptures/1`.
+
+## Design (heavy reuse of existing M3 machinery)
+
+### Work model
+Add work type **`book`** to the existing set (`bible | commentary | dictionary | xref`) in
+`apps/api/app/…`, `apps/importer/bibleimport/schema.py`, and the frontend `PaneSourceType`
+(`apps/web/src/state/store.ts`). A book is a **hierarchical document**, not verse-keyed.
+
+### Schema (one new table)
+```sql
+CREATE TABLE book_sections (
+    work_id    TEXT NOT NULL REFERENCES works(id),
+    section_id TEXT NOT NULL,      -- stable path id, e.g. "ch1" / "ch1.p1"
+    parent_id  TEXT,               -- NULL for top-level chapters
+    sort_order INTEGER NOT NULL,
+    level      INTEGER NOT NULL,   -- 1 = chapter, 2 = section/paragraph …
+    title      TEXT NOT NULL,
+    body_json  TEXT NOT NULL,      -- reuses the Document CIR (blocks/runs)
+    PRIMARY KEY (work_id, section_id)
+);
+CREATE INDEX idx_book_sections_tree ON book_sections(work_id, parent_id, sort_order);
+-- optional FTS, same pattern as commentary_fts/dictionary_fts:
+CREATE VIRTUAL TABLE book_fts USING fts5(text, work_id UNINDEXED, section_id UNINDEXED, …);
+```
+**Reuse:** `body_json` is the same **Document CIR** (`{blocks:[{kind, text, runs}]}`) already produced
+for commentary/dictionary and rendered by `apps/web/src/render/DocumentRenderer.tsx` — no new content
+model or renderer needed.
+
+### Importer (new adapter, existing toolchain)
+- Export the module with the official **`mod2imp`** (same tool already used for KJV/MHC/Easton — see
+  `data/sources/README.md`): `mod2imp BaptistConfession1689 | gzip -9 > BaptistConfession1689.imp.gz`.
+- New `apps/importer/bibleimport/formats/genbook.py`: parse the hierarchical IMP keys into a section
+  tree, converting each entry's markup to Document CIR via the existing helpers in `formats/study.py`
+  (`_plain_document` / `_sword_osis_document`). Reject unsupported markup rather than dropping silently.
+- New `apps/importer/bibleimport/pipeline.py::append_book(...)` (mirrors `append_study_content`):
+  insert the `works` row + `book_sections` + `book_fts`, transactional.
+- Wire into the CLI: `bibleimport add-book …`, and include it in **`build-all`** + `SOURCE_FILES`
+  (`cli.py`) so the Docker/native build stays the single source of truth.
+- Commit the PD source `data/sources/BaptistConfession1689.imp.gz` via **Git LFS** (matches `*.gz`
+  `.gitattributes` rule).
+
+### API
+- `GET /api/v1/books` — list `book`-type works (id, title, attribution).
+- `GET /api/v1/book/{id}` — full TOC tree + section bodies in one response (the 1689 is ~40 KB, so no
+  need to paginate); cacheable like every other GET (ETag + Cache-Control already handled by the
+  middleware in `apps/api/app/main.py`).
+- Optionally extend `/search` to include `book_fts`.
+
+### Frontend
+- New `apps/web/src/panes/BookPane.tsx` (pane type `book`): a **table-of-contents** sidebar (the
+  section tree) + a content area rendering the selected section via `DocumentRenderer`. Chapter/section
+  navigation; deep-linkable section id.
+- Enable `book` in `apps/web/src/components/SourceSelector.tsx` (`ENABLED`) and route it in
+  `apps/web/src/panes/PaneHost.tsx`.
+- i18n: add `source.book` + book UI strings to `en.json`/`bg.json`. (Book *content* stays in its own
+  language — English for the 1689.)
+
+## Effort
+Medium — comparable to one M3-style slice. New code is the tree schema, the `genbook` adapter, the two
+book endpoints, and the TOC pane; everything else (Document CIR, DocumentRenderer, mod2imp workflow,
+FTS pattern, cache/attribution/WorkFooter) is reused.
+
+## Verification
+- Importer: unit test the genbook adapter against a small fixture IMP with a 2-level tree (chapter →
+  paragraph); assert the tree shape + CIR bodies.
+- API: test `/books` and `/book/1689` return the TOC + a known chapter.
+- Frontend: BookPane renders the TOC and a chapter; SourceSelector exposes `book`.
+- Live: rebuild `content.sqlite` with `build-all`, redeploy, confirm the 1689 opens with all 32
+  chapters and correct attribution ("Public Domain").
+
+## Open items
+- Confirm the exact `mod2imp` key format for this module (chapter+paragraph granularity) when we run it,
+  and choose section-id scheme accordingly.
+- Decide whether book search is in-scope for v1 of this feature or deferred.
