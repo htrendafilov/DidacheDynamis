@@ -9,9 +9,18 @@ def test_health_allows_head(client):
 
 
 def test_ready_has_content(client):
-    body = client.get("/ready").json()
+    r = client.get("/ready")
+    assert r.status_code == 200
+    body = r.json()
     assert body["status"] == "ready"
     assert body["content_version"]
+
+
+def test_ready_503_when_no_content(client, monkeypatch):
+    monkeypatch.setattr("app.routers.health.content_version", lambda: None)
+    r = client.get("/ready")
+    assert r.status_code == 503
+    assert r.json()["status"] == "no-content"
 
 
 def test_meta(client):

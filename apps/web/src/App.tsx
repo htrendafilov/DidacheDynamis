@@ -61,6 +61,10 @@ export default function App() {
     p.type === "bible" || p.type === "commentary"
       ? `${bookName(p.osis, i18nInstance.language, p.osis)} ${p.chapter}`
       : t(`source.${p.type}`);
+  // Bible + commentary panes share a reference (e.g. "John 3"), so distinguish tabs by a
+  // per-type icon (accessible — the full type is in aria-label, not conveyed by colour alone).
+  const paneIcon = (type: Pane["type"]) =>
+    ({ bible: "📖", commentary: "💬", dictionary: "📔", notes: "📝" })[type];
 
   return (
     <div className="app">
@@ -91,18 +95,23 @@ export default function App() {
           <div className="mobile-panes">
             {panes.length > 1 && (
               <nav className="mobile-pane-tabs" role="tablist" aria-label={t("panes.switch")}>
-                {panes.map((p, i) => (
+                {panes.map((p, i) => {
+                  const label = paneLabel(p);
+                  const typeName = t(`source.${p.type}`);
+                  return (
                   <button
                     key={p.id}
                     type="button"
                     role="tab"
                     aria-selected={i === activeIndex}
-                    className={i === activeIndex ? "active" : ""}
+                    aria-label={label === typeName ? typeName : `${typeName}: ${label}`}
+                    className={i === activeIndex ? `active pane-tab-${p.type}` : `pane-tab-${p.type}`}
                     onClick={() => setActiveMobile(i)}
                   >
-                    {paneLabel(p)}
+                    <span aria-hidden="true">{paneIcon(p.type)}</span> {label}
                   </button>
-                ))}
+                  );
+                })}
               </nav>
             )}
             <div className="mobile-pane">

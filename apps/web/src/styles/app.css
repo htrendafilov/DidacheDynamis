@@ -862,6 +862,19 @@ button.danger {
 .mobile-pane-tabs button {
   white-space: nowrap;
   flex: none;
+  border-left-width: 3px; /* type colour accent (secondary cue; icon is primary) */
+}
+.mobile-pane-tabs button.pane-tab-bible {
+  border-left-color: #2563eb;
+}
+.mobile-pane-tabs button.pane-tab-commentary {
+  border-left-color: #7c3aed;
+}
+.mobile-pane-tabs button.pane-tab-dictionary {
+  border-left-color: #059669;
+}
+.mobile-pane-tabs button.pane-tab-notes {
+  border-left-color: #d97706;
 }
 .mobile-pane-tabs button.active {
   background: var(--accent);
