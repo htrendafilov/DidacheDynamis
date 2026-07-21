@@ -1,3 +1,12 @@
+def test_security_headers(client):
+    h = client.get("/api/v1/meta").headers
+    csp = h.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in csp
+    assert "script-src 'self'" in csp
+    assert "api.dropboxapi.com" in csp  # sync allowed
+    assert h.get("X-Content-Type-Options") == "nosniff"
+
+
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 

@@ -6,7 +6,9 @@ reference pop-ups, (3) the same pop-ups embeddable on external sites (e.g. a blo
 
 ## 1. Deep links (URL-addressable content)
 Open any content directly from a URL, and keep the URL in sync as the user navigates so links are
-shareable/bookmarkable. React Router is already in the stack.
+shareable/bookmarkable. **Routing is not wired up yet** — the app uses the zustand pane store with no
+router; deep links will add either `react-router` (a new dependency) or a small hand-rolled
+parse/serialize layer over `history` + the store.
 
 - **Scheme (proposal):** a compact, canonical form per content type, e.g.
   - Bible verse/passage: `/b/web/John/3/16` or `/b/web/John/3/16-19`
@@ -16,6 +18,11 @@ shareable/bookmarkable. React Router is already in the stack.
   - Multi-pane layout (shareable workspace): query form `?p1=b:web:John:3&p2=c:mhc:John:3`.
 - **On load:** parse the URL → configure the store's panes (`apps/web/src/state/store.ts`).
 - **On navigation:** pane/passage changes push URL state (replace vs push chosen to keep history sane).
+- **Validate** parsed input: cap pane count (1–3), allow only known work IDs, and range-check
+  book/chapter/verse against `/works`+`/books` before applying — reject/clamp bad links, don't crash.
+- **Preserve the Dropbox OAuth callback:** `App` already reads `?code`/`?state` (`state` starts `dbx-`)
+  on load for the PKCE flow (`dropboxAuth.ts` strips them after). The deep-link parser must run
+  *alongside* that — ignore/pass through OAuth params and not clobber them, or Dropbox connect breaks.
 - Reuses existing passage/commentary/dictionary/book APIs; mostly a frontend routing layer +
   a canonical ref parser/serializer (share with the embed widget in §3).
 
@@ -25,10 +32,14 @@ on hover/focus/tap show a pop-up with the Bible text, plus — if the passage is
 preview and a link to **open it in the current Bible pane**.
 
 - **Reference resolution (two layers):**
-  1. **Structured (preferred):** enhance the importer to emit `ref` inline CIR nodes with a canonical
-     target where the source has them — Matthew Henry / OSIS commentaries carry `<reference
-     osisRef="John.3.1-John.3.19">`. Today `formats/study.py::_document` flattens to text only; extend
-     it to preserve references as `ref` nodes (target = canonical osisRef).
+  1. **Structured (preferred):** emit `ref` inline CIR nodes with a canonical target where the source
+     has them — Matthew Henry / OSIS commentaries carry `<reference osisRef="John.3.1-John.3.19">`.
+     **This is a coordinated change across layers**, since the current study CIR only has formatted text
+     runs (`{t, emphasis, strong, superscript}`), no `ref` node: (a) importer `formats/study.py`
+     (`_document`/`_sword_osis_document` today flatten refs to text) must preserve them; (b) the Pydantic
+     `Document`/run models (`apps/api/app/models.py`) and (c) the TS `api.ts` types add a `ref` run kind;
+     (d) `DocumentRenderer.tsx` renders it as an interactive `<ScriptureRef>`; (e) importer + renderer
+     tests. Plan it as its own slice.
   2. **Fallback linkifier:** a client-side scripture-reference regex over rendered text for sources
      without structured refs. Handles common English/Bulgarian citation formats + book-name aliases
      (reuse the importer's `_BOOK_ALIASES` idea on the client).

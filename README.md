@@ -52,8 +52,9 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   PDF export (browser print), and validated JSON backup/restore with conflict copies. All
   in-browser (IndexedDB), with optional Dropbox App Folder sync and explicit conflict copies. ✅
 - **M5** — hardening: **Cloudflare Tunnel** (CDN + closed origin bypass + no cert-renewal worry),
-  Playwright smoke + axe accessibility tests, mobile single-pane tab layout, external uptime monitor
-  (GitHub Actions + UptimeRobot), and a rehearsed DB/SPA backup & rollback. ✅
+  a **Content-Security-Policy** (Dropbox-scoped), Playwright smoke + axe accessibility tests, a
+  keyboard-navigable mobile pane-tab layout, external uptime monitor (GitHub Actions + UptimeRobot),
+  and a rehearsed atomic DB/SPA backup & rollback (versioned releases + symlink swap). ✅
 - **Next:** General Books (1689 Confession) → deep links + scripture pop-ups/embeds → open-source the repo
   (see `plan/`).
 

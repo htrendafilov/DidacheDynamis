@@ -52,8 +52,31 @@ class CacheMiddleware(BaseHTTPMiddleware):
         )
 
 
+# Content-Security-Policy (assigned to M5): the app is now served through the Cloudflare
+# Tunnel straight to this process (no Caddy in the bible path), so the app sets its own headers.
+# The Dropbox token lives in sessionStorage, so lock scripts to same-origin; allow the Dropbox
+# API hosts for sync (connect-src), inline data-URL images (notes), and inline styles
+# (react-resizable-panels / TipTap set element style attributes).
+CSP = (
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
+    "form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; font-src 'self'; frame-src 'self'; "
+    "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com"
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("Content-Security-Policy", CSP)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+
 app = FastAPI(title="Bible Reader API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CacheMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)  # added last -> outermost -> headers on every response
 
 app.include_router(health.router)
 app.include_router(works.router)

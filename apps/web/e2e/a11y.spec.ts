@@ -43,16 +43,33 @@ test("settings + search panels have no serious accessibility violations", async 
   expect(await seriousViolations(page)).toEqual([]);
 });
 
-test("mobile shows one pane with a working tab switcher", async ({ page }) => {
+test("mobile tab switcher changes the visible pane by click and keyboard", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.getByText("God so loved the world")).toBeVisible();
-  // add a notes pane; on mobile a tablist appears and only the active pane shows
+
+  // second pane -> a tablist appears; only the active pane is mounted
   await page.getByRole("button", { name: /Add pane/ }).click();
-  await page.locator(".pane-wrap").last().locator("select").first().selectOption("notes");
-  const tabs = page.getByRole("tablist", { name: /Switch pane/i });
-  await expect(tabs).toBeVisible();
-  // only one pane is mounted at a time
+  const tablist = page.getByRole("tablist", { name: /Switch pane/i });
+  await expect(tablist).toBeVisible();
   await expect(page.locator(".pane-wrap")).toHaveCount(1);
+  const tabs = tablist.getByRole("tab");
+  await expect(tabs).toHaveCount(2);
+  // the panel is associated with the tabs (aria-controls)
+  await expect(tabs.first()).toHaveAttribute("aria-controls", "mobile-pane-panel");
+
+  // click the 2nd tab -> selection moves, and make it visibly different (Notes)
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "false");
+  await page.locator(".pane-wrap").locator("select").first().selectOption("notes");
+  await expect(page.getByText("God so loved the world")).toHaveCount(0);
+
+  // keyboard: ArrowLeft from the 2nd tab selects the 1st, and the Bible pane returns
+  await tabs.nth(1).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("God so loved the world")).toBeVisible();
+
   expect(await seriousViolations(page)).toEqual([]);
 });

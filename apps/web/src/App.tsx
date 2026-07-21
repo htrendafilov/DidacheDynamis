@@ -66,6 +66,22 @@ export default function App() {
   const paneIcon = (type: Pane["type"]) =>
     ({ bible: "📖", commentary: "💬", dictionary: "📔", notes: "📝" })[type];
 
+  const MOBILE_PANEL_ID = "mobile-pane-panel";
+  const tabId = (p: Pane) => `mobile-tab-${p.id}`;
+  // W3C tabs pattern: arrow/Home/End move selection and focus (roving tabIndex).
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const n = panes.length;
+    let next = activeIndex;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (activeIndex + 1) % n;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (activeIndex - 1 + n) % n;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = n - 1;
+    else return;
+    e.preventDefault();
+    setActiveMobile(next);
+    requestAnimationFrame(() => document.getElementById(tabId(panes[next]))?.focus());
+  };
+
   return (
     <div className="app">
       <TopBar
@@ -98,23 +114,34 @@ export default function App() {
                 {panes.map((p, i) => {
                   const label = paneLabel(p);
                   const typeName = t(`source.${p.type}`);
+                  const selected = i === activeIndex;
                   return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={i === activeIndex}
-                    aria-label={label === typeName ? typeName : `${typeName}: ${label}`}
-                    className={i === activeIndex ? `active pane-tab-${p.type}` : `pane-tab-${p.type}`}
-                    onClick={() => setActiveMobile(i)}
-                  >
-                    <span aria-hidden="true">{paneIcon(p.type)}</span> {label}
-                  </button>
+                    <button
+                      key={p.id}
+                      id={tabId(p)}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      aria-controls={MOBILE_PANEL_ID}
+                      tabIndex={selected ? 0 : -1}
+                      aria-label={label === typeName ? typeName : `${typeName}: ${label}`}
+                      className={selected ? `active pane-tab-${p.type}` : `pane-tab-${p.type}`}
+                      onClick={() => setActiveMobile(i)}
+                      onKeyDown={onTabKeyDown}
+                    >
+                      <span aria-hidden="true">{paneIcon(p.type)}</span> {label}
+                    </button>
                   );
                 })}
               </nav>
             )}
-            <div className="mobile-pane">
+            <div
+              className="mobile-pane"
+              id={panes.length > 1 ? MOBILE_PANEL_ID : undefined}
+              role={panes.length > 1 ? "tabpanel" : undefined}
+              aria-labelledby={panes.length > 1 ? tabId(activePane) : undefined}
+              tabIndex={panes.length > 1 ? 0 : undefined}
+            >
               <PaneHost pane={activePane} />
             </div>
           </div>

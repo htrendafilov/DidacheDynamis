@@ -9,10 +9,11 @@ import "./styles/app.css";
 // assets while this tab was open, reload to pick up the new build. Throttled to at most once
 // per 10s so a persistent failure can't cause a reload loop, while a later deploy can still
 // trigger a fresh reload.
-window.addEventListener("vite:preloadError", () => {
+window.addEventListener("vite:preloadError", (event) => {
   const KEY = "bible-chunk-reload-at";
   const last = Number(sessionStorage.getItem(KEY) ?? "0");
   if (Date.now() - last < 10_000) return;
+  event.preventDefault(); // we handle it by reloading — suppress Vite's re-throw
   sessionStorage.setItem(KEY, String(Date.now()));
   window.location.reload();
 });
