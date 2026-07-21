@@ -390,6 +390,7 @@ export function NotesPane({ pane }: { pane: Pane }) {
             ref={restoreInputRef}
             type="file"
             accept="application/json"
+            aria-label={t("notes.restore")}
             className="sr-only"
             onChange={(event) => {
               if (event.target.files?.[0]) void restore(event.target.files[0]);

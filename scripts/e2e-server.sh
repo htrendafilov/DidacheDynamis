@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # Serve the full stack (FastAPI + built SPA + read-only content.sqlite) on one port for
-# Playwright E2E. Builds the DB and SPA if they are missing. Used by playwright.config.ts.
+# Playwright E2E. Used by playwright.config.ts.
+#
+# By default this REBUILDS the DB and SPA so local `npm run e2e` never tests stale artifacts.
+# Set E2E_REUSE=1 to skip rebuilding when the artifacts already exist (CI builds them in an
+# explicit prior step and sets this to avoid a redundant rebuild).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${E2E_PORT:-4321}"
+REUSE="${E2E_REUSE:-0}"
 
-if [ ! -f data/content.sqlite ]; then
-  if [ -x apps/importer/.venv/bin/bibleimport ]; then BI=apps/importer/.venv/bin/bibleimport; else BI="python3 -m bibleimport"; fi
+if [ -x apps/importer/.venv/bin/bibleimport ]; then BI=apps/importer/.venv/bin/bibleimport; else BI="python3 -m bibleimport"; fi
+
+if [ "$REUSE" != "1" ] || [ ! -f data/content.sqlite ]; then
   echo "e2e: building content.sqlite…"
   $BI build-all --sources-dir data/sources --out data/content.sqlite
 fi
 
-if [ ! -f apps/web/dist/index.html ]; then
+if [ "$REUSE" != "1" ] || [ ! -f apps/web/dist/index.html ]; then
   echo "e2e: building SPA…"
   ( cd apps/web && npm run build )
 fi

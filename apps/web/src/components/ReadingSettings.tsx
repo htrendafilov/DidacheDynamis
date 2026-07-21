@@ -84,6 +84,7 @@ export function ReadingSettings() {
         <span className="setting-label">{t("settings.fontSize")}</span>
         <input
           type="range"
+          aria-label={t("settings.fontSize")}
           min={0.8}
           max={1.6}
           step={0.1}

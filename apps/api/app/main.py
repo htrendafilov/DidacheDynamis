@@ -75,4 +75,9 @@ if settings.WEB_DIST_PATH.exists():
         target = settings.WEB_DIST_PATH / full_path
         if full_path and target.is_file():
             return FileResponse(target)
+        # Hashed build assets must 404 when missing — never fall back to index.html, or a
+        # stale lazy-chunk URL (from a tab opened before a deploy) would receive HTML and fail
+        # to execute as JS. A 404 lets the client detect it and reload (see main.tsx).
+        if full_path.startswith("assets/"):
+            return Response(status_code=404)
         return FileResponse(_INDEX)

@@ -43,6 +43,8 @@ jobs:
         run: (cd apps/web && npx playwright install --with-deps chromium)
 
       - name: Run smoke tests
+        env:
+          E2E_REUSE: "1" # DB + SPA were built in the explicit step above
         run: (cd apps/web && npm run e2e)
 
       - uses: actions/upload-artifact@v4
