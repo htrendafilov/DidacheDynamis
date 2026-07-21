@@ -1,0 +1,88 @@
+name: uptime
+
+# External uptime monitor: probes the public site (through Cloudflare — the real user path)
+# every 10 minutes and opens/closes a GitHub issue on outage/recovery, which emails the owner.
+# Only the public URL is used (no origin IP), so this is safe to publish.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+env:
+  SITE: https://bible.trendafilovi.net
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /health and /ready (with retries)
+        id: probe
+        run: |
+          set +e
+          ok=0
+          detail=""
+          for attempt in 1 2 3; do
+            h_code=$(curl -sS -m 20 -o /tmp/health -w '%{http_code}' "$SITE/health")
+            r_code=$(curl -sS -m 20 -o /tmp/ready  -w '%{http_code}' "$SITE/ready")
+            detail="health=$h_code $(cat /tmp/health 2>/dev/null) | ready=$r_code $(cat /tmp/ready 2>/dev/null)"
+            if [ "$h_code" = "200" ] && grep -q '"status":"ok"' /tmp/health \
+               && [ "$r_code" = "200" ] && grep -q 'content_version' /tmp/ready; then
+              ok=1
+              break
+            fi
+            echo "attempt $attempt failed: $detail"
+            sleep 15
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          {
+            echo "detail<<EOF"
+            echo "$detail"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "result ok=$ok — $detail"
+
+      - name: Ensure the outage label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create outage --color B60205 --description "Automated uptime outage" --force
+
+      - name: Open an outage issue on failure
+        if: steps.probe.outputs.ok == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --label outage --state open --json number --jq '.[0].number // empty')
+          body="@htrendafilov Automated uptime check failed (UTC $(date -u '+%Y-%m-%d %H:%M')).
+
+          \`\`\`
+          ${{ steps.probe.outputs.detail }}
+          \`\`\`
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -z "$existing" ]; then
+            gh issue create --label outage --title "🔴 bible.trendafilovi.net is down" --body "$body"
+          else
+            gh issue comment "$existing" --body "$body"
+          fi
+
+      - name: Close the outage issue on recovery
+        if: steps.probe.outputs.ok == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label outage --state open --json number --jq '.[].number'); do
+            gh issue comment "$n" --body "✅ Recovered (UTC $(date -u '+%Y-%m-%d %H:%M'))."
+            gh issue close "$n"
+          done
+
+      - name: Fail the run if the site is down
+        if: steps.probe.outputs.ok == '0'
+        run: exit 1
