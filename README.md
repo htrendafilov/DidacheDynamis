@@ -18,6 +18,15 @@ The full v1 design lives in [`plan/`](plan/):
 - [`plan/backend/backend_design.md`](plan/backend/backend_design.md)
 - [`plan/deployment/deployment_design.md`](plan/deployment/deployment_design.md)
 
+## Documentation
+
+Comprehensive project documentation is available in [`docs/`](docs/):
+
+- [`docs/user/index.md`](docs/user/index.md) — User Guide (Pane management, reading modes, rich text notes, Dropbox sync)
+- [`docs/developer/index.md`](docs/developer/index.md) — Developer Guide (Setup, architecture, CIR data model, web SPA, FastAPI & testing)
+- [`docs/deployment/index.md`](docs/deployment/index.md) — Deployment & Operations Guide (Cloudflare Tunnel, systemd, zero-downtime releases & monitoring)
+- [`docs/plan.md`](docs/plan.md) — Master Documentation Plan
+
 ## Monorepo layout
 
 ```
