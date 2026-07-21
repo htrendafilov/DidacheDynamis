@@ -71,8 +71,38 @@ describe("BookPane", () => {
     render(<Harness />);
     expect(screen.getByRole("navigation", { name: "Table of contents" })).toBeVisible();
     expect(screen.getByText("The Scriptures are sufficient.")).toBeVisible();
+    expect(screen.queryByText("The Lord our God is one God.")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Chapter 2" }));
     expect(screen.getByText("The Lord our God is one God.")).toBeVisible();
     expect(useStore.getState().panes[0].sectionId).toBe("chapter-2");
+  });
+
+  it("shows and hides the table of contents", () => {
+    render(<Harness />);
+    const toc = screen.getByRole("navigation", { name: "Table of contents" });
+    fireEvent.click(screen.getByRole("button", { name: /Hide contents/ }));
+    expect(toc).not.toBeVisible();
+    expect(useStore.getState().panes[0].bookTocOpen).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /Show contents/ }));
+    expect(toc).toBeVisible();
+  });
+
+  it("turns sections as pages with previous and next controls", () => {
+    render(<Harness />);
+    expect(screen.getByText("1 of 2")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Previous/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    expect(screen.getByText("The Lord our God is one God.")).toBeVisible();
+    expect(screen.getByText("2 of 2")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Next/ })).toBeDisabled();
+  });
+
+  it("renders every section in continuous scroll mode", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Scroll" }));
+    expect(screen.getByText("The Scriptures are sufficient.")).toBeVisible();
+    expect(screen.getByText("The Lord our God is one God.")).toBeVisible();
+    expect(document.querySelectorAll(".book-scroll-section")).toHaveLength(2);
+    expect(useStore.getState().panes[0].bookMode).toBe("scroll");
   });
 });

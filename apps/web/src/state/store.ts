@@ -7,14 +7,17 @@ export type VerseLayout = "per-line" | "flowing";
 export type WordsOfChrist = "off" | "bold" | "red";
 export type Theme = "light" | "dark";
 export type UiLang = "en" | "bg";
+export type BookReadingMode = "paged" | "scroll";
 
 export interface Pane {
   id: string;
   type: PaneSourceType;
-  workId: string; // for bible/commentary/dictionary
+  workId: string; // for bible/commentary/dictionary/book
   osis: string; // current book (bible/commentary)
   chapter: number;
   sectionId?: string; // current section for a General Book pane
+  bookTocOpen?: boolean;
+  bookMode?: BookReadingMode;
 }
 
 export interface Settings {

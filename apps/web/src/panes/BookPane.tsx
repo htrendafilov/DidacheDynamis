@@ -1,3 +1,4 @@
+import { useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SourceSelector } from "../components/SourceSelector";
@@ -54,15 +55,55 @@ export function BookPane({ pane }: { pane: Pane }) {
   const work = bookWorks.find((item) => item.id === pane.workId);
   const { loading, error, data } = useGeneralBook(pane.workId);
   const sections = data ? flatten(data.sections) : [];
+  const readableSections = sections.filter((section) => section.body.blocks.length > 0);
   const selected =
-    sections.find((section) => section.section_id === pane.sectionId) ?? sections[0];
+    readableSections.find((section) => section.section_id === pane.sectionId) ??
+    readableSections[0];
+  const selectedIndex = selected
+    ? readableSections.findIndex((section) => section.section_id === selected.section_id)
+    : -1;
+  const tocOpen = pane.bookTocOpen ?? true;
+  const mode = pane.bookMode ?? "paged";
+  const tocId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const sectionElements = useRef(new Map<string, HTMLElement>());
+
+  const selectSection = (sectionId: string) => {
+    const section = sections.find((item) => item.section_id === sectionId);
+    const target =
+      section?.body.blocks.length
+        ? section
+        : section
+          ? flatten(section.children).find((item) => item.body.blocks.length > 0)
+          : undefined;
+    if (!target) return;
+    updatePane(pane.id, { sectionId: target.section_id });
+    if (mode === "scroll") {
+      requestAnimationFrame(() =>
+        sectionElements.current.get(target.section_id)?.scrollIntoView?.({
+          behavior: "smooth",
+          block: "start",
+        }),
+      );
+    } else {
+      contentRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+    }
+    if (window.matchMedia?.("(max-width: 640px)").matches) {
+      updatePane(pane.id, { bookTocOpen: false });
+    }
+  };
+
+  const turnPage = (offset: number) => {
+    const target = readableSections[selectedIndex + offset];
+    if (target) selectSection(target.section_id);
+  };
 
   return (
     <div className="pane book-pane">
       <div className="pane-header">
         <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
         {bookWorks.length > 0 && (
-          <label>
+          <label className="book-work-select">
             <span className="sr-only">{t("book.select")}</span>
             <select
               aria-label={t("book.select")}
@@ -79,27 +120,104 @@ export function BookPane({ pane }: { pane: Pane }) {
             </select>
           </label>
         )}
+        <div className="book-reader-controls">
+          <button
+            type="button"
+            aria-expanded={tocOpen}
+            aria-controls={tocId}
+            onClick={() => updatePane(pane.id, { bookTocOpen: !tocOpen })}
+          >
+            ☰ {t(tocOpen ? "book.hideContents" : "book.showContents")}
+          </button>
+          <div className="segmented" role="group" aria-label={t("book.readingMode")}>
+            <button
+              type="button"
+              className={`seg ${mode === "paged" ? "active" : ""}`}
+              aria-pressed={mode === "paged"}
+              onClick={() => updatePane(pane.id, { bookMode: "paged" })}
+            >
+              {t("book.paged")}
+            </button>
+            <button
+              type="button"
+              className={`seg ${mode === "scroll" ? "active" : ""}`}
+              aria-pressed={mode === "scroll"}
+              onClick={() => updatePane(pane.id, { bookMode: "scroll" })}
+            >
+              {t("book.scroll")}
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="book-layout">
-        <nav className="book-toc" aria-label={t("book.contents")}>
+      <div className={`book-layout ${tocOpen ? "" : "toc-hidden"}`}>
+        {tocOpen && (
+          <button
+            type="button"
+            className="book-toc-scrim"
+            aria-label={t("book.closeContents")}
+            onClick={() => updatePane(pane.id, { bookTocOpen: false })}
+          />
+        )}
+        <nav id={tocId} className="book-toc" aria-label={t("book.contents")} hidden={!tocOpen}>
           {data && (
             <TableOfContents
               sections={data.sections}
               selected={selected?.section_id}
-              onSelect={(sectionId) => updatePane(pane.id, { sectionId })}
+              onSelect={selectSection}
             />
           )}
         </nav>
-        <div className="pane-body book-content">
+        <div
+          className={`pane-body book-content book-content-${mode}`}
+          ref={contentRef}
+        >
           {loading && <p className="muted">{t("reader.loading")}</p>}
           {error && <p className="muted">{t("book.error")}</p>}
           {data && !selected && <p className="muted">{t("book.empty")}</p>}
-          {selected && (
-            <article>
-              {selected.body.blocks[0]?.kind !== "heading" && <h3>{selected.title}</h3>}
-              <DocumentRenderer document={selected.body} />
-            </article>
+          {mode === "paged" && selected && (
+            <>
+              <article className="book-page">
+                {selected.body.blocks[0]?.kind !== "heading" && <h3>{selected.title}</h3>}
+                <DocumentRenderer document={selected.body} />
+              </article>
+              <nav className="book-page-nav" aria-label={t("book.pageNavigation")}>
+                <button
+                  type="button"
+                  disabled={selectedIndex <= 0}
+                  onClick={() => turnPage(-1)}
+                >
+                  ← {t("book.previous")}
+                </button>
+                <span>
+                  {t("book.pageCount", {
+                    current: selectedIndex + 1,
+                    total: readableSections.length,
+                  })}
+                </span>
+                <button
+                  type="button"
+                  disabled={selectedIndex >= readableSections.length - 1}
+                  onClick={() => turnPage(1)}
+                >
+                  {t("book.next")} →
+                </button>
+              </nav>
+            </>
           )}
+          {mode === "scroll" &&
+            readableSections.map((section) => (
+              <article
+                className="book-scroll-section"
+                key={section.section_id}
+                ref={(element) => {
+                  if (element) sectionElements.current.set(section.section_id, element);
+                  else sectionElements.current.delete(section.section_id);
+                }}
+              >
+                {section.body.blocks[0]?.kind !== "heading" && <h3>{section.title}</h3>}
+                <DocumentRenderer document={section.body} />
+              </article>
+            ))}
         </div>
       </div>
       {work && <WorkFooter work={work} />}

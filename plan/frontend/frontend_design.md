@@ -45,7 +45,9 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
   separated from the commentary, while the pane follows any linked Bible by canonical reference.
 - **Dictionary pane** — prefix search box + headword list; entry view; internal links between entries.
 - **General Book pane** — selects an imported reference/theology book, displays its hierarchical TOC,
-  and renders sections with the same Document CIR used by commentary and dictionary entries.
+  and renders sections with the same Document CIR used by commentary and dictionary entries. Readers
+  can hide the TOC and choose section-by-section Previous/Next navigation or continuous scrolling;
+  the mobile TOC opens over the text and closes after a selection.
 - **Notes pane** — editable notes in **IndexedDB (Dexie)**. Two modes: free notes and passage/verse-
   attached notes (keyed by canonical ref). Edits use independent per-note save queues, and all
   navigation/export paths flush pending changes first. Deletion is recoverable and retained as a

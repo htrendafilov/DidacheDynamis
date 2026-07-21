@@ -79,7 +79,27 @@ test("opens the 1689 Confession through the General Books pane", async ({ page }
   await page.getByRole("combobox", { name: "Source" }).selectOption("book");
   const toc = page.getByRole("navigation", { name: "Table of contents" });
   await expect(toc).toBeVisible();
+  await page.getByRole("button", { name: /Hide contents/ }).click();
+  await expect(toc).toBeHidden();
+  await page.getByRole("button", { name: /Show contents/ }).click();
+  await expect(toc).toBeVisible();
+  await page
+    .getByRole("group", { name: "Reading mode" })
+    .getByRole("button", { name: "Scroll" })
+    .click();
+  await expect(page.locator(".book-scroll-section")).toHaveCount(35);
   await toc.getByRole("button", { name: /Chapter 1 — Of the Holy Scriptures/i }).click();
+  await expect(page.getByText(/The Holy Scripture is the only sufficient/i)).toBeVisible();
+});
+
+test("mobile book contents closes after choosing a section", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Source" }).selectOption("book");
+  const toc = page.getByRole("navigation", { name: "Table of contents" });
+  await expect(toc).toBeVisible();
+  await toc.getByRole("button", { name: /Chapter 1 — Of the Holy Scriptures/i }).click();
+  await expect(toc).toBeHidden();
   await expect(page.getByText(/The Holy Scripture is the only sufficient/i)).toBeVisible();
 });
 

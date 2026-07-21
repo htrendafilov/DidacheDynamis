@@ -43,6 +43,16 @@ test("settings + search panels have no serious accessibility violations", async 
   expect(await seriousViolations(page)).toEqual([]);
 });
 
+test("mobile book reader and contents overlay have no serious accessibility violations", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Source" }).selectOption("book");
+  await expect(page.getByRole("navigation", { name: "Table of contents" })).toBeVisible();
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
 test("mobile tab switcher changes the visible pane by click and keyboard", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
