@@ -68,12 +68,13 @@ export default function App() {
 
   const MOBILE_PANEL_ID = "mobile-pane-panel";
   const tabId = (p: Pane) => `mobile-tab-${p.id}`;
-  // W3C tabs pattern: arrow/Home/End move selection and focus (roving tabIndex).
+  // Horizontal WAI-ARIA tabs: Left/Right/Home/End move selection and focus.
+  // Leave Up/Down alone so they retain their normal page-scrolling behaviour.
   const onTabKeyDown = (e: React.KeyboardEvent) => {
     const n = panes.length;
     let next = activeIndex;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (activeIndex + 1) % n;
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (activeIndex - 1 + n) % n;
+    if (e.key === "ArrowRight") next = (activeIndex + 1) % n;
+    else if (e.key === "ArrowLeft") next = (activeIndex - 1 + n) % n;
     else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = n - 1;
     else return;

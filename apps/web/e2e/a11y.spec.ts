@@ -65,8 +65,12 @@ test("mobile tab switcher changes the visible pane by click and keyboard", async
   await page.locator(".pane-wrap").locator("select").first().selectOption("notes");
   await expect(page.getByText("God so loved the world")).toHaveCount(0);
 
-  // keyboard: ArrowLeft from the 2nd tab selects the 1st, and the Bible pane returns
+  // A horizontal tablist must not consume vertical arrows: they remain available for scrolling.
   await tabs.nth(1).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+
+  // ArrowLeft from the 2nd tab selects the 1st, and the Bible pane returns.
   await page.keyboard.press("ArrowLeft");
   await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("God so loved the world")).toBeVisible();
