@@ -18,6 +18,8 @@ concurrency:
 
 env:
   SITE: https://bible.trendafilovi.net
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   check:
@@ -50,23 +52,17 @@ jobs:
           echo "result ok=$ok — $detail"
 
       - name: Ensure the outage label exists
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: gh label create outage --color B60205 --description "Automated uptime outage" --force
 
       - name: Open an outage issue on failure
         if: steps.probe.outputs.ok == '0'
         env:
-          GH_TOKEN: ${{ github.token }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           existing=$(gh issue list --label outage --state open --json number --jq '.[0].number // empty')
-          body="@htrendafilov Automated uptime check failed (UTC $(date -u '+%Y-%m-%d %H:%M')).
-
-          \`\`\`
-          ${{ steps.probe.outputs.detail }}
-          \`\`\`
-
-          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body=$(printf '@htrendafilov Automated uptime check failed (UTC %s).\n\n```\n%s\n```\n\nRun: %s' \
+            "$(date -u '+%Y-%m-%d %H:%M')" "$DETAIL" "$RUN_URL")
           if [ -z "$existing" ]; then
             gh issue create --label outage --title "🔴 bible.trendafilovi.net is down" --body "$body"
           else
@@ -75,8 +71,6 @@ jobs:
 
       - name: Close the outage issue on recovery
         if: steps.probe.outputs.ok == '1'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           for n in $(gh issue list --label outage --state open --json number --jq '.[].number'); do
             gh issue comment "$n" --body "✅ Recovered (UTC $(date -u '+%Y-%m-%d %H:%M'))."
