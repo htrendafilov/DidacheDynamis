@@ -1,0 +1,53 @@
+name: e2e
+
+# Playwright smoke tests over the full stack (FastAPI + built SPA + content.sqlite).
+# Manual-only by default to conserve private-repo Actions minutes (a run builds the DB + SPA
+# and downloads a browser — a few minutes). Once the repo is PUBLIC (Actions free/unlimited),
+# add `push: { branches: [main] }` here to run them automatically before deploys.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e apps/importer -e apps/api
+          (cd apps/web && npm ci)
+
+      - name: Build content DB + SPA
+        run: |
+          bibleimport build-all --sources-dir data/sources --out data/content.sqlite
+          (cd apps/web && npm run build)
+
+      - name: Install Playwright browser
+        run: (cd apps/web && npx playwright install --with-deps chromium)
+
+      - name: Run smoke tests
+        run: (cd apps/web && npm run e2e)
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7

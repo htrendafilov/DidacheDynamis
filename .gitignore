@@ -35,3 +35,8 @@ data/sources/*.private.*
 # Session handoff artifacts (local only)
 .continues-handoff.md
 *-handoff.md
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/playwright/.cache/
