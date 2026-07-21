@@ -2,6 +2,12 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_health_allows_head(client):
+    # uptime monitors default to HEAD; it must not 405
+    assert client.head("/health").status_code == 200
+    assert client.head("/ready").status_code == 200
+
+
 def test_ready_has_content(client):
     body = client.get("/ready").json()
     assert body["status"] == "ready"
