@@ -59,6 +59,8 @@
   "xref.title": "Препратки",
   "xref.close": "Затвори препратките",
   "xref.none": "Няма препратки за този стих.",
+  "scriptureRef.openInBible": "Отвори в панела с Библията",
+  "scriptureRef.error": "Пасажът не можа да бъде зареден.",
   "workInfo.open": "Информация",
   "workInfo.close": "Затвори информацията за източника",
   "workInfo.tabs": "Информация за източника",

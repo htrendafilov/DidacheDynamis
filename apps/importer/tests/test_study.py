@@ -114,3 +114,33 @@ def test_append_study_content_populates_all_tables(tmp_path):
     assert conn.execute(
         "SELECT count(*) FROM dictionary_fts WHERE dictionary_fts MATCH 'flock'"
     ).fetchone()[0] == 1
+
+
+def test_normalize_osis_ref_validates_and_collapses_ranges():
+    from bibleimport.books import normalize_osis_ref
+
+    assert normalize_osis_ref("John.3.16") == "John.3.16"
+    assert normalize_osis_ref("2Tim.3.16") == "2Tim.3.16"
+    assert normalize_osis_ref("John.3.1-John.3.19") == "John.3.1-19"
+    assert normalize_osis_ref("Ps.23.1-3") == "Ps.23.1-3"
+    assert normalize_osis_ref("John.3.5-John.4.2") == "John.3.5"  # cross-chapter -> start verse
+    assert normalize_osis_ref("John.3.19-John.3.1") == "John.3.19"  # end <= start ignored
+    assert normalize_osis_ref("Nope.1.1") is None
+    assert normalize_osis_ref("garbage") is None
+    assert normalize_osis_ref("") is None
+
+
+def test_sword_commentary_preserves_scripture_references():
+    from bibleimport.formats.study import _sword_osis_document
+
+    fragment = (
+        '<div type="x-p" sID="p1"/>See '
+        '<reference osisRef="John.3.16">John 3:16</reference> and '
+        '<reference osisRef="Ps.23.1-Ps.23.3">Ps 23:1-3</reference>.'
+        '<div type="x-p" eID="p1"/>'
+    )
+    body, plain = _sword_osis_document(fragment)
+    runs = body["blocks"][0]["runs"]
+    refs = [(run["t"], run.get("ref")) for run in runs if run.get("ref")]
+    assert refs == [("John 3:16", "John.3.16"), ("Ps 23:1-3", "Ps.23.1-3")]
+    assert "See" in plain and "John 3:16" in plain

@@ -97,6 +97,7 @@ class DocumentRun(BaseModel):
     emphasis: bool = False
     strong: bool = False
     superscript: bool = False
+    ref: str | None = None  # canonical scripture target (e.g. "John.3.16" or "John.3.1-19")
 
 
 class DocumentBlock(BaseModel):

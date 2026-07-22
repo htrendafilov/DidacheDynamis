@@ -53,3 +53,34 @@ BY_OSIS: dict[str, CanonBook] = {b.osis: b for b in CANON}
 
 def is_canonical_usfm(code: str) -> bool:
     return code in BY_USFM
+
+
+def normalize_osis_ref(value: str) -> str | None:
+    """Normalize an OSIS ``osisRef`` to our canonical target, or None if unusable.
+
+    Accepts ``Book.chapter.verse`` and single-chapter ranges (``Book.c.v-Book.c.v`` or
+    ``Book.c.v-v``); returns ``Book.chapter.verse`` or ``Book.chapter.start-end``. The book must be
+    canonical. Cross-chapter/cross-book ranges collapse to the starting verse (the pop-up shows the
+    start rather than guessing an unbounded span).
+    """
+    value = (value or "").strip()
+    if not value:
+        return None
+    start, _, end = value.partition("-")
+    parts = start.split(".")
+    if len(parts) != 3:
+        return None
+    book, chapter, verse = parts
+    if book not in BY_OSIS or not (chapter.isdigit() and verse.isdigit()):
+        return None
+    ref = f"{book}.{int(chapter)}.{int(verse)}"
+    if end:
+        eparts = end.split(".")
+        end_verse: str | None = None
+        if len(eparts) == 3 and eparts[0] == book and eparts[1] == chapter and eparts[2].isdigit():
+            end_verse = eparts[2]
+        elif len(eparts) == 1 and eparts[0].isdigit():
+            end_verse = eparts[0]
+        if end_verse is not None and int(end_verse) > int(verse):
+            ref += f"-{int(end_verse)}"
+    return ref

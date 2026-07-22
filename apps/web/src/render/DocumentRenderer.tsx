@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ScriptureRef } from "../components/ScriptureRef";
 import type { Document, DocumentBlock } from "../data/api";
 
 function BlockContent({ block }: { block: DocumentBlock }) {
@@ -10,6 +11,7 @@ function BlockContent({ block }: { block: DocumentBlock }) {
     if (run.emphasis) content = <em>{content}</em>;
     if (run.strong) content = <strong>{content}</strong>;
     if (run.superscript) content = <sup className="study-verse-number">{content}</sup>;
+    if (run.ref) content = <ScriptureRef refValue={run.ref}>{content}</ScriptureRef>;
     return <Fragment key={index}>{content}</Fragment>;
   });
 }

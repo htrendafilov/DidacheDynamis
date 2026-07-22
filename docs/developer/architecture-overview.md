@@ -83,5 +83,7 @@ Each `verses.nodes_json` value has this shape:
 
 Commentary entries, dictionary entries, and General Book sections share `{"blocks": [...]}`. A block
 is `heading`, `paragraph`, or `quotation`, with plain `text` and optional runs carrying `emphasis`,
-`strong`, or `superscript` flags. See `apps/api/app/models.py` and
+`strong`, or `superscript` flags. A run may also carry a `ref` — a canonical scripture target
+(`"John.3.16"` or `"John.3.1-19"`) preserved from the source's `<reference osisRef>` tags — which the
+client renders as an interactive scripture pop-up. See `apps/api/app/models.py` and
 `apps/web/src/render/DocumentRenderer.tsx` for the API/client contract.

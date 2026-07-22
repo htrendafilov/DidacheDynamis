@@ -1033,3 +1033,61 @@ button.danger {
     padding-left: 0.45rem;
   }
 }
+
+/* Interactive scripture references inside commentary / General Book content, with a hover/tap
+   pop-up showing the passage text. The wrapper is the positioning context for the pop-up. */
+.scripture-ref-wrap {
+  position: relative;
+}
+.scripture-ref {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.scripture-ref:hover,
+.scripture-ref:focus-visible {
+  text-decoration-style: solid;
+}
+.scripture-ref-popover {
+  position: absolute;
+  z-index: 20;
+  top: 1.5em;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: min(22rem, 80vw);
+  padding: 0.6rem 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  cursor: auto;
+}
+.scripture-ref-popover-title {
+  font-weight: 700;
+  color: var(--accent);
+}
+.scripture-ref-text {
+  color: var(--fg);
+}
+.scripture-ref-open {
+  align-self: flex-start;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+}

@@ -34,6 +34,14 @@ def test_genbook_parser_materializes_tree_and_document_cir():
         for run in block.get("runs", [])
     )
     assert "2 Tim. 3:16" in paragraph.plain_text
+    # The <reference osisRef> proof text becomes an interactive scripture-ref run.
+    ref_runs = [
+        run
+        for block in paragraph.body["blocks"]
+        for run in block.get("runs", [])
+        if run.get("ref")
+    ]
+    assert ref_runs == [{"t": "2 Tim. 3:16", "superscript": True, "ref": "2Tim.3.16"}]
 
 
 def test_genbook_parser_rejects_unknown_markup(tmp_path):

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
 
-from ..books import BY_OSIS, CANON
+from ..books import BY_OSIS, CANON, normalize_osis_ref
 from ..canonical import CommentaryRow, DictionaryRow, XrefRow, norm_ws
 
 _MAX_XML_BYTES = 64 * 1024 * 1024
@@ -116,6 +116,7 @@ def _append_document_run(
     emphasis: bool = False,
     strong: bool = False,
     superscript: bool = False,
+    ref: str | None = None,
 ) -> None:
     if not text:
         return
@@ -124,11 +125,17 @@ def _append_document_run(
         "strong": strong,
         "superscript": superscript,
     }
-    if runs and all(runs[-1].get(key, False) == value for key, value in flags.items()):
+    if (
+        runs
+        and runs[-1].get("ref") == ref
+        and all(runs[-1].get(key, False) == value for key, value in flags.items())
+    ):
         runs[-1]["t"] += text
         return
     run: dict[str, str | bool] = {"t": text}
     run.update({key: value for key, value in flags.items() if value})
+    if ref:
+        run["ref"] = ref
     runs.append(run)
 
 
@@ -141,6 +148,20 @@ def _collect_document_runs(
     superscript: bool = False,
 ) -> None:
     tag = element.tag.rsplit("}", 1)[-1]
+    if tag == "reference":
+        ref = normalize_osis_ref(element.attrib.get("osisRef", ""))
+        if ref:
+            text = "".join(element.itertext())
+            if text.strip():
+                _append_document_run(
+                    runs,
+                    text,
+                    emphasis=emphasis,
+                    strong=strong,
+                    superscript=superscript,
+                    ref=ref,
+                )
+                return
     hi_type = element.attrib.get("type", "") if tag == "hi" else ""
     own_emphasis = emphasis or hi_type == "italic"
     own_strong = strong or hi_type == "bold"

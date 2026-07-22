@@ -98,6 +98,7 @@ export interface DocumentRun {
   emphasis?: boolean;
   strong?: boolean;
   superscript?: boolean;
+  ref?: string; // canonical scripture target, e.g. "John.3.16" or "John.3.1-19"
 }
 
 export interface Document {
@@ -171,8 +172,11 @@ export const api = {
   // attribution-less /works response from the browser cache.
   works: () => get<Work[]>("/works", { cache: "no-cache" }),
   books: (workId: string) => get<Book[]>(`/works/${workId}/books`),
-  passage: (workId: string, osis: string, chapter: number) =>
-    get<Passage>(`/works/${workId}/passage/${osis}/${chapter}`),
+  passage: (workId: string, osis: string, chapter: number, verses?: string) =>
+    get<Passage>(
+      `/works/${workId}/passage/${osis}/${chapter}` +
+        (verses ? `?verses=${encodeURIComponent(verses)}` : ""),
+    ),
   commentary: (workId: string, osis: string, chapter: number, verse?: number) =>
     get<CommentaryPassage>(
       `/commentary/${workId}/${osis}/${chapter}` + (verse ? `?verse=${verse}` : ""),

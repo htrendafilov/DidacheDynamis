@@ -109,6 +109,23 @@ def test_passage_404(client):
     assert client.get("/api/v1/works/web/passage/John/99").status_code == 404
 
 
+def test_passage_verse_range(client):
+    full = client.get("/api/v1/works/web/passage/John/3").json()
+    assert {v["verse"] for v in full["verses"]} == {16}
+    one = client.get("/api/v1/works/web/passage/John/3", params={"verses": "16"}).json()
+    assert [v["verse"] for v in one["verses"]] == [16]
+    # A range that selects no existing verse is a 404, not an empty 200.
+    assert client.get(
+        "/api/v1/works/web/passage/John/3", params={"verses": "20-30"}
+    ).status_code == 404
+
+
+def test_passage_verse_range_rejects_bad_input(client):
+    for bad in ("0", "abc", "5-1", "-3"):
+        r = client.get("/api/v1/works/web/passage/John/3", params={"verses": bad})
+        assert r.status_code == 400, bad
+
+
 def test_search(client):
     res = client.get("/api/v1/search", params={"q": "shepherd"}).json()
     refs = {h["ref"] for h in res["hits"]}

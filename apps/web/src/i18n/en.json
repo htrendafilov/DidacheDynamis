@@ -59,6 +59,8 @@
   "xref.title": "Cross-references",
   "xref.close": "Close cross-references",
   "xref.none": "No cross-references for this verse.",
+  "scriptureRef.openInBible": "Open in Bible pane",
+  "scriptureRef.error": "Could not load this passage.",
   "workInfo.open": "Info",
   "workInfo.close": "Close source information",
   "workInfo.tabs": "Source information",

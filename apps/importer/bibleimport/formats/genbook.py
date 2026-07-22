@@ -12,6 +12,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
+from ..books import normalize_osis_ref
 from ..canonical import BookSectionRow, norm_ws
 from .study import _imp_entries
 
@@ -41,6 +42,7 @@ class _DocumentParser(HTMLParser):
         self._emphasis_depth = 0
         self._strong_depth = 0
         self._superscript_depth = 0
+        self._ref: str | None = None
 
     def _flush(self) -> None:
         if self._kind is None:
@@ -71,6 +73,9 @@ class _DocumentParser(HTMLParser):
             self._start_block(kind, "• " if tag == "item" else "")
         elif tag == "note":
             self._note_depth += 1
+        elif tag == "reference":
+            # HTMLParser lowercases attribute names, so osisRef arrives as "osisref".
+            self._ref = normalize_osis_ref(values.get("osisref") or "")
         elif tag == "hi":
             hi_type = (values.get("type") or "").casefold()
             if hi_type not in {"", "bold", "italic", "super"}:
@@ -87,6 +92,8 @@ class _DocumentParser(HTMLParser):
             self._flush()
         elif tag == "note":
             self._note_depth = max(0, self._note_depth - 1)
+        elif tag == "reference":
+            self._ref = None
         elif tag == "hi":
             # The production source currently has no hi tags. Reset all optional styles so a
             # malformed legacy closing tag cannot leak formatting into later blocks.
@@ -105,11 +112,18 @@ class _DocumentParser(HTMLParser):
             "strong": self._strong_depth > 0,
             "superscript": self._superscript_depth > 0 or self._note_depth > 0,
         }
-        if self._runs and all(self._runs[-1].get(key, False) == value for key, value in flags.items()):
+        ref = self._ref
+        if (
+            self._runs
+            and self._runs[-1].get("ref") == ref
+            and all(self._runs[-1].get(key, False) == value for key, value in flags.items())
+        ):
             self._runs[-1]["t"] += data
             return
         run: dict[str, str | bool] = {"t": data}
         run.update({key: value for key, value in flags.items() if value})
+        if ref:
+            run["ref"] = ref
         self._runs.append(run)
 
     def handle_decl(self, decl: str) -> None:

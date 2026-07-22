@@ -32,24 +32,21 @@ on hover/focus/tap show a pop-up with the Bible text, plus — if the passage is
 preview and a link to **open it in the current Bible pane**.
 
 - **Reference resolution (two layers):**
-  1. **Structured (preferred):** emit `ref` inline CIR nodes with a canonical target where the source
-     has them — Matthew Henry / OSIS commentaries carry `<reference osisRef="John.3.1-John.3.19">`.
-     **This is a coordinated change across layers**, since the current study CIR only has formatted text
-     runs (`{t, emphasis, strong, superscript}`), no `ref` node: (a) importer `formats/study.py`
-     (`_document`/`_sword_osis_document` today flatten refs to text) must preserve them; (b) the Pydantic
-     `Document`/run models (`apps/api/app/models.py`) and (c) the TS `api.ts` types add a `ref` run kind;
-     (d) `DocumentRenderer.tsx` renders it as an interactive `<ScriptureRef>`; (e) importer + renderer
-     tests. Plan it as its own slice.
-  2. **Fallback linkifier:** a client-side scripture-reference regex over rendered text for sources
-     without structured refs. Handles common English/Bulgarian citation formats + book-name aliases
-     (reuse the importer's `_BOOK_ALIASES` idea on the client).
-- **Pop-up component:** reuse the existing **verse cross-reference popover** pattern
-  (`BiblePane` + `.verse-tools` + `useCrossReferences`) — a `<ScriptureRef>` that fetches the passage
-  and renders it via the existing CIR renderer. Long passages show a preview + "open in Bible pane".
-- **API:** add a **verse-range** passage fetch (today `/passage/{osis}/{chapter}` is per-chapter; add
-  `?verses=1-19` or a dedicated range endpoint). Small addition to `apps/api/app/routers/passages.py`.
-- Accessibility: pop-ups open on hover **and** keyboard focus, dismiss on Escape, and are not
-  hover-only (touch = tap to open).
+  1. **Structured (preferred): DONE.** `<reference osisRef>` tags are preserved as a `ref` run
+     (`{t, …, ref}`) through both study (`_sword_osis_document`, for Matthew Henry OSIS) and General
+     Books (`genbook.py`, for the 1689 proof texts — 1150 refs). `books.normalize_osis_ref` validates
+     the book and collapses cross-chapter ranges to the start verse; the Pydantic + TS models carry
+     `ref`; `DocumentRenderer` renders it as `<ScriptureRef>`. (Verified end-to-end: 0 scripture
+     osisRefs in the 1689 failed to normalize.)
+  2. **Fallback linkifier (remaining):** a client-side scripture-reference regex over rendered text for
+     sources without structured refs. Handles common English/Bulgarian citation formats + book-name
+     aliases (reuse the importer's `_BOOK_ALIASES` idea on the client). Not yet built — the shipped
+     works all carry structured refs, so this is only needed for future plain-text sources.
+- **Pop-up component: DONE.** `components/ScriptureRef.tsx` fetches the passage (verse-range API, from
+  the public-domain `web` Bible) and shows a preview + "Open in Bible pane". Long passages truncate.
+- **API: DONE.** `/works/{id}/passage/{osis}/{chapter}` accepts `?verses=16` or `?verses=1-19`.
+- Accessibility: **DONE** — the trigger is a real `<button>`; the pop-up opens on hover **and**
+  keyboard focus, dismisses on Escape and on blur, and taps toggle it (not hover-only).
 
 ## 3. Embeddable pop-ups on external sites (blog)
 Ship a tiny standalone widget so the same scripture pop-ups + "open on bible.trendafilovi.net" links

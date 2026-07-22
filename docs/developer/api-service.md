@@ -29,7 +29,7 @@ Dropbox-aware Content Security Policy, are attached to every response.
 | `GET /api/v1/meta` | Content version and work count |
 | `GET /api/v1/works` | Installed works and attribution metadata |
 | `GET /api/v1/works/{work_id}/books` | Bible books and chapter counts |
-| `GET /api/v1/works/{work_id}/passage/{osis}/{chapter}` | Complete Bible chapter CIR |
+| `GET /api/v1/works/{work_id}/passage/{osis}/{chapter}?verses=` | Bible chapter CIR (optional `verses=16` or `1-19` range) |
 | `GET /api/v1/commentary/{work_id}/{osis}/{chapter}?verse=` | Commentary entries for a chapter/reference |
 | `GET /api/v1/dictionary/{work_id}/entries?prefix=&limit=` | Dictionary headword list |
 | `GET /api/v1/dictionary/{work_id}/entry/{headword}` | One dictionary entry |
