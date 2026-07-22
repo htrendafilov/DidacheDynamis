@@ -19,4 +19,10 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
+  {
+    // Standalone browser script (embed.js) — plain ES5, browser globals, not a module.
+    files: ["public/**/*.js"],
+    languageOptions: { sourceType: "script" },
+    rules: { "no-undef": "off" },
+  },
 );

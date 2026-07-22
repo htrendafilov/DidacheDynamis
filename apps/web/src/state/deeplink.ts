@@ -34,3 +34,35 @@ export function parseBookHash(hash: string): BookDeepLink | null {
   if (!workId || !sectionId || UNSAFE.test(workId) || UNSAFE.test(sectionId)) return null;
   return { workId, sectionId };
 }
+
+// Bible passage deep link (#/b/<work>/<osis>/<chapter>). Read on load so the external embed's
+// "open on bible.trendafilovi.net" link lands on the cited chapter; part of the same interim scheme.
+export interface BibleDeepLink {
+  workId: string;
+  osis: string;
+  chapter: number;
+}
+
+const BIBLE_PREFIX = "#/b/";
+
+export function bibleHash(workId: string, osis: string, chapter: number): string {
+  return `${BIBLE_PREFIX}${encodeURIComponent(workId)}/${encodeURIComponent(osis)}/${chapter}`;
+}
+
+export function parseBibleHash(hash: string): BibleDeepLink | null {
+  if (!hash.startsWith(BIBLE_PREFIX)) return null;
+  const parts = hash.slice(BIBLE_PREFIX.length).split("/");
+  if (parts.length !== 3) return null;
+  let workId: string;
+  let osis: string;
+  try {
+    workId = decodeURIComponent(parts[0]);
+    osis = decodeURIComponent(parts[1]);
+  } catch {
+    return null;
+  }
+  const chapter = Number(parts[2]);
+  if (!workId || !osis || UNSAFE.test(workId) || UNSAFE.test(osis)) return null;
+  if (!Number.isInteger(chapter) || chapter < 1) return null;
+  return { workId, osis, chapter };
+}

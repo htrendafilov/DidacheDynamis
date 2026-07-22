@@ -52,18 +52,20 @@ preview and a link to **open it in the current Bible pane**.
 Ship a tiny standalone widget so the same scripture pop-ups + "open on bible.trendafilovi.net" links
 work on the user's blog.
 
-- **Embed script:** a self-contained, dependency-free `embed.js` served from
-  `bible.trendafilovi.net/embed.js`. On an external page it either (a) scans for marked spans
-  (`<span data-bible-ref="John.3.16">…</span>`) or (b) auto-linkifies scripture references, then
-  attaches the hover/tap pop-up (fetching passage text from our API) and a deep link (§1) to open the
-  full passage in the app.
-- **CORS:** the read-only public API must allow cross-origin GETs. Add permissive CORS
-  (`Access-Control-Allow-Origin: *`) to the **read** endpoints only — safe, since it serves public
-  domain content and has no writes/auth. Verify interaction with Cloudflare caching (Vary/CORS headers).
-- **Self-contained UI:** the widget renders its own minimal pop-up (no React), styled to be
-  unobtrusive and theme-neutral; content is our already-sanitized text.
-- **Security/perf:** read-only public data; keep `embed.js` tiny and cache it hard at the edge. No
-  tokens, no user data.
+- **Embed script: DONE.** `apps/web/public/embed.js` — self-contained, dependency-free, served at
+  `/embed.js`. It scans for marked spans (`<span data-bible-ref="John.3.16">…</span>`), attaches the
+  hover/focus/tap pop-up (fetching passage text from our API), and adds a Bible deep link
+  (`/#/b/<work>/<osis>/<chapter>`) to open the passage in the app. It targets whatever origin served
+  it (overridable via `data-api` / `data-app` / `data-work`). The **auto-linkify** fallback (option b)
+  is not built — the marked-span form is explicit and unambiguous; add it only if wanted.
+- **CORS: DONE.** `Access-Control-Allow-Origin: *` is set on `/api/v1` responses only (not the SPA
+  HTML). A literal `*` (never an echoed Origin) stays cacheable at the Cloudflare edge with no `Vary`;
+  simple GETs need no preflight.
+- **Self-contained UI: DONE.** The widget injects one small `<style>` and reuses a single pop-up; it
+  is theme-neutral and inserts passage text with `textContent` only (no HTML).
+- **Security/perf:** read-only public data; no tokens/user data. `embed.js` is ~6.8 KB and cached at
+  the edge (a `/embed-demo.html` page and `docs/user/embedding-scripture.md` document usage). Open:
+  cache-busting/versioning of `embed.js` on updates (currently a hard edge refresh).
 
 ## Ordering & reuse
 1. **Deep links (§1)** first — the canonical ref parser/serializer is the shared foundation.

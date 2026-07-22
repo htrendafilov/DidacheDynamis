@@ -10,7 +10,7 @@ import { useWorks } from "./data/hooks";
 import i18n from "./i18n";
 import { bookName } from "./i18n/bookNames";
 import { PaneHost } from "./panes/PaneHost";
-import { bookHash, parseBookHash } from "./state/deeplink";
+import { bookHash, parseBibleHash, parseBookHash } from "./state/deeplink";
 import { useStore, type Pane } from "./state/store";
 import { installDropboxAutoSync, useDropboxSync } from "./sync/dropboxState";
 
@@ -37,6 +37,7 @@ export default function App() {
   const [activeMobile, setActiveMobile] = useState(0);
   const initializeDropbox = useDropboxSync((state) => state.initialize);
   const openBookSection = useStore((s) => s.openBookSection);
+  const openPassage = useStore((s) => s.openPassage);
   const works = useWorks();
   const didInitDeepLink = useRef(false);
   const isNarrow = useIsNarrow();
@@ -49,14 +50,24 @@ export default function App() {
     return installDropboxAutoSync();
   }, [initializeDropbox]);
 
-  // General Book section deep links (#/book/<work>/<section>). Applied once works are known (so a
-  // bogus work id is ignored) and re-applied on hashchange (a shared link opened in the same tab).
+  // Deep links applied once works are known (so a bogus work id is ignored) and re-applied on
+  // hashchange (a shared/embedded link opened in the same tab): General Book sections
+  // (#/book/<work>/<section>) and Bible passages (#/b/<work>/<osis>/<chapter>, used by embed.js).
   useEffect(() => {
     if (!works) return;
     const bookIds = new Set(works.filter((w) => w.type === "book").map((w) => w.id));
+    const bibleIds = new Set(works.filter((w) => w.type === "bible").map((w) => w.id));
     const apply = () => {
-      const link = parseBookHash(window.location.hash);
-      if (link && bookIds.has(link.workId)) openBookSection(link.workId, link.sectionId);
+      const hash = window.location.hash;
+      const book = parseBookHash(hash);
+      if (book && bookIds.has(book.workId)) {
+        openBookSection(book.workId, book.sectionId);
+        return;
+      }
+      const bible = parseBibleHash(hash);
+      if (bible && bibleIds.has(bible.workId)) {
+        openPassage(bible.workId, bible.osis, bible.chapter);
+      }
     };
     if (!didInitDeepLink.current) {
       didInitDeepLink.current = true;
@@ -64,7 +75,7 @@ export default function App() {
     }
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
-  }, [works, openBookSection]);
+  }, [works, openBookSection, openPassage]);
 
   // Mirror the first book pane's current section into the URL hash for sharing. replaceState keeps
   // history clean (scroll-spy changes the section often) and does not fire hashchange (no loop).

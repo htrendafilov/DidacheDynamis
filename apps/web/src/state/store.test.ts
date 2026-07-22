@@ -80,6 +80,24 @@ describe("store", () => {
     expect(useStore.getState().panes.some((pane) => pane.type === "notes")).toBe(true);
   });
 
+  it("opens a passage in a Bible pane (reusing the existing one)", () => {
+    useStore.setState({
+      panes: [
+        { id: "a", type: "book", workId: "baptist1689", osis: "John", chapter: 3 },
+        biblePane("b", "Ps", 23),
+      ],
+    });
+    useStore.getState().openPassage("web", "John", 3);
+    const panes = useStore.getState().panes;
+    expect(panes.filter((p) => p.type === "bible")).toHaveLength(1);
+    expect(panes.find((p) => p.type === "bible")).toMatchObject({
+      id: "b",
+      workId: "web",
+      osis: "John",
+      chapter: 3,
+    });
+  });
+
   it("opens a book section: reuses a book pane, else adds one, else converts the last pane", () => {
     // No book pane, room available -> adds a book pane.
     useStore.getState().openBookSection("baptist1689", "chapter-1-scripture.1");

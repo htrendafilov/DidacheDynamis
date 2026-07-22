@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scripture embed demo</title>
+    <style>
+      body {
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        color: #1c1917;
+      }
+      code {
+        background: #f5f5f4;
+        padding: 0.1em 0.3em;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Scripture embed demo</h1>
+    <p>
+      This page uses <code>embed.js</code>. Hover, focus (Tab), or tap a reference to preview the
+      passage; press <kbd>Esc</kbd> to close.
+    </p>
+    <p>
+      The gospel in one verse: <span data-bible-ref="John.3.16">John 3:16</span>. Paul makes the same
+      point in <span data-bible-ref="Rom.5.8">Romans 5:8</span>. A short range works too, such as the
+      love chapter <span data-bible-ref="1Cor.13.4-7">1 Corinthians 13:4-7</span>, and the shepherd
+      psalm <span data-bible-ref="Ps.23.1-3">Psalm 23:1-3</span>.
+    </p>
+    <p>
+      An unrecognized reference like <span data-bible-ref="not-a-ref">this one</span> is left as
+      plain text.
+    </p>
+
+    <!-- Served from this same origin, so it targets this site's API automatically. -->
+    <script src="/embed.js" defer></script>
+  </body>
+</html>

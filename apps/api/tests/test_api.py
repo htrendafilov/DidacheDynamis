@@ -7,6 +7,13 @@ def test_security_headers(client):
     assert h.get("X-Content-Type-Options") == "nosniff"
 
 
+def test_api_allows_cross_origin_reads_but_not_the_spa(client):
+    # The embed widget fetches the API cross-origin; public read-only data -> allow any origin.
+    assert client.get("/api/v1/meta").headers.get("Access-Control-Allow-Origin") == "*"
+    # HTML/SPA responses must not be made cross-origin readable.
+    assert "Access-Control-Allow-Origin" not in client.get("/health").headers
+
+
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 

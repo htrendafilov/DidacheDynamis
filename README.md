@@ -68,8 +68,10 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   (paged/scroll with scroll-spy), full-text book search, and shareable section deep links
   (`#/book/<work>/<section>`); the public-domain 1689 Baptist Confession is the first shipped book.
   🚧 Initial slice complete.
-- **Next:** in-app scripture reference pop-ups are live (structured `ref` runs → hover/tap passage
-  preview). Remaining: embeddable pop-ups (`embed.js`) → open-source the repo (see `plan/`).
+- **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference
+  pop-ups (structured `ref` runs → hover/tap passage preview), and an embeddable `embed.js` widget for
+  external sites (CORS-enabled read API). ✅ (fallback auto-linkifier deferred)
+- **Next:** open-source the repo (see `plan/open_source_release.md`).
 
 ## Run it locally
 

@@ -39,6 +39,7 @@ interface AppState {
   changePaneType: (id: string, type: PaneSourceType) => void;
   setSettings: (patch: Partial<Settings>) => void;
   goToRef: (osis: string, chapter: number, fromPaneId?: string) => void;
+  openPassage: (workId: string, osis: string, chapter: number) => void;
   openBookSection: (workId: string, sectionId: string) => void;
   requestOpenNote: (noteId: string, osis: string, chapter: number) => void;
   clearNoteTarget: () => void;
@@ -103,6 +104,32 @@ export const useStore = create<AppState>()(
           }),
         });
       },
+      openPassage: (workId, osis, chapter) =>
+        set((s) => {
+          // Reuse an existing Bible pane; else add one if there's room; else convert the last pane.
+          const existing = s.panes.find((p) => p.type === "bible");
+          if (existing) {
+            return {
+              panes: s.panes.map((p) =>
+                p.id === existing.id ? { ...p, type: "bible", workId, osis, chapter } : p,
+              ),
+            };
+          }
+          if (s.panes.length < 3) {
+            return {
+              panes: [
+                ...s.panes,
+                { id: newId(), type: "bible" as const, workId, osis, chapter },
+              ],
+            };
+          }
+          const lastId = s.panes[s.panes.length - 1].id;
+          return {
+            panes: s.panes.map((p) =>
+              p.id === lastId ? { ...p, type: "bible", workId, osis, chapter } : p,
+            ),
+          };
+        }),
       openBookSection: (workId, sectionId) =>
         set((s) => {
           // Prefer an existing book pane; else open a new one if there's room; else convert the

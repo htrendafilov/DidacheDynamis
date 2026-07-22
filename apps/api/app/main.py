@@ -71,6 +71,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("Content-Security-Policy", CSP)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        # The read-only API serves public-domain content with no auth or writes, so allow any origin
+        # to fetch it (this powers the external embed.js widget). Scoped to /api so the SPA/HTML is
+        # not made cross-origin readable. A literal "*" (not an echoed Origin) keeps it cacheable at
+        # the Cloudflare edge without a Vary. Simple GETs need no preflight.
+        if request.url.path.startswith(settings.API_V1):
+            response.headers.setdefault("Access-Control-Allow-Origin", "*")
         return response
 
 

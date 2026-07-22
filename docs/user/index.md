@@ -32,3 +32,4 @@ Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible stu
 - [Personal Notes](personal-notes.md) — Rich text, verse anchoring & PDF export
 - [Dropbox Sync](dropbox-sync.md) — App Folder sync and explicit note conflict copies
 - [General Books](general-books.md) — Reading historic confessions & documents
+- [Embedding Scripture Pop-ups](embedding-scripture.md) — Add `embed.js` reference pop-ups to your own site
