@@ -140,7 +140,13 @@ WEB and matches the wording embedded in the Matthew Henry edition.
    backup/rollback rehearsal → public beta.
 7. **M6 — General Books.** Hierarchical SWORD General Book adapter + book API/TOC pane; ship the
    public-domain 1689 Baptist Confession first. Follow with section deep links and book search.
-8. **Later — Bulgarian Bible.** Once rights are cleared (see
+8. **M7 — Search Workspace.** Replace the limited overlay with cross-content search, scopes,
+   complete paginated results, canonical/relevance ordering, refinement, and local history. See
+   [`search_workspace.md`](search_workspace.md).
+9. **M8 — Strong's.** After source/licensing approval, preserve lexical annotations during import
+   and add structured Strong-number/lemma search through the M7 provider interface. See
+   [`search_workspace.md`](search_workspace.md#10-m8-strongs-ready-design).
+10. **Later — Bulgarian Bible.** Once rights are cleared (see
    [`content_and_licensing.md`](content_and_licensing.md)), import the chosen BG text. No architectural
    change — it drops into the existing pane/addressing system.
 
