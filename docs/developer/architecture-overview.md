@@ -8,7 +8,7 @@ This document describes the architectural boundaries and the **Canonical Interme
 graph TD
     subgraph Client Browser [Client-Side Environment]
         SPA[React 18 SPA\napps/web]
-        IDB[(IndexedDB\nLocal Notes & Settings)]
+        IDB[(IndexedDB\nLocal Notes)]
         Dropbox[Dropbox API\nApp Folder Sync]
         SPA <--> IDB
         SPA <-->|OAuth PKCE Direct| Dropbox
@@ -33,50 +33,55 @@ graph TD
 ## Immutable Architecture Principle
 
 1. **Zero Server State**: The production server (`apps/api`) does not accept writes, execute user authentication, or store user session data.
-2. **Read-Only SQLite**: The API opens `data/content.sqlite` with `mode=ro` and `PRAGMA query_only = ON`.
-3. **Local-First Notes**: All notes, tags, and settings are created, edited, and rendered inside the browser via IndexedDB.
+2. **Read-Only SQLite**: The API opens `data/content.sqlite` through SQLite's URI `mode=ro`, with one
+   short-lived connection per request.
+3. **Local-First State**: Notes and verse anchors live in IndexedDB. Pane layout and reading settings
+   are persisted separately in `localStorage`. Dropbox sync remains browser-to-Dropbox.
 
 ---
 
 ## Canonical Intermediate Representation (CIR)
 
-Source Bible formats (USFX, OSIS, ThML, SWORD mod2imp) stop at the `apps/importer` boundary. All scripture and commentary texts are transformed into a canonical JSON AST structure before stored in SQLite.
+Source formats stop at the `apps/importer` boundary. The importer currently accepts WEB USFX, raw
+SWORD `mod2imp` exports for Bibles/General Books/study works, optional CCEL ThML study sources, and the
+TSV cross-reference mapping. Raw source markup never reaches the API client.
 
 ```mermaid
-classDiagram
-    class CIRDocument {
-        +string work_id
-        +string doc_type
-        +List~CIRNode~ content
-    }
-    class CIRNode {
-        +string type
-        +string text
-        +map attributes
-        +List~CIRNode~ children
-    }
-    class VerseNode {
-        +string type: verse
-        +int number
-        +string id
-    }
-    class WordsOfChristNode {
-        +string type: woc
-        +string text
-    }
+flowchart LR
+    Verse[Verse row] --> Lines[lines]
+    Lines --> Line[Line: kind, level, para_start]
+    Line --> Runs[runs]
+    Runs --> Run[Run: t, optional wj]
 
-    CIRDocument "1" *-- "*" CIRNode
-    CIRNode <|-- VerseNode
-    CIRNode <|-- WordsOfChristNode
+    Study[Commentary / Dictionary / Book section] --> Blocks[blocks]
+    Blocks --> Block[Block: kind, text, optional runs]
+    Block --> DocRun[Document run: t + optional emphasis/strong/superscript]
 ```
 
-### CIR Node Types
+### Bible verse CIR
 
-| Node Type | Purpose | Example / Attributes |
-|---|---|---|
-| `book` | Book container | `{ "type": "book", "id": "JHN" }` |
-| `chapter` | Chapter container | `{ "type": "chapter", "number": 3 }` |
-| `verse` | Verse text container | `{ "type": "verse", "number": 16, "id": "JHN.3.16" }` |
-| `woc` | Words of Christ text | `{ "type": "woc", "text": "For God so loved the world..." }` |
-| `heading` | Section header | `{ "type": "heading", "level": 2, "text": "The Love of God" }` |
-| `poetry` | Poetic line rendering | `{ "type": "poetry", "indent": 1 }` |
+Each `verses.nodes_json` value has this shape:
+
+```json
+{
+  "lines": [
+    {
+      "kind": "p",
+      "level": 1,
+      "para_start": true,
+      "runs": [{ "t": "For God so loved…", "wj": true }]
+    }
+  ]
+}
+```
+
+- `kind` is `p` (prose) or `q` (poetry); `level` carries poetry indentation.
+- `para_start` lets the SPA reconstruct flowing paragraphs across verse records.
+- `wj` marks words of Jesus. Headings are stored separately with `before_verse`.
+
+### Study-document CIR
+
+Commentary entries, dictionary entries, and General Book sections share `{"blocks": [...]}`. A block
+is `heading`, `paragraph`, or `quotation`, with plain `text` and optional runs carrying `emphasis`,
+`strong`, or `superscript` flags. See `apps/api/app/models.py` and
+`apps/web/src/render/DocumentRenderer.tsx` for the API/client contract.

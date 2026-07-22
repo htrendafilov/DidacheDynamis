@@ -11,5 +11,6 @@ In addition to scripture, the app provides a reader pane for non-scriptural hist
 ## Reader Navigation
 
 - **Table of Contents Drawer**: Use the left sidebar drawer to browse chapters and sections.
-- **Scripture Proof-Text Popups**: Hover or click on inline scripture citations (e.g. `[2 Tim. 3:15-17]`) to open scripture previews in an instant popup window.
+- **Scripture Proof Texts**: Proof texts are currently displayed as part of the imported document.
+  Interactive citation popups and direct section links are planned but not implemented yet.
 - **Paged / Scrolling Options**: Read continuously or flip page-by-page.

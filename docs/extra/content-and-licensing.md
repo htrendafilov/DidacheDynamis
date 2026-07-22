@@ -1,6 +1,7 @@
 # Content Provenance & Licensing Matrix
 
-All scripture, commentary, dictionary, and confession texts in `bible_app_bg` strictly comply with intellectual property and redistribution rights.
+Every shipped work has recorded provenance and redistribution terms. The detailed audit and the gate
+for future Bulgarian content live in [`plan/content_and_licensing.md`](../../plan/content_and_licensing.md).
 
 ## Content Rights Matrix
 
@@ -12,7 +13,7 @@ All scripture, commentary, dictionary, and confession texts in `bible_app_bg` st
 | **1689 London Baptist Confession** | English | Public Domain | ✅ Unrestricted | Historical reformed Baptist confession |
 | **TSK Cross-References** | English | CC BY 4.0 | ✅ Permitted with attribution | Treasury of Scripture Knowledge cross-references |
 | **King James Version (KJV)** | English | CrossWire Dist. License / UK Crown Copyright | ⚠️ GPL Module License | Source module: `KJV.imp.gz` |
-| **Bulgarian Bible** | Bulgarian | Rights Attested by Owner | ✅ Owner-provided | Bulgarian scripture text rights cleared with owner |
+| **Bulgarian Bible** | Bulgarian | **Not cleared** | ❌ Not shipped | Deferred until written permission or a verified public-domain source is obtained |
 
 ## Rules for New Content Submissions
 

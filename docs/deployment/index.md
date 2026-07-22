@@ -19,7 +19,9 @@ flowchart LR
 
 ## Core Deployment Principles
 
-- **No Inbound Origin Ports**: Public traffic reaches the application exclusively through a Cloudflare Tunnel (`cloudflared`). The origin firewall exposes zero web ports to the public internet.
+- **No direct Bible-app origin route**: Public Bible traffic reaches `127.0.0.1:8080` exclusively
+  through `cloudflared`. The VM may expose ports for unrelated services, but there is no public Caddy
+  vhost or direct-IP route for `bible.trendafilovi.net`.
 - **Atomic Release Swaps**: Web SPA releases use atomic symlink replacement (`mv -Tf`). Content database updates use atomic file replacement (`mv -f`).
 - **Read-Only Storage**: The application backend holds no mutable state and writes zero data to disk at runtime.
 
@@ -27,7 +29,7 @@ flowchart LR
 
 ## Deployment Topics
 
-- [Hosting Options](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/deployment/hosting-options.md) — Systemd + Gunicorn vs Docker containerization
-- [Cloudflare Tunnel](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/deployment/cloudflare-tunnel.md) — Zero Trust tunnel, origin protection & CDN caching
-- [Backups & Rollbacks](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/deployment/backups-and-rollback.md) — Atomic symlink swaps, live SQLite backups & rollback steps
-- [Monitoring & Alerts](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/deployment/monitoring-and-alerts.md) — `/health` vs `/ready` probes & UptimeRobot monitoring
+- [Hosting Options](hosting-options.md) — Systemd + Gunicorn vs Docker containerization
+- [Cloudflare Tunnel](cloudflare-tunnel.md) — Zero Trust tunnel, origin protection & CDN caching
+- [Backups & Rollbacks](backups-and-rollback.md) — Atomic symlink swaps, live SQLite backups & rollback steps
+- [Monitoring & Alerts](monitoring-and-alerts.md) — `/health` vs `/ready` probes & UptimeRobot monitoring

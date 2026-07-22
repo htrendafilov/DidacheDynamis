@@ -1,6 +1,7 @@
 # Cloudflare Tunnel & Origin Security
 
-Production deployments run behind a **Cloudflare Tunnel**, providing DDoS mitigation, global CDN asset caching, and total origin isolation.
+The production Bible app runs behind a **Cloudflare Tunnel**, providing DDoS mitigation, global CDN
+asset caching, and isolation of the Bible app's loopback origin.
 
 ## Security Topology
 
@@ -11,16 +12,17 @@ flowchart TD
     subgraph Origin Server (Private Network)
         cloudflared[cloudflared daemon\nSystemd Service]
         AppServer[FastAPI + Gunicorn\n127.0.0.1:8080]
-        Firewall[Origin Firewall\nAll Inbound Web Ports BLOCKED]
+        Isolation[No public Bible vhost\nApp bound to loopback]
     end
 
     CFEdge <===>|Encrypted QUIC Tunnel| cloudflared
     cloudflared -->|Local Loopback HTTP| AppServer
-    PublicInternet -.-x|Direct Connection Blocked| Firewall
+    PublicInternet -.-x|No direct Bible route| Isolation
 ```
 
 ## Tunnel Key Benefits
 
-1. **Closed Origin Bypass**: The origin server exposes no open inbound HTTP/HTTPS ports (`80`, `443`). Direct IP connection attempts fail immediately.
+1. **Closed Bible Origin Bypass**: Gunicorn listens only on `127.0.0.1:8080`, and the VM has no Caddy
+   vhost for the Bible hostname. Other applications may still use the VM's public HTTP/HTTPS ports.
 2. **Simplified TLS Management**: SSL/TLS terminates at the Cloudflare edge; no Let's Encrypt certificate renewal logic or cron renewal scripts are needed on the origin host.
 3. **CDN Caching**: Hashed static assets (`/assets/*.js`, `/assets/*.css`) are cached at Cloudflare edge locations globally for maximum speed.

@@ -5,11 +5,14 @@ This guide provides solutions for common user, developer, and deployment issues.
 ## User FAQ & Troubleshooting
 
 ### Q: Why aren't my notes syncing with Dropbox?
-- **Solution**: Open **Settings ➔ Dropbox Sync**. Verify your App Key is entered correctly and your connection status shows **Connected**. If your session has expired, click **Reconnect**.
-- Ensure your Dropbox App has permissions `files.content.read` and `files.content.write` enabled in the Dropbox Developer Console.
+- **Hosted reader**: Open **Settings ➔ Dropbox note synchronization**. If the short-lived session
+  expired, click **Connect Dropbox** and authorize again. There is no App Key input in the UI.
+- **Self-hosted build**: If Settings reports that Dropbox is not configured, rebuild the SPA with
+  `VITE_DROPBOX_APP_KEY`. Confirm that the Dropbox app has `files.content.read` and
+  `files.content.write` and that the exact redirect URI is registered.
 
 ### Q: How do I transfer my notes to a new browser or computer?
-- Open **Notes ➔ Backup JSON**. Download your notes file (`notes-backup.json`).
+- Open a Notes pane and click **Backup (JSON)**. The downloaded file is `bible-notes.json`.
 - On your new device or browser, open **Notes ➔ Restore JSON** and select the file.
 
 ---

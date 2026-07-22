@@ -1,42 +1,43 @@
 # Backend API Service (`apps/api`)
 
-The backend API service is built with FastAPI in `apps/api/`. It provides high-speed, read-only scripture retrieval and FTS5 search.
+The FastAPI service exposes read-only content from SQLite and serves the built SPA in production. All
+content endpoints are under `/api/v1`; `/health` and `/ready` are root-level probes.
 
-## Request Pipeline & Router Architecture
+## Request path
 
 ```mermaid
 sequenceDiagram
-    participant SPA as Web SPA (apps/web)
-    participant FastAPI as FastAPI App (apps/api)
-    participant DB as SQLite DB (content.sqlite)
-
-    SPA->>FastAPI: GET /api/v1/passages?work=WEB&book=JHN&chapter=3
-    FastAPI->>DB: SELECT content_json FROM passages WHERE ... (mode=ro)
-    DB-->>FastAPI: Raw JSON CIR string
-    FastAPI-->>SPA: 200 OK + ETag Header + JSON payload
-
-    SPA->>FastAPI: GET /ready
-    FastAPI->>DB: SELECT count(*) FROM works
-    alt DB Healthy
-        FastAPI-->>SPA: 200 OK {"status": "ready"}
-    else DB Corrupt / Missing
-        FastAPI-->>SPA: 503 Service Unavailable
-    end
+    participant SPA
+    participant API as FastAPI
+    participant DB as content.sqlite (mode=ro)
+    SPA->>API: GET /api/v1/works/web/passage/John/3
+    API->>DB: SELECT verse, nodes_json FROM verses WHERE work_id=? AND osis_code=? AND chapter=?
+    DB-->>API: ordered verse rows
+    API-->>SPA: Passage JSON + ETag + Cache-Control
 ```
 
-## Router Layout & Endpoints
+The API uses one read-only SQLite connection per request. Middleware attaches content-version-aware
+ETags and public cache headers to successful `/api/v1` GET responses. Security headers, including the
+Dropbox-aware Content Security Policy, are attached to every response.
 
-| Router File | Prefix | Key Endpoints | Purpose |
-|---|---|---|---|
-| `passages.py` | `/api/v1/passages` | `GET /` | Scripture passage JSON retrieval |
-| `search.py` | `/api/v1/search` | `GET /` | Full-Text Search (FTS5) across works |
-| `commentary.py` | `/api/v1/commentary` | `GET /` | Verse commentary retrieval (Matthew Henry) |
-| `dictionary.py` | `/api/v1/dictionary` | `GET /`, `GET /{term}` | Dictionary term lookup (Easton's) |
-| `general_books.py` | `/api/v1/general-books`| `GET /`, `GET /{id}/toc` | Confessions & General Books TOC and chapters |
-| `xrefs.py` | `/api/v1/xrefs` | `GET /` | TSK cross-reference list and verse previews |
-| `works.py` | `/api/v1/works` | `GET /` | List installed works and translation metadata |
-| `health.py` | `/health`, `/ready` | `GET /health`, `GET /ready` | Liveness and readiness probes |
+## Implemented endpoints
 
-## OpenAPI Synchronization
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Process liveness |
+| `GET /ready` | Database readiness and content version |
+| `GET /api/v1/meta` | Content version and work count |
+| `GET /api/v1/works` | Installed works and attribution metadata |
+| `GET /api/v1/works/{work_id}/books` | Bible books and chapter counts |
+| `GET /api/v1/works/{work_id}/passage/{osis}/{chapter}` | Complete Bible chapter CIR |
+| `GET /api/v1/commentary/{work_id}/{osis}/{chapter}?verse=` | Commentary entries for a chapter/reference |
+| `GET /api/v1/dictionary/{work_id}/entries?prefix=&limit=` | Dictionary headword list |
+| `GET /api/v1/dictionary/{work_id}/entry/{headword}` | One dictionary entry |
+| `GET /api/v1/books` | Installed General Book works |
+| `GET /api/v1/book/{work_id}` | General Book TOC tree and all section bodies |
+| `GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=` | Cross-references and previews |
+| `GET /api/v1/search?q=&works=&limit=&offset=` | Bible FTS5 search |
 
-The API contract is defined by FastAPI's auto-generated OpenAPI schema. When changing backend endpoints or response models (`app/models.py`), update the corresponding TypeScript interfaces in `apps/web/src/data/api.ts`.
+FastAPI's generated OpenAPI schema is the runtime contract. When changing response models in
+`apps/api/app/models.py`, update the matching interfaces and fetch functions in
+`apps/web/src/data/api.ts`.

@@ -1,90 +1,103 @@
-const { chromium } = require('playwright');
-const path = require('path');
-const fs = require('fs');
+const path = require("path");
+
+const { chromium } = require("../apps/web/node_modules/playwright");
+
+const LIVE_URL = "https://bible.trendafilovi.net/";
+const ASSETS_DIR = path.join(__dirname, "../docs/user/assets");
+const SEED = {
+  state: {
+    panes: [{ id: "docs-pane", type: "bible", workId: "web", osis: "John", chapter: 3 }],
+    settings: {
+      verseLayout: "per-line",
+      wordsOfChrist: "red",
+      theme: "light",
+      fontScale: 1,
+      uiLang: "en",
+      sync: true,
+      bookMode: "paged",
+    },
+  },
+  version: 0,
+};
+
+async function freshPage(context) {
+  const page = await context.newPage();
+  await page.addInitScript((seed) => {
+    localStorage.setItem("bible-app", JSON.stringify(seed));
+  }, SEED);
+  await page.goto(LIVE_URL, { waitUntil: "networkidle" });
+  await page.getByText("God so loved the world").waitFor();
+  return page;
+}
+
+async function capture(page, filename) {
+  await page.screenshot({
+    path: path.join(ASSETS_DIR, filename),
+    quality: 90,
+    type: "jpeg",
+  });
+  await page.close();
+}
+
+async function captureElement(page, locator, filename) {
+  await locator.screenshot({
+    path: path.join(ASSETS_DIR, filename),
+    quality: 90,
+    type: "jpeg",
+  });
+  await page.close();
+}
 
 (async () => {
-  const assetsDir = path.join(__dirname, '../docs/user/assets');
-  if (!fs.existsSync(assetsDir)) {
-    fs.mkdirSync(assetsDir, { recursive: true });
-  }
-
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  const page = await context.newPage();
 
-  console.log('Navigating to live app...');
-  await page.goto('https://bible.trendafilovi.net/', { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1000);
+  let page = await freshPage(context);
+  await capture(page, "user_interface_overview.jpg");
 
-  // 1. User Interface Overview (default view with 1 or 2 panes)
-  console.log('Capturing user_interface_overview.jpg...');
-  await page.screenshot({ path: path.join(assetsDir, 'user_interface_overview.jpg'), quality: 90, type: 'jpeg' });
+  page = await freshPage(context);
+  await page.getByRole("button", { name: /Add pane/ }).click();
+  await page.locator(".pane-wrap").nth(1).waitFor();
+  await page.waitForTimeout(750);
+  await capture(page, "multi_pane_layout.jpg");
 
-  // 2. Multi Pane Layout (Click '+ Нов панел' or '+ New pane' to open a 2nd/3rd pane)
-  console.log('Capturing multi_pane_layout.jpg...');
-  const addPaneBtn = page.locator('button:has-text("+"), button:has-text("Панел"), button:has-text("pane")').first();
-  if (await addPaneBtn.isVisible()) {
-    await addPaneBtn.click();
-    await page.waitForTimeout(500);
-  }
-  await page.screenshot({ path: path.join(assetsDir, 'multi_pane_layout.jpg'), quality: 90, type: 'jpeg' });
+  page = await freshPage(context);
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("dialog", { name: "Settings" }).waitFor();
+  await capture(page, "reading_modes_illustration.jpg");
 
-  // 3. Reading Modes Illustration (Click 'Настройки' / Settings)
-  console.log('Capturing reading_modes_illustration.jpg...');
-  const settingsBtn = page.locator('button:has-text("Настройки"), button:has-text("Settings"), button[title*="Settings"]').first();
-  if (await settingsBtn.isVisible()) {
-    await settingsBtn.click();
-    await page.waitForTimeout(500);
-  }
-  await page.screenshot({ path: path.join(assetsDir, 'reading_modes_illustration.jpg'), quality: 90, type: 'jpeg' });
+  page = await freshPage(context);
+  await page.getByRole("button", { name: "Search" }).click();
+  const search = page.getByPlaceholder("Search the text…");
+  await search.fill("light");
+  await search.press("Enter");
+  await page.locator(".search-results .result").first().waitFor();
+  await capture(page, "search_and_lookup_illustration.jpg");
 
-  // Close modal if open
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  page = await freshPage(context);
+  await page.getByRole("combobox", { name: "Source" }).selectOption("notes");
+  page.once("dialog", (dialog) => dialog.accept("Study note"));
+  await page.getByRole("button", { name: /New topic/ }).click();
+  const editor = page.locator(".rte-content");
+  await editor.waitFor();
+  await editor.fill("Personal study notes remain in this browser unless Dropbox sync is enabled.");
+  await capture(page, "personal_notes_editor.jpg");
 
-  // 4. Search and Lookup Illustration (Click 'Търсене' / Search)
-  console.log('Capturing search_and_lookup_illustration.jpg...');
-  const searchBtn = page.locator('button:has-text("Търсене"), button:has-text("Search"), button[title*="Search"]').first();
-  if (await searchBtn.isVisible()) {
-    await searchBtn.click();
-    await page.waitForTimeout(500);
-    const searchInput = page.locator('input[type="search"], input[type="text"]').first();
-    if (await searchInput.isVisible()) {
-      await searchInput.fill('light');
-      await page.waitForTimeout(1000);
-    }
-  }
-  await page.screenshot({ path: path.join(assetsDir, 'search_and_lookup_illustration.jpg'), quality: 90, type: 'jpeg' });
+  page = await freshPage(context);
+  await page.getByRole("combobox", { name: "Source" }).selectOption("book");
+  await page.locator(".book-page").waitFor();
+  await capture(page, "general_books_reader.jpg");
 
-  // Close search modal
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  page = await freshPage(context);
+  await page.getByRole("button", { name: "Settings" }).click();
+  const dropboxSettings = page.locator(".dropbox-settings");
+  await dropboxSettings.waitFor();
+  await captureElement(page, dropboxSettings, "dropbox_sync_illustration.jpg");
 
-  // 5. Personal Notes Editor (Switch pane source to Notes / Бележки)
-  console.log('Capturing personal_notes_editor.jpg...');
-  const sourceSelect = page.locator('select[aria-label="Източник"], select[aria-label="Source"]').first();
-  if (await sourceSelect.isVisible()) {
-    await sourceSelect.selectOption({ label: 'Бележки' }).catch(() => sourceSelect.selectOption({ index: 4 }));
-    await page.waitForTimeout(1000);
-  }
-  await page.screenshot({ path: path.join(assetsDir, 'personal_notes_editor.jpg'), quality: 90, type: 'jpeg' });
-
-  // 6. General Books Reader (Switch pane source to Books / Книги)
-  console.log('Capturing general_books_reader.jpg...');
-  if (await sourceSelect.isVisible()) {
-    await sourceSelect.selectOption({ label: 'Книги' }).catch(() => sourceSelect.selectOption({ index: 3 }));
-    await page.waitForTimeout(1000);
-  }
-  await page.screenshot({ path: path.join(assetsDir, 'general_books_reader.jpg'), quality: 90, type: 'jpeg' });
-
-  // 7. Dropbox Sync Illustration (Open Settings -> Sync tab)
-  console.log('Capturing dropbox_sync_illustration.jpg...');
-  if (await settingsBtn.isVisible()) {
-    await settingsBtn.click();
-    await page.waitForTimeout(500);
-  }
-  await page.screenshot({ path: path.join(assetsDir, 'dropbox_sync_illustration.jpg'), quality: 90, type: 'jpeg' });
-
+  await context.close();
   await browser.close();
-  console.log('All real screenshots captured successfully!');
-})();
+  console.log("Captured seven isolated live-app documentation screenshots.");
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

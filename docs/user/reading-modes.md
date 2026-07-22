@@ -19,4 +19,7 @@ The application supports special formatting for the spoken words of Jesus Christ
 - **Red**: Classic red-letter Bible text presentation.
 
 ### 3. Paged vs. Scrolling Reader Mode
-For long-form reading (such as General Books or lengthy chapters), you can toggle between continuous vertical scrolling or clean horizontal paged view.
+For General Books, choose **Pages** or **Scrolling** in Settings. Pages shows one document section at
+a time with Previous/Next controls; Scrolling renders every readable section in one vertical stream.
+The choice is global for all General Book panes. Bible chapters continue to use the verse layout
+setting above.

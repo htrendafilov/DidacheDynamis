@@ -1,6 +1,6 @@
 # Zero-Downtime Releases, Backups & Rollback
 
-This runbook outlines zero-downtime release workflows, automated database backup procedures, and emergency rollback operations.
+This runbook outlines zero-downtime release workflows, repeatable database backup procedures, and emergency rollback operations.
 
 ## Atomic SPA Release & Symlink Swapping
 

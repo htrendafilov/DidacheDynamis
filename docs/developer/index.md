@@ -21,8 +21,9 @@ flowchart TD
 ## System Requirements
 
 - **Python**: 3.11 or higher
-- **Node.js**: 18.x or 20.x
+- **Node.js**: 20.19+ or 22.12+ (Node 22 is used in CI and Docker)
 - **Package Managers**: `pip`, `npm`
+- **Git LFS**: required for the committed content sources under `data/sources`
 - **OS**: macOS, Linux, or WSL2
 
 ## Step-by-Step Local Setup
@@ -32,6 +33,8 @@ flowchart TD
 ```bash
 git clone https://github.com/htrendafilov/bible_app_bg.git
 cd bible_app_bg
+git lfs install
+git lfs pull
 
 # Set up importer virtualenv
 python3 -m venv apps/importer/.venv
@@ -67,7 +70,7 @@ uvicorn app.main:app --app-dir apps/api --port 8080 --reload
 In a second terminal, start the Vite SPA dev server (Port `5173`):
 ```bash
 cd apps/web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -77,9 +80,9 @@ Open `http://localhost:5173/` in your browser.
 
 ## Developer Documentation Topics
 
-- [Architecture Overview](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/developer/architecture-overview.md) — System boundaries & Canonical Intermediate Representation (CIR)
-- [Web SPA](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/developer/web-spa.md) — React 18, Vite, Zustand layout engine & TipTap notes
-- [API Service](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/developer/api-service.md) — FastAPI endpoints, read-only SQLite & FTS5 queries
-- [Importer CLI](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/developer/importer-cli.md) — `bibleimport` format adapters & database compiler
-- [Building & Testing](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/developer/building-and-testing.md) — Check script, Pytest, Vitest & Playwright E2E
-- [Contributing](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/developer/contributing.md) — Code style standards, PR workflow & contribution rules
+- [Architecture Overview](architecture-overview.md) — System boundaries & Canonical Intermediate Representation (CIR)
+- [Web SPA](web-spa.md) — React 18, Vite, Zustand layout engine & TipTap notes
+- [API Service](api-service.md) — FastAPI endpoints, read-only SQLite & FTS5 queries
+- [Importer CLI](importer-cli.md) — `bibleimport` format adapters & database compiler
+- [Building & Testing](building-and-testing.md) — Check script, Pytest, Vitest & Playwright E2E
+- [Contributing](contributing.md) — Code style standards, PR workflow & contribution rules

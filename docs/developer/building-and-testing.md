@@ -22,18 +22,22 @@ Before opening a Pull Request or pushing changes, run the main check script:
 ```bash
 ./scripts/check.sh
 ```
-This script executes the exact same verification suite used by GitHub Actions CI ([`.github/workflows/ci.yml`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/.github/workflows/ci.yml)).
+This script executes the same verification suite used by GitHub Actions CI
+([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)).
 
 ### 2. Frontend Unit Tests (Vitest)
 ```bash
 cd apps/web
-npm run test           # Run tests once
-npm run test -- --watch # Run tests in watch mode
+npm run test -- --run  # Run once
+npm run test           # Watch mode in an interactive terminal
 ```
 
 ### 3. End-to-End Integration Tests (Playwright)
 To execute full-stack E2E smoke tests and accessibility (`axe-core`) scans:
 ```bash
-./scripts/e2e-server.sh
+cd apps/web
+npm run e2e
 ```
-This launches a temporary API server, compiles the web SPA, and runs Playwright integration tests ([`.github/workflows/e2e.yml`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/.github/workflows/e2e.yml)).
+Playwright starts [`scripts/e2e-server.sh`](../../scripts/e2e-server.sh) through `webServer`, rebuilding
+the content database and SPA unless `E2E_REUSE=1` is set. The manual GitHub workflow is
+[`e2e.yml`](../../.github/workflows/e2e.yml).

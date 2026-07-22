@@ -29,10 +29,11 @@ flowchart TD
 ## Monitoring Infrastructure
 
 1. **UptimeRobot (Primary)**:
-   - Probes `https://bible.trendafilovi.net/ready` every 5 minutes.
-   - Triggers instant email notifications on HTTP 5xx errors or connection timeouts.
+   - Currently probes `https://bible.trendafilovi.net/health` every 5 minutes.
+   - It should be changed to `/ready` so database failures are detected as well.
+   - Email delivery still requires verification of the configured alert contact.
 
 2. **GitHub Actions Uptime Workflow (Secondary)**:
-   - File: [`.github/workflows/uptime.yml`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/.github/workflows/uptime.yml).
-   - Probes public endpoints on a scheduled cron cadence.
+   - File: [`.github/workflows/uptime.yml`](../../.github/workflows/uptime.yml).
+   - Probes both public endpoints every 90 minutes with retries.
    - Automatically opens a deduplicated **`outage`** GitHub issue when probes fail, and closes it upon recovery.

@@ -1,6 +1,8 @@
 # Master Documentation Plan: `docs/` Folder
 
-This document outlines the proposed structure, section contents, writing roadmap, and architectural considerations for the complete `docs/` documentation suite of `bible_app_bg`.
+This document records the delivered structure, ownership, and maintenance checklist for the `docs/`
+documentation suite. The suite was added on 2026-07-22 and should describe shipped behavior; future
+features remain in `plan/` until implemented.
 
 ---
 
@@ -26,7 +28,7 @@ docs/
 │   ├── pane-management.md        # Resizable panes, multi-pane layouts & mobile tabs
 │   ├── reading-modes.md          # Flowing vs verse-per-line, words of Christ, reader modes
 │   ├── search-and-lookup.md       # Passage navigation, FTS search syntax & cross-references
-│   ├── personal-notes.md         # TipTap rich text, verse anchoring, tags & PDF export
+│   ├── personal-notes.md         # TipTap rich text, verse anchoring, backup & PDF export
 │   ├── dropbox-sync.md           # Dropbox App Folder setup, PKCE OAuth & conflict resolution
 │   └── general-books.md          # General Books reader, 1689 Confession & TOC navigation
 ├── developer/                    # Developer Documentation (Contributor Guide)
@@ -36,7 +38,7 @@ docs/
 │   ├── api-service.md            # FastAPI architecture, SQLite FTS5 queries & OpenAPI contract
 │   ├── importer-cli.md           # `bibleimport` CLI, parsing USFX/OSIS/SWORD & CIR pipeline
 │   ├── building-and-testing.md   # Running `scripts/check.sh`, Vitest, Pytest, Playwright E2E & axe
-│   └── contributing.md           # Code style (Ruff, ESLint, Prettier), PR workflow & standards
+│   └── contributing.md           # Code style (Ruff, ESLint), PR workflow & standards
 ├── deployment/                   # Deployment & Operations Documentation
 │   ├── index.md                  # Production architecture overview & design principles
 │   ├── hosting-options.md        # Native systemd + gunicorn vs Docker / docker-compose
@@ -72,25 +74,25 @@ Target Audience: End-users reading scripture, taking notes, or using cross-refer
   * Paged vs Scrolling reader modes for long-form books and confessions.
 
 * **`docs/user/search-and-lookup.md` — Search, Navigation & Cross-References**
-  * Quick book/chapter navigation and verse direct links.
-  * Full-Text Search (FTS) queries, scope selection (entire Bible vs testament/book).
+  * Book/chapter navigation and current limitations around verse/direct links.
+  * Full-Text Search (FTS) behavior and current lack of UI scope filters.
   * TSK cross-references popovers and dictionary term lookups.
 
 * **`docs/user/personal-notes.md` — Rich-Text Notes & Storage**
-  * Creating passage-anchored notes, verse highlights, and topical notes.
+  * Creating chapter/verse-anchored notes and topical notes.
   * Using the TipTap rich-text editor (headings, formatting, lists, inline links/images).
   * Exporting notes to PDF (browser print) and JSON backup/restore.
-  * Recoverable deletion (trash bin and soft deletes).
+  * Soft deletion and the immediate Undo-delete behavior.
 
 * **`docs/user/dropbox-sync.md` — Notes Cloud Synchronization**
   * How notes sync works (browser-direct Dropbox App Folder sync via PKCE OAuth).
-  * Step-by-step setup guide for creating a Dropbox App key.
+  * Hosted-user connection steps and separate build-time configuration for self-hosters.
   * Security model: zero server involvement (tokens and notes never touch `apps/api`).
-  * Handling conflict copies (`notes-v1.json` conflict files).
+  * Handling conflict-copy note records inside `/notes-v1.json`.
 
 * **`docs/user/general-books.md` — General Books & Confessions**
   * Navigating non-scriptural historical documents (e.g. 1689 Baptist Confession).
-  * Table of Contents (TOC) drawer and section deep links.
+  * Table of Contents (TOC), reading modes, and clearly marked deep-link follow-up.
 
 ---
 
@@ -99,7 +101,7 @@ Target Audience: End-users reading scripture, taking notes, or using cross-refer
 Target Audience: Software engineers, open-source contributors, and codebase maintainers.
 
 * **`docs/developer/index.md` — Developer Quickstart**
-  * System prerequisites: Python 3.11+, Node.js 18+, `npm`, `venv`.
+  * System prerequisites: Python 3.11+, Node.js 20.19+ or 22.12+, npm, Git LFS, and `venv`.
   * Step-by-step command sequence to set up virtualenvs, build the initial `content.sqlite`, and start local dev servers (`apps/api` on `:8080`, `apps/web` on `:5173`).
 
 * **`docs/developer/architecture-overview.md` — Architecture & CIR Design**
@@ -108,7 +110,7 @@ Target Audience: Software engineers, open-source contributors, and codebase main
   * Offline DB compilation pattern and read-only runtime model.
 
 * **`docs/developer/web-spa.md` — Frontend Engineering (`apps/web`)**
-  * Tech stack: React 18, TypeScript, Vite, Tailwind CSS / Vanilla CSS modules.
+  * Tech stack: React 18, TypeScript, Vite, Zustand, Dexie, TipTap, and plain CSS.
   * State management: Zustand store architecture for panes, settings, active passages, and note drawers.
   * Lazy loading strategies (TipTap rich text editor separation for fast initial bundle load).
   * Internationalization (i18n): EN/BG locale files and string key organization.
@@ -116,18 +118,19 @@ Target Audience: Software engineers, open-source contributors, and codebase main
 * **`docs/developer/api-service.md` — API Service Engineering (`apps/api`)**
   * Tech stack: FastAPI, Uvicorn, SQLite (`sqlite3` module with FTS5).
   * Router breakdown: `passages.py`, `search.py`, `commentary.py`, `dictionary.py`, `general_books.py`, `xrefs.py`, `works.py`, `health.py`.
-  * Read-only SQLite performance tuning (`PRAGMA query_only = ON`, connection pooling, ETags & caching).
+  * Read-only SQLite behavior (`mode=ro`, one connection per request), ETags, and caching.
   * OpenAPI spec generation and syncing with `apps/web/src/data/api.ts`.
 
 * **`docs/developer/importer-cli.md` — Content Importer (`apps/importer`)**
-  * Tech stack: Python CLI (`bibleimport`), `click`, `pydantic`.
+  * Tech stack: Python `argparse` CLI (`bibleimport`) and dataclass-based canonical records.
   * Format adapters: USFX (`usfx.py`), SWORD Bibles (`sword_bible.py`), SWORD GenBooks (`genbook.py`), and Dictionaries/Commentaries (`study.py`).
   * Content transformation pipeline: source parsing → CIR normalization → schema validation → SQLite + FTS5 indexing.
   * Strict versification alignment rules (mismatch reporting without silent renumbering).
 
 * **`docs/developer/building-and-testing.md` — Build & Test Suite**
-  * Single check entrypoint: [`scripts/check.sh`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/scripts/check.sh) (Ruff lint/format, Pytest, ESLint, Prettier, Vitest).
-  * End-to-end integration testing: Playwright smoke test runner [`scripts/e2e-server.sh`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/scripts/e2e-server.sh).
+  * Single check entrypoint: [`scripts/check.sh`](../scripts/check.sh) (Ruff check, Pytest, ESLint,
+    TypeScript, Vitest, and Vite build).
+  * End-to-end integration testing: Playwright starts [`scripts/e2e-server.sh`](../scripts/e2e-server.sh).
   * Accessibility verification: `axe-core` integration in automated UI tests.
 
 * **`docs/developer/contributing.md` — Contribution Guidelines**
@@ -147,8 +150,10 @@ Target Audience: DevOps engineers, system administrators, and self-hosters.
 
 * **`docs/deployment/hosting-options.md` — Deployment Targets**
   * Native Systemd + Gunicorn setup on Linux VMs (current production reference).
-  * Dockerized deployment: multi-stage [`deploy/Dockerfile`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/deploy/Dockerfile) and [`deploy/docker-compose.yml`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/deploy/docker-compose.yml).
-  * Caddy reverse proxy integration snippet ([`deploy/Caddyfile.snippet`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/deploy/Caddyfile.snippet)).
+  * Dockerized deployment: multi-stage [`deploy/Dockerfile`](../deploy/Dockerfile) and
+    [`deploy/docker-compose.yml`](../deploy/docker-compose.yml).
+  * Historical/alternative Caddy integration snippet ([`deploy/Caddyfile.snippet`](../deploy/Caddyfile.snippet));
+    current production uses Cloudflare Tunnel, not Caddy, for this app.
 
 * **`docs/deployment/cloudflare-tunnel.md` — Cloudflare Tunnel & CDN Setup**
   * Configuring `cloudflared` for zero-open-port origin isolation.
@@ -158,15 +163,15 @@ Target Audience: DevOps engineers, system administrators, and self-hosters.
 * **`docs/deployment/backups-and-rollback.md` — Zero-Downtime Releases & Rollbacks**
   * Atomic SPA releases: versioned directories (`releases/<ts>/web_dist`), asset retention, and atomic symlink swapping via `mv -Tf`.
   * Atomic SQLite database updates: building to `content.new.sqlite` and replacing via `mv -f`.
-  * Database backup automation: live online SQLite snapshot using Python `sqlite3.backup()` API.
+  * Repeatable live SQLite snapshots using Python's `sqlite3.backup()` API.
   * Rehearsed emergency rollback procedures for SPA code, API binaries, and content DB.
 
 * **`docs/deployment/monitoring-and-alerts.md` — Health Probes & Monitoring**
   * Probing semantics:
     * `/health` (Liveness): HTTP 200 process status check.
     * `/ready` (Readiness): HTTP 200 with DB content verification; returns HTTP 503 on missing/corrupt DB.
-  * UptimeRobot 5-minute HTTP readiness monitoring configuration.
-  * GitHub Actions automated uptime workflow ([`.github/workflows/uptime.yml`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/.github/workflows/uptime.yml)).
+  * UptimeRobot's current 5-minute liveness probe and the pending switch to readiness monitoring.
+  * GitHub Actions automated uptime workflow ([`.github/workflows/uptime.yml`](../.github/workflows/uptime.yml)).
 
 ---
 
@@ -179,58 +184,34 @@ During the repository review, three essential domain areas were identified that 
     * **WEB, Matthew Henry, Easton's, 1689 Confession**: Public Domain.
     * **TSK Cross-References**: CC BY 4.0 (attribution details recorded).
     * **CrossWire KJV**: GPL distribution license & UK Crown copyright constraints.
-    * **Bulgarian Scriptures**: Owner-provided with attested distribution rights.
+    * **Bulgarian Scriptures**: deferred; no distribution rights have been cleared yet.
   * Attribution requirements for downstream re-distributors and open-source forks.
 
 * **`docs/extra/security-and-privacy.md` — Security & Local-First Privacy Model**
-  * Zero-knowledge server architecture: why user notes, bookmarks, and search history never reach `apps/api`.
+  * Local-first privacy boundaries: notes and Dropbox tokens bypass `apps/api`; ordinary content/search
+    requests still reach the read-only API.
   * Content-Security-Policy (CSP) design: strict script/frame src boundaries, Dropbox endpoint scoping.
-  * Untrusted input handling in `apps/importer`: XML DTD/external entity disabling, entropy check limits, shell interpolation prevention.
+  * Untrusted input handling in `apps/importer`: implemented XML/markup and size controls, plus
+    explicitly documented remaining USFX/entropy hardening work.
 
 * **`docs/extra/troubleshooting-faq.md` — Troubleshooting & FAQ**
-  * Common user issues: IndexedDB storage quota exceeded, Dropbox PKCE token re-authentication, browser cache clearing.
+  * Current user issues around local storage, Dropbox re-authentication, and browser caching.
   * Common developer issues: Virtualenv path mismatches, Vite HMR proxy failures on port 8080, SQLite FTS index build errors.
   * Common ops issues: Cloudflare Tunnel daemon disconnects, systemd service restart loops, permission errors during symlink swaps.
 
 ---
 
-## 4. Implementation Roadmap & Milestones
+## 4. Status and maintenance
 
-To implement this documentation suite efficiently without blocking ongoing feature work, the documentation rollout is planned in four phased sprints:
+The initial user, developer, deployment, licensing, security, and troubleshooting guides are present.
+They are living documentation, not a separate feature roadmap.
 
-```mermaid
-gantt
-    title Documentation Implementation Roadmap
-    dateFormat  YYYY-MM-DD
-    section Phase 1: Structure & Quickstarts
-    Master Plan (docs/plan.md)           :done,    p1a, 2026-07-22, 1d
-    User & Dev Quickstarts (index.md)     :active,  p1b, 2026-07-23, 2d
-    section Phase 2: Operations & Infra
-    Deployment & Rollback Guides        :         p2a, 2026-07-25, 3d
-    Monitoring & Cloudflare Tunnel Docs  :         p2b, 2026-07-28, 2d
-    section Phase 3: Developer Deep-Dives
-    Monorepo, CIR & API Docs             :         p3a, 2026-07-30, 3d
-    Importer CLI & Testing Guides        :         p3b, 2026-08-02, 3d
-    section Phase 4: User Guides & Open Source
-    User Features & Notes Sync Docs      :         p4a, 2026-08-05, 3d
-    Content Licensing & Public Release   :         p4b, 2026-08-08, 2d
-```
+When behavior changes:
 
-### Phase Details
-
-1. **Phase 1: Foundation & Quickstarts**
-   * Commit [`docs/plan.md`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/plan.md).
-   * Create skeleton files for `docs/user/index.md`, `docs/developer/index.md`, and `docs/deployment/index.md`.
-   * Write developer setup guide (`docs/developer/building-and-testing.md`).
-
-2. **Phase 2: Operations & Deployment Focus**
-   * Migrate and sanitize operational knowledge from [`plan/deployment/live-runbook.md`](file:///Users/hristo.trendafilov/mydev/bible_app_bg/plan/deployment/live-runbook.md) into `docs/deployment/`.
-   * Document atomic release mechanics, Cloudflare Tunnel topology, and `/ready` health probe monitoring.
-
-3. **Phase 3: Developer & Architecture Deep-Dives**
-   * Document Canonical Intermediate Representation (CIR) schema and parser adapters.
-   * Document FastAPI endpoints, FTS5 query patterns, and React Zustand pane layout state.
-
-4. **Phase 4: End-User Guides & Open-Source Polish**
-   * Write detailed user guides for pane splitting, reading modes, rich-text notes, and Dropbox sync setup.
-   * Finalize legal & content licensing matrix (`docs/extra/content-and-licensing.md`) ahead of public repo release.
+1. Update the relevant `docs/` guide in the same commit as the code.
+2. Keep future behavior in `plan/` and label it as planned; do not present it as shipped in `docs/`.
+3. Treat `plan/content_and_licensing.md` and `plan/deployment/live-runbook.md` as the authoritative
+   sources for licensing gates and the current production host respectively.
+4. Run `scripts/check.sh`, the Playwright suite when UI behavior changes, and a relative-link check.
+5. Regenerate only affected screenshots with `scripts/capture_real_docs_screenshots.js`, then inspect
+   each image before committing it.

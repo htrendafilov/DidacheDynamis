@@ -1,58 +1,53 @@
 # Importer CLI (`apps/importer`)
 
-The `bibleimport` CLI tool in `apps/importer/` processes source texts (USFX XML, SWORD `mod2imp` files, ThML, study dictionaries) and compiles them into a single SQLite database (`content.sqlite`).
+`bibleimport` is the only writer of `content.sqlite`. Production never parses source modules.
 
-## Import Pipeline Workflow
+## Supported production inputs
 
-```mermaid
-flowchart LR
-    subgraph Source Formats
-        USFX[USFX XML\n(WEB Bible)]
-        SWORD[SWORD Mod2Imp\n(KJV Bible & 1689 Confession)]
-        Study[Text / JSON Files\n(Commentaries & Dictionaries)]
-    end
+- WEB USFX XML/ZIP through `formats/usfx.py`.
+- Raw SWORD `mod2imp` Bible exports through `formats/sword_bible.py`.
+- Raw SWORD General Book exports through `formats/genbook.py`.
+- CrossWire commentary/dictionary IMP exports or optional CCEL ThML through `formats/study.py`.
+- CrossReferences.org TSV through `formats/study.py`.
 
-    subgraph Format Adapters
-        USFXAdapter[formats/usfx.py]
-        SWORDAdapter[formats/sword_bible.py\nformats/genbook.py]
-        StudyAdapter[formats/study.py]
-    end
+The repository does not open installed SWORD module binaries directly. Export them with the official
+SWORD tools first; provenance and exact commands are recorded in `data/sources/README.md`.
 
-    subgraph Core Pipeline
-        CIR[pipeline.py\nCIR Transformation]
-        Validate[validation.py\nVersification Check]
-        Compiler[cli.py\nSQLite + FTS5 Compiler]
-    end
-
-    USFX --> USFXAdapter
-    SWORD --> SWORDAdapter
-    Study --> StudyAdapter
-
-    USFXAdapter --> CIR
-    SWORDAdapter --> CIR
-    StudyAdapter --> CIR
-
-    CIR --> Validate
-    Validate --> Compiler
-    Compiler --> DB[(data/content.sqlite)]
-```
-
-## Import CLI Commands
+## Implemented commands
 
 ```bash
-# Build complete database from sources directory
+# Build the complete shipped content set
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 
-# Validate versification alignment between translations
-bibleimport validate-versification --source data/sources/web.xml
+# Build only WEB
+bibleimport build-web --source data/sources/engwebp_usfx.zip --out data/content.sqlite
 
-# Inspect built content database summary
-bibleimport info data/content.sqlite
+# Build a custom USFX Bible with explicit metadata
+bibleimport build --format usfx --source bible.xml --out data/content.sqlite \
+  --work-id example --title "Example Bible" --abbrev EX --language en \
+  --license "Recorded terms" --attribution "Required attribution"
+
+# Append the shipped content types to an existing database
+bibleimport add-kjv --source data/sources/KJV.imp.gz --out data/content.sqlite
+bibleimport add-study --out data/content.sqlite \
+  --mhc-source data/sources/MHC.imp.gz \
+  --easton-source data/sources/Easton.imp.gz \
+  --xref-source data/sources/crossreferences_kjv.tsv
+bibleimport add-book --source book.imp.gz --out data/content.sqlite \
+  --work-id example-book --title "Example Book" --abbrev EXB --language en \
+  --license "Recorded terms" --attribution "Required attribution"
 ```
 
-## Security & Parsing Constraints
+Run `bibleimport --help` and `bibleimport <command> --help` for the current argument contract. There
+are no standalone `info` or `validate-versification` commands.
 
-To ensure build safety when importing untrusted source files:
-- **XML Security**: DTD and external network entity resolution are strictly disabled in XML parsers.
-- **Versification Safety**: Versification alignment issues between translations are reported as explicit warnings—the importer **never** silently renumbers verses.
-- **Resource Limits**: Entropy checks and file size limits prevent ZipBomb / XML Bomb attacks.
+## Validation and parser safety
+
+Bible builds check duplicate/non-positive references, empty verses, missing/extra canonical books, and
+chapter gaps. `align_versification()` provides the EN↔BG comparison hook, but it is not exposed as a
+CLI command yet.
+
+XML and embedded OSIS fragments use `defusedxml`; study sources and expanded SWORD IMP streams have
+explicit size caps. General Book markup is parsed through a strict allow-list. The importer does not
+currently implement a general entropy check, and the USFX adapter does not yet apply a source/expanded
+ZIP size ceiling; treat those as hardening follow-ups rather than existing guarantees.

@@ -12,12 +12,13 @@ Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible stu
 - **Dropbox Cloud Sync**: Optional direct browser-to-Dropbox App Folder synchronization with PKCE security.
 - **Reading Customizations**: Verse-per-line vs. flowing prose, Words of Christ styling (off, bold, red), and paged vs. scrolling reader modes.
 - **Bilingual Interface**: Full support for English and Bulgarian UI text.
-- **Complete Privacy**: Zero user data or notes are stored on the server.
+- **Local Notes**: The Bible API has no accounts or notes tables; personal notes stay in the browser
+  unless you explicitly enable direct Dropbox sync.
 
 ## Quick Start Guide
 
 1. **Navigating Passages**: Click the book selector at the top left to pick any book and chapter (e.g. *John 3*).
-2. **Opening Panes**: Use the layout control on the top right to add a 2nd or 3rd pane.
+2. **Opening Panes**: Click **+ New pane** on the top right to add a 2nd or 3rd pane.
 3. **Changing Pane Work**: In any pane header, click the dropdown to switch between *Bible*, *Commentary*, *Dictionary*, *Notes*, or *General Books*.
 4. **Taking Notes**: Open a *Notes* pane or click a verse number to attach a personal study note.
 
@@ -25,9 +26,9 @@ Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible stu
 
 ## User Guide Topics
 
-- [Pane Management](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/user/pane-management.md) — Multi-pane layouts & mobile tabs
-- [Reading Modes](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/user/reading-modes.md) — Verse-per-line, flowing prose, and red-letter text
-- [Search & Lookup](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/user/search-and-lookup.md) — Passage navigation & cross-references
-- [Personal Notes](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/user/personal-notes.md) — Rich text, verse anchoring & PDF export
-- [Dropbox Sync](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/user/dropbox-sync.md) — App folder backup & PKCE setup
-- [General Books](file:///Users/hristo.trendafilov/mydev/bible_app_bg/docs/user/general-books.md) — Reading historic confessions & documents
+- [Pane Management](pane-management.md) — Multi-pane layouts & mobile tabs
+- [Reading Modes](reading-modes.md) — Verse-per-line, flowing prose, and red-letter text
+- [Search & Lookup](search-and-lookup.md) — Passage navigation & cross-references
+- [Personal Notes](personal-notes.md) — Rich text, verse anchoring & PDF export
+- [Dropbox Sync](dropbox-sync.md) — App Folder sync and explicit note conflict copies
+- [General Books](general-books.md) — Reading historic confessions & documents

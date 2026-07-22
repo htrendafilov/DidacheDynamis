@@ -11,16 +11,21 @@ Sync your personal notes seamlessly across devices using Dropbox App Folder sync
 
 ## Setup Instructions
 
-1. **Create a Dropbox App Key**:
-   - Go to the [Dropbox App Console](https://www.dropbox.com/developers/apps).
-   - Create an app with **Scoped Access** and **App Folder** access (do not choose Full Dropbox).
-   - Enable `files.content.read` and `files.content.write` permissions.
-   - Register your app domain (e.g. `https://bible.trendafilovi.net/` or `http://localhost:5173/`).
-2. **Connect in App**:
-   - Open **Settings ➔ Dropbox Sync**.
-   - Paste your public **App Key** and click **Connect Dropbox**.
-   - Authenticate via Dropbox OAuth.
+The hosted reader is already configured with its Dropbox App key. You do not create a Dropbox app or
+paste a key into the reader.
+
+1. Open **Settings** and find **Dropbox note synchronization**.
+2. Click **Connect Dropbox** and approve access. The app can access only its private App Folder.
+3. Click **Sync now** whenever you want an immediate merge. The reader also synchronizes after local
+   note changes while connected.
+
+Self-hosters configure their own Scoped/App-Folder Dropbox app at build time; see the repository
+[Dropbox setup](../../README.md#dropbox-notes-sync-setup).
 
 ## Conflict Resolution
 
-If notes are edited simultaneously on two devices, the app automatically creates an explicit conflict copy (e.g., `notes-v1 (Conflict Copy 2026-07-22).json`) inside your Dropbox App Folder so no data is ever overwritten or lost.
+Dropbox contains one app file, `/notes-v1.json`. Synchronization performs a three-way merge. When the
+same note changed independently on both devices, the local version remains at its original title and
+the remote version becomes a separate topical note named `… (Dropbox conflict: remote edit)` (or
+`remote deletion`). Both note records are then written into the same `notes-v1.json`; the Settings
+panel reports how many conflict copies were created.
