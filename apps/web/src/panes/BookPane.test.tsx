@@ -118,4 +118,50 @@ describe("BookPane", () => {
     expect(document.querySelectorAll(".book-scroll-section")).toHaveLength(2);
     expect(useStore.getState().settings.bookMode).toBe("scroll");
   });
+
+  it("scroll-spy tracks the section nearest the top of the viewport", () => {
+    // jsdom has no layout, so simulate geometry: the content box is 400px tall at top 0
+    // (detection line at 25% = 100px); each section is 300px tall and moves up as we scroll.
+    let scrollTop = 0;
+    const naturalTop = (element: HTMLElement) => {
+      if (element.classList.contains("book-content")) return 0;
+      if (element.textContent?.includes("Scriptures")) return 0;
+      if (element.textContent?.includes("one God")) return 300;
+      return 0;
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const top = this.classList.contains("book-content")
+        ? 0
+        : naturalTop(this) - scrollTop;
+      return { top, y: top } as DOMRect;
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 400,
+    });
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+
+    try {
+      useStore.setState({
+        settings: { ...useStore.getState().settings, bookMode: "scroll" },
+      });
+      render(<Harness />);
+      // Not scrolled: the first section owns the top of the viewport.
+      expect(useStore.getState().panes[0].sectionId).toBe("chapter-1");
+
+      // Scroll far enough that the second section crosses the detection line.
+      scrollTop = 250;
+      const content = document.querySelector(".book-content") as HTMLElement;
+      fireEvent.scroll(content);
+      expect(useStore.getState().panes[0].sectionId).toBe("chapter-2");
+    } finally {
+      vi.restoreAllMocks();
+      delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+    }
+  });
 });

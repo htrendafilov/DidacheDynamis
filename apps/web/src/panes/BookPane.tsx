@@ -1,4 +1,4 @@
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SourceSelector } from "../components/SourceSelector";
@@ -68,6 +68,7 @@ export function BookPane({ pane }: { pane: Pane }) {
   const tocId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
   const sectionElements = useRef(new Map<string, HTMLElement>());
+  const spiedSection = useRef<string | undefined>(undefined);
 
   const selectSection = (sectionId: string) => {
     const section = sections.find((item) => item.section_id === sectionId);
@@ -98,6 +99,43 @@ export function BookPane({ pane }: { pane: Pane }) {
     const target = readableSections[selectedIndex + offset];
     if (target) selectSection(target.section_id);
   };
+
+  // Scroll-spy: in scroll mode, keep the TOC highlight (pane.sectionId) in sync with the section
+  // nearest the top of the viewport as the reader scrolls. Recomputes on a rAF, and only writes to
+  // the store on a section boundary, so it does not thrash persisted state while scrolling.
+  useEffect(() => {
+    if (mode !== "scroll" || !data) return;
+    const root = contentRef.current;
+    if (!root) return;
+    const ordered = flatten(data.sections).filter(
+      (section) => section.body.blocks.length > 0,
+    );
+    let frame = 0;
+    const computeActive = () => {
+      frame = 0;
+      const line = root.getBoundingClientRect().top + root.clientHeight * 0.25;
+      let activeId: string | undefined;
+      for (const section of ordered) {
+        const element = sectionElements.current.get(section.section_id);
+        if (!element) continue;
+        if (element.getBoundingClientRect().top <= line) activeId = section.section_id;
+        else break;
+      }
+      if (activeId && activeId !== spiedSection.current) {
+        spiedSection.current = activeId;
+        updatePane(pane.id, { sectionId: activeId });
+      }
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(computeActive);
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    computeActive();
+    return () => {
+      root.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [mode, data, pane.id, updatePane]);
 
   return (
     <div className="pane book-pane">
