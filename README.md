@@ -64,9 +64,10 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   a **Content-Security-Policy** (Dropbox-scoped), Playwright smoke + axe accessibility tests, a
   keyboard-navigable mobile pane-tab layout, external uptime monitor (GitHub Actions + UptimeRobot),
   and a rehearsed atomic DB/SPA backup & rollback (versioned releases + symlink swap). ✅
-- **M6** — General Books: hierarchical SWORD `mod2imp` adapter, read-only book API, and a TOC reader
-  pane; the public-domain 1689 Baptist Confession is the first shipped book. 🚧 Initial slice complete.
-- **Next:** General Book deep links/search → scripture pop-ups/embeds → open-source the repo (see `plan/`).
+- **M6** — General Books: hierarchical SWORD `mod2imp` adapter, read-only book API, a TOC reader pane
+  (paged/scroll with scroll-spy), and full-text book search; the public-domain 1689 Baptist Confession
+  is the first shipped book. 🚧 Initial slice complete.
+- **Next:** General Book section deep links → scripture pop-ups/embeds → open-source the repo (see `plan/`).
 
 ## Run it locally
 

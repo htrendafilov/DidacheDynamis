@@ -472,10 +472,22 @@ input[type="search"] {
   padding: 0.5rem 0.25rem;
   background: transparent;
 }
+.search-group {
+  margin: 0.9rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .result-ref {
   font-weight: 600;
   color: var(--accent);
   white-space: nowrap;
+}
+/* Book hits show a chapter breadcrumb, which can be long — let it wrap. */
+.result-book .result-ref {
+  white-space: normal;
 }
 .result-version {
   padding: 0.08rem 0.25rem;

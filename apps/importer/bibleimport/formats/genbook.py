@@ -179,7 +179,7 @@ def load_genbook(path: str | Path) -> list[BookSectionRow]:
                 if is_entry:
                     existing.body = body
                     existing.plain_text = plain
-                    existing.title = _display_title(parts[-1], body)
+                    existing.title = _display_title(section_path[-1], body)
                 continue
             parent_id = (
                 ".".join(_section_slug(part) for part in section_path[:-1])
@@ -191,7 +191,9 @@ def load_genbook(path: str | Path) -> list[BookSectionRow]:
                 parent_id=parent_id,
                 sort_order=order,
                 level=len(section_path),
-                title=_display_title(parts[-1], body),
+                # Title from this node's own path segment, not the full key's leaf — otherwise a
+                # parent (e.g. a chapter) would inherit its first child's ordinal ("1").
+                title=_display_title(section_path[-1], body),
                 body=body,
                 plain_text=plain,
             )

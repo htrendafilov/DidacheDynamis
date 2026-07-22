@@ -68,6 +68,20 @@ export interface SearchResult {
   hits: SearchHit[];
 }
 
+export interface BookSearchHit {
+  work_id: string;
+  section_id: string;
+  title: string;
+  snippet: string;
+}
+
+export interface BookSearchResult {
+  query: string;
+  limit: number;
+  offset: number;
+  hits: BookSearchHit[];
+}
+
 export interface Meta {
   content_version: string | null;
   works: number;
@@ -178,5 +192,10 @@ export const api = {
   search: (q: string, works?: string) =>
     get<SearchResult>(
       `/search?q=${encodeURIComponent(q)}` + (works ? `&works=${encodeURIComponent(works)}` : ""),
+    ),
+  searchBooks: (q: string, works?: string) =>
+    get<BookSearchResult>(
+      `/search/books?q=${encodeURIComponent(q)}` +
+        (works ? `&works=${encodeURIComponent(works)}` : ""),
     ),
 };

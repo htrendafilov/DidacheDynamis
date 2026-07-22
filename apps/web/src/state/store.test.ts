@@ -79,4 +79,35 @@ describe("store", () => {
     expect(useStore.getState().noteTargetId).toBe("note-1");
     expect(useStore.getState().panes.some((pane) => pane.type === "notes")).toBe(true);
   });
+
+  it("opens a book section: reuses a book pane, else adds one, else converts the last pane", () => {
+    // No book pane, room available -> adds a book pane.
+    useStore.getState().openBookSection("baptist1689", "chapter-1-scripture.1");
+    let panes = useStore.getState().panes;
+    expect(panes).toHaveLength(2);
+    expect(panes[1]).toMatchObject({
+      type: "book",
+      workId: "baptist1689",
+      sectionId: "chapter-1-scripture.1",
+    });
+
+    // Existing book pane -> reused (not a second one), section updated.
+    useStore.getState().openBookSection("baptist1689", "chapter-2-god");
+    panes = useStore.getState().panes;
+    expect(panes.filter((p) => p.type === "book")).toHaveLength(1);
+    expect(panes.find((p) => p.type === "book")).toMatchObject({ sectionId: "chapter-2-god" });
+
+    // Three panes, none a book -> converts the last one.
+    useStore.setState({
+      panes: [biblePane("a", "John", 3), biblePane("b", "Ps", 23), biblePane("c", "Gen", 1)],
+    });
+    useStore.getState().openBookSection("baptist1689", "chapter-1-scripture.2");
+    panes = useStore.getState().panes;
+    expect(panes).toHaveLength(3);
+    expect(panes[2]).toMatchObject({
+      id: "c",
+      type: "book",
+      sectionId: "chapter-1-scripture.2",
+    });
+  });
 });

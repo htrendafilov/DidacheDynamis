@@ -125,6 +125,27 @@ def test_search_work_filter(client):
     assert res2["hits"] == []
 
 
+def test_search_books(client):
+    res = client.get("/api/v1/search/books", params={"q": "sufficient"}).json()
+    assert res["hits"], res
+    hit = res["hits"][0]
+    assert hit["work_id"] == "baptist1689"
+    assert hit["section_id"] == "chapter-1-scripture.1"
+    assert hit["title"] == "Chapter 1. Scripture › 1"  # breadcrumb, not the bare leaf key
+    assert "<b>" in hit["snippet"]
+
+
+def test_search_books_work_filter(client):
+    res = client.get(
+        "/api/v1/search/books", params={"q": "counsel", "works": "nonexistent"}
+    ).json()
+    assert res["hits"] == []
+    res2 = client.get(
+        "/api/v1/search/books", params={"q": "counsel", "works": "baptist1689"}
+    ).json()
+    assert any(h["section_id"] == "chapter-1-scripture.2" for h in res2["hits"])
+
+
 def test_cache_headers_and_304(client):
     r = client.get("/api/v1/works/web/passage/John/3")
     assert r.headers.get("Cache-Control", "").startswith("public")

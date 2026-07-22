@@ -18,6 +18,9 @@ def test_genbook_parser_materializes_tree_and_document_cir():
         "chapter-1-scripture.2",
         "chapter-2-god",
     ]
+    # A parent node takes its own path segment as its title, not its first child's ordinal.
+    assert rows[0].title == "Chapter 1. Scripture"
+    assert [row.title for row in rows[1:3]] == ["1", "2"]
     paragraph = rows[1]
     assert paragraph.parent_id == "chapter-1-scripture"
     assert paragraph.level == 2

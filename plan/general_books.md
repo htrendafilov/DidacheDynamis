@@ -91,5 +91,7 @@ FTS pattern, cache/attribution/WorkFooter) is reused.
 
 ## Remaining M6 follow-ups
 - Add URL deep links for the selected section.
-- Extend global search/navigation to `book_fts` (the importer already populates it).
+- ~~Extend global search/navigation to `book_fts`.~~ **Done** — `GET /api/v1/search/books` returns
+  breadcrumb-titled section hits with snippets; the search panel shows a separate "Books" group and a
+  hit opens the section in a book pane (reusing one, else adding/converting a pane).
 - Add scripture-reference pop-ups/embeds under the separate linking plan.

@@ -31,6 +31,8 @@
   "search.placeholder": "Search the text…",
   "search.noResults": "No results.",
   "search.resultsFor": "Results for",
+  "search.bibleResults": "Bible",
+  "search.bookResults": "Books",
   "reader.loading": "Loading…",
   "reader.error": "Could not load passage.",
   "commentary.error": "Could not load commentary.",

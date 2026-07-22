@@ -39,6 +39,7 @@ interface AppState {
   changePaneType: (id: string, type: PaneSourceType) => void;
   setSettings: (patch: Partial<Settings>) => void;
   goToRef: (osis: string, chapter: number, fromPaneId?: string) => void;
+  openBookSection: (workId: string, sectionId: string) => void;
   requestOpenNote: (noteId: string, osis: string, chapter: number) => void;
   clearNoteTarget: () => void;
 }
@@ -102,6 +103,33 @@ export const useStore = create<AppState>()(
           }),
         });
       },
+      openBookSection: (workId, sectionId) =>
+        set((s) => {
+          // Prefer an existing book pane; else open a new one if there's room; else convert the
+          // last pane. Either way the searched section always ends up visible.
+          const existing = s.panes.find((p) => p.type === "book");
+          if (existing) {
+            return {
+              panes: s.panes.map((p) =>
+                p.id === existing.id ? { ...p, type: "book", workId, sectionId } : p,
+              ),
+            };
+          }
+          if (s.panes.length < 3) {
+            return {
+              panes: [
+                ...s.panes,
+                { id: newId(), type: "book" as const, workId, osis: "John", chapter: 3, sectionId },
+              ],
+            };
+          }
+          const lastId = s.panes[s.panes.length - 1].id;
+          return {
+            panes: s.panes.map((p) =>
+              p.id === lastId ? { ...p, type: "book", workId, sectionId } : p,
+            ),
+          };
+        }),
       requestOpenNote: (noteId, osis, chapter) =>
         set((state) => {
           const hasNotesPane = state.panes.some((pane) => pane.type === "notes");

@@ -73,6 +73,20 @@ class SearchResult(BaseModel):
     hits: list[SearchHit]
 
 
+class BookSearchHit(BaseModel):
+    work_id: str
+    section_id: str
+    title: str
+    snippet: str
+
+
+class BookSearchResult(BaseModel):
+    query: str
+    limit: int
+    offset: int
+    hits: list[BookSearchHit]
+
+
 class Meta(BaseModel):
     content_version: str | None
     works: int

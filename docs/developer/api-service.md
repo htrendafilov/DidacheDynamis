@@ -37,6 +37,7 @@ Dropbox-aware Content Security Policy, are attached to every response.
 | `GET /api/v1/book/{work_id}` | General Book TOC tree and all section bodies |
 | `GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=` | Cross-references and previews |
 | `GET /api/v1/search?q=&works=&limit=&offset=` | Bible FTS5 search |
+| `GET /api/v1/search/books?q=&works=&limit=&offset=` | General Book FTS5 search (breadcrumb-titled section hits) |
 
 FastAPI's generated OpenAPI schema is the runtime contract. When changing response models in
 `apps/api/app/models.py`, update the matching interfaces and fetch functions in
