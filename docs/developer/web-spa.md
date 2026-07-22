@@ -46,6 +46,13 @@ off the initial reading path.
 
 ## URL state
 
-Pane and passage state currently persists locally but is not reflected in the URL. Shareable deep links
-are planned in `plan/linking_and_embeds.md`; do not document route formats as implemented until that
-work lands.
+Pane and passage state persists locally (`localStorage`) and is **not** reflected in the URL, with one
+exception: **General Book section deep links**. The active book pane's section is mirrored into the URL
+hash as `#/book/<workId>/<sectionId>` (via `state/deeplink.ts`), using `history.replaceState` so it
+never pollutes history or fires `hashchange`. On load — and on `hashchange` — a valid book hash opens
+that section (`openBookSection`); a bogus work id is ignored. The hash is used (not the query string)
+specifically so it can never collide with the Dropbox OAuth `?code`/`?state` params.
+
+The broader canonical URL scheme for every pane type (Bible/commentary/dictionary + multi-pane layouts)
+is still planned in `plan/linking_and_embeds.md` §1; do not document those route formats as implemented
+until that work lands.

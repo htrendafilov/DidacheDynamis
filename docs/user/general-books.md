@@ -12,5 +12,8 @@ In addition to scripture, the app provides a reader pane for non-scriptural hist
 
 - **Table of Contents Drawer**: Use the left sidebar drawer to browse chapters and sections.
 - **Scripture Proof Texts**: Proof texts are currently displayed as part of the imported document.
-  Interactive citation popups and direct section links are planned but not implemented yet.
-- **Paged / Scrolling Options**: Read continuously or flip page-by-page.
+  Interactive citation popups are planned but not implemented yet.
+- **Shareable Section Links**: The address bar updates as you read (`…/#/book/…`); copy it to link
+  someone straight to the section you are on, and it reopens there.
+- **Paged / Scrolling Options**: Read continuously or flip page-by-page. In scrolling mode the table
+  of contents highlights the section you are currently reading.

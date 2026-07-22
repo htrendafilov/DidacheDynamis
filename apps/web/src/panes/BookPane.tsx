@@ -137,6 +137,15 @@ export function BookPane({ pane }: { pane: Pane }) {
     };
   }, [mode, data, pane.id, updatePane]);
 
+  // Keep the store's section id in sync with the section actually shown, so a freshly opened book
+  // pane is immediately shareable (deep link) and a reload restores the same place. Runs only when
+  // the current id is missing or no longer valid (e.g. after switching books).
+  useEffect(() => {
+    if (!data || !selected) return;
+    const valid = readableSections.some((section) => section.section_id === pane.sectionId);
+    if (!valid) updatePane(pane.id, { sectionId: selected.section_id });
+  }, [data, selected, readableSections, pane.sectionId, pane.id, updatePane]);
+
   return (
     <div className="pane book-pane">
       <div className="pane-header">

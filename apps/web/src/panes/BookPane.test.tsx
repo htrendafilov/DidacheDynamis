@@ -68,6 +68,12 @@ describe("BookPane", () => {
     });
   });
 
+  it("normalizes an unset section id to the first section (so it is shareable)", () => {
+    expect(useStore.getState().panes[0].sectionId).toBeUndefined();
+    render(<Harness />);
+    expect(useStore.getState().panes[0].sectionId).toBe("chapter-1");
+  });
+
   it("renders a TOC and switches the visible section", () => {
     render(<Harness />);
     expect(screen.getByRole("navigation", { name: "Table of contents" })).toBeVisible();

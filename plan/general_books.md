@@ -90,7 +90,11 @@ FTS pattern, cache/attribution/WorkFooter) is reused.
   above Dropbox note sync. On narrow screens the TOC is an overlay and closes after section selection.
 
 ## Remaining M6 follow-ups
-- Add URL deep links for the selected section.
+- ~~Add URL deep links for the selected section.~~ **Done** — the active book pane's section is
+  mirrored into the URL hash (`#/book/<work>/<section>`, `state/deeplink.ts`) with `replaceState`, and
+  a valid hash reopens that section on load/`hashchange`. Uses the hash (not query) so it never
+  collides with the Dropbox OAuth `?code`/`?state`. The full canonical scheme for all pane types stays
+  in the linking plan §1.
 - ~~Extend global search/navigation to `book_fts`.~~ **Done** — `GET /api/v1/search/books` returns
   breadcrumb-titled section hits with snippets; the search panel shows a separate "Books" group and a
   hit opens the section in a book pane (reusing one, else adding/converting a pane).

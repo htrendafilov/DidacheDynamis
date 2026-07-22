@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -6,9 +6,11 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ReadingSettings } from "./components/ReadingSettings";
 import { SearchPanel } from "./components/SearchPanel";
 import { TopBar } from "./components/TopBar";
+import { useWorks } from "./data/hooks";
 import i18n from "./i18n";
 import { bookName } from "./i18n/bookNames";
 import { PaneHost } from "./panes/PaneHost";
+import { bookHash, parseBookHash } from "./state/deeplink";
 import { useStore, type Pane } from "./state/store";
 import { installDropboxAutoSync, useDropboxSync } from "./sync/dropboxState";
 
@@ -34,6 +36,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [activeMobile, setActiveMobile] = useState(0);
   const initializeDropbox = useDropboxSync((state) => state.initialize);
+  const openBookSection = useStore((s) => s.openBookSection);
+  const works = useWorks();
+  const didInitDeepLink = useRef(false);
   const isNarrow = useIsNarrow();
 
   useEffect(() => {
@@ -43,6 +48,34 @@ export default function App() {
     void initializeDropbox();
     return installDropboxAutoSync();
   }, [initializeDropbox]);
+
+  // General Book section deep links (#/book/<work>/<section>). Applied once works are known (so a
+  // bogus work id is ignored) and re-applied on hashchange (a shared link opened in the same tab).
+  useEffect(() => {
+    if (!works) return;
+    const bookIds = new Set(works.filter((w) => w.type === "book").map((w) => w.id));
+    const apply = () => {
+      const link = parseBookHash(window.location.hash);
+      if (link && bookIds.has(link.workId)) openBookSection(link.workId, link.sectionId);
+    };
+    if (!didInitDeepLink.current) {
+      didInitDeepLink.current = true;
+      apply();
+    }
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, [works, openBookSection]);
+
+  // Mirror the first book pane's current section into the URL hash for sharing. replaceState keeps
+  // history clean (scroll-spy changes the section often) and does not fire hashchange (no loop).
+  useEffect(() => {
+    const bookPane = panes.find((p) => p.type === "book");
+    if (!bookPane?.sectionId) return;
+    const target = bookHash(bookPane.workId, bookPane.sectionId);
+    if (window.location.hash !== target) {
+      window.history.replaceState(null, "", target);
+    }
+  }, [panes]);
 
   useEffect(() => {
     void i18n.changeLanguage(settings.uiLang);

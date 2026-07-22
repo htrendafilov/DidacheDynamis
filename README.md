@@ -65,9 +65,10 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   keyboard-navigable mobile pane-tab layout, external uptime monitor (GitHub Actions + UptimeRobot),
   and a rehearsed atomic DB/SPA backup & rollback (versioned releases + symlink swap). ✅
 - **M6** — General Books: hierarchical SWORD `mod2imp` adapter, read-only book API, a TOC reader pane
-  (paged/scroll with scroll-spy), and full-text book search; the public-domain 1689 Baptist Confession
-  is the first shipped book. 🚧 Initial slice complete.
-- **Next:** General Book section deep links → scripture pop-ups/embeds → open-source the repo (see `plan/`).
+  (paged/scroll with scroll-spy), full-text book search, and shareable section deep links
+  (`#/book/<work>/<section>`); the public-domain 1689 Baptist Confession is the first shipped book.
+  🚧 Initial slice complete.
+- **Next:** scripture pop-ups/embeds → open-source the repo (see `plan/`).
 
 ## Run it locally
 
