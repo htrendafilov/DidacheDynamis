@@ -1,7 +1,9 @@
 # M7 Search Workspace and M8 Strong's Search
 
 Status: **proposed**  
-Last reviewed: 2026-07-23
+Last reviewed: 2026-07-23 (revised after a code-grounded review: added §5.4 schema prerequisites,
+batched the importer changes into one rebuild, locked the grouped `/search` contract from M7.1, and
+re-sequenced M7.1/M7.2 so canonical ordering ships with the schema change it needs)
 
 This document proposes a complete search redesign for the Bible Reader. It replaces the temporary
 search overlay with a persistent search workspace, exposes the already-imported commentary,
@@ -167,7 +169,9 @@ Complete search means every match is reachable, not that thousands of rows are p
 
 - Fetch 50 hits for the selected group initially.
 - Display `1–50 of 947` and a clear **Load 50 more** action.
-- Return `total`, `offset`, `limit`, and `has_more` from the API.
+- Return `total`, `offset`, `limit`, and `has_more` from the API. `total` is a second full `MATCH`
+  count per group (FTS5 has no free total); cheap at this corpus size (~31k verses, smaller study
+  sets), but a conscious cost — and it participates in the existing ETag/Cloudflare caching.
 - Use deterministic secondary sort keys so consecutive pages never duplicate or omit hits.
 - Preserve loaded pages and scroll position while opening a result.
 - Consider list virtualization only after measuring; it is not required for the first 50–200 rows.
@@ -191,6 +195,32 @@ Source order means:
 In the All view, results remain grouped by type and the selected order applies within each group.
 Dictionary headwords and General Book section titles should carry more relevance weight than body
 text.
+
+### 5.4 Schema prerequisites for ordering, pagination, and weighting
+
+Canonical ordering and stable pagination are **not** a pure API/UI change — they require importer and
+schema work, because the current FTS tables cannot support them as built:
+
+- **Bible canonical order needs sortable numeric columns.** `bible_fts` stores the locator as a single
+  string column (`ref UNINDEXED`), and it is a standalone contentless table, so there is no rowid join
+  back to `verses`. A string `ref` cannot be ordered canonically in SQL (`Gen.1.10` sorts before
+  `Gen.1.2`, and there is no book order). Add `book_order`, `chapter`, and `verse` as `UNINDEXED`
+  columns to `bible_fts` (or rebuild it as an external-content FTS over `verses`) so the provider can
+  `ORDER BY book_order, chapter, verse, work_id` with `LIMIT/OFFSET`. This is the sort key that also
+  makes pagination deterministic.
+- **Weighted headword/title needs indexed columns.** `dictionary_fts.headword` and
+  `book_fts.section_id` are `UNINDEXED` (locators, not searchable), and `dictionary_fts.text` is only
+  the entry body. So today a term that appears only in a headword or a section title cannot match, and
+  `bm25()` cannot up-weight it. Fold the headword/title into an indexed FTS column (or add a dedicated
+  indexed column) so both matching and `bm25()` column weighting work.
+- **Commentary needs a stable entry ID.** `commentary_entries` has no primary key; the `commentary_fts`
+  locator is `osis.chapter[.verse_start]`, which is not guaranteed unique. Add a stable `entry_id` to
+  the table and carry it in the FTS locator so navigation is unambiguous and pagination cannot drift
+  when two entries share a reference.
+
+All three ride a **single `content.sqlite` rebuild** through the importer — batch them into one schema
+revision and one rebuild/redeploy rather than three. Production stays read-only; nothing here changes
+the runtime's read path other than the columns it can order and filter by.
 
 ## 6. Search history
 
@@ -263,8 +293,16 @@ Each hit is a discriminated union with common fields (`kind`, `work_id`, `title`
 typed locator for a verse, commentary entry, headword, or section. Initial All queries can return a
 small per-group preview; loading more requests one `types=` value and paginates that group.
 
+**Adopt this grouped shape from M7.1, not M7.2.** The current `/search` returns a flat
+`{query, limit, offset, hits[]}`. Rather than first bolting `total`/`has_more` onto that flat shape in
+M7.1 and then replacing it with `groups[]` in M7.2 — migrating the TypeScript contract and every test
+twice — M7.1 should emit the **final grouped envelope with a single `bible` group**. Additional
+providers (commentary, dictionary, books) then appear as new entries in `groups[]` in M7.2 with no
+breaking change to the client. Keep the field set stable from the first release.
+
 The current `/search/books` endpoint can remain temporarily for compatibility, then be removed after
-the web client and tests use the unified endpoint.
+the web client and tests use the unified endpoint. The flat `/search` response shape is replaced by the
+grouped envelope above as of M7.1; update `apps/web/src/data/api.ts` and `SearchPanel` in that step.
 
 ## 8. Backend search providers
 
@@ -283,14 +321,22 @@ Each provider implements count, facet, page, and hit-normalization operations fo
 supports. This avoids pretending that heterogeneous documents have identical ranking semantics and
 provides a clean Strong's extension without moving format-specific logic into the API.
 
-Required importer/schema work:
+Required importer/schema work (all of it rides one `content.sqlite` rebuild — see §5.4):
 
-1. Give commentary entries stable IDs and include those IDs in `commentary_fts` locators.
-2. Add explicit canon-group metadata to the canonical book definition and database-facing metadata.
-3. Index dictionary headwords as weighted searchable text as well as entry bodies.
-4. Index General Book titles/breadcrumbs as weighted text as well as section bodies.
-5. Preserve stable work/document order for deterministic pagination.
+1. Add sortable `book_order`/`chapter`/`verse` columns to `bible_fts` (or make it external-content over
+   `verses`) so canonical order and deterministic pagination are possible in SQL (§5.4).
+2. Give commentary entries a stable `entry_id` and include it in `commentary_fts` locators (§5.4).
+3. Index dictionary headwords as weighted searchable text as well as entry bodies (§5.4).
+4. Index General Book titles/breadcrumbs as weighted text as well as section bodies (§5.4).
+5. Add explicit canon-group (testament) metadata to the canonical book definition (`books.py` today has
+   `usfm/osis/order/name_en` only) and carry it into database-facing metadata, instead of an
+   `order <= 39` rule in the frontend.
 6. Rebuild `content.sqlite` offline through the importer; production remains read-only.
+
+Tokenizer note: all FTS tables use `unicode61 remove_diacritics 2`, which is correct for English but
+lossy for Greek/Hebrew accents and Hebrew niqqud. This does not affect M8 lexical search — Strong's
+lemma/transliteration search runs against the structured `strong_lexicon`/`verse_tokens` tables (§10),
+not FTS — but revisit the tokenizer when the Bulgarian Bible and any Greek/Hebrew display text land.
 
 ## 9. Frontend state and navigation
 
@@ -368,20 +414,29 @@ does not parse SWORD modules directly.
 
 ## 11. Delivery milestones
 
-### M7.1 — Correctness and completeness
+### M7.1 — Correctness and completeness (Bible)
 
-- Add totals, `has_more`, stable pagination, and 50-result pages.
-- Add relevance/canonical ordering for Bible results.
-- Show `1–50 of N` and Load more in the current UI.
-- Make Genesis 1:1 reachable for `earth` and add a regression test.
+Includes the one schema change Bible ordering depends on — it is **not** an API/UI-only step (§5.4).
+
+- Add sortable `book_order`/`chapter`/`verse` columns to `bible_fts` and rebuild `content.sqlite`.
+- Introduce the **final grouped `/search` envelope** (§7) with a single `bible` group carrying `total`,
+  `offset`, `limit`, and `has_more` — do not ship an interim flat shape.
+- Add relevance and canonical ordering for Bible, with a stable locator tie-breaker so pages never
+  duplicate or omit hits.
+- 50-result pages; show `1–50 of N` and Load more in the current overlay UI.
+- Migrate `apps/web/src/data/api.ts` and `SearchPanel` to the grouped envelope.
+- Make Genesis 1:1 reachable for `earth`; add regression tests for canonical ordering and
+  pagination stability (no duplicate/omitted hits across pages).
 
 ### M7.2 — Unified cross-content engine
 
-- Add the provider-based query service.
-- Expose Bible, commentary, dictionary, and General Book groups.
+- Land the remaining schema/importer changes in **one batched rebuild** (§5.4, §8): commentary
+  `entry_id`, weighted dictionary headwords, weighted General Book titles, and canon-group metadata.
+- Add the provider-based query service (`SearchService` + per-type providers).
+- Expose commentary, dictionary, and General Book groups as new `groups[]` entries — no breaking
+  change to the M7.1 client contract.
 - Add type, work, canon, book, and language filters.
-- Improve headword/title indexing and rebuild the content database.
-- Migrate the TypeScript API contract and retire the separate book-search call.
+- Retire the separate `/search/books` call once the client and tests use the unified endpoint.
 
 ### M7.3 — Search Workspace UI
 
@@ -399,6 +454,9 @@ does not parse SWORD modules directly.
 
 - Keyboard navigation and visible focus for the workspace, tabs, filters, and results.
 - Screen-reader announcements for counts, loading, errors, and appended pages.
+- **EN/BG translations for all new UI strings** (`i18n/en.json` + `bg.json`): filters, group tabs,
+  history, refine, chips, and count strings such as "1–50 of N". The app is bilingual; untranslated
+  search UI is a regression.
 - API tests for every filter/order/provider and pagination stability.
 - React tests for history, refinement, scope chips, navigation, and state restoration.
 - Playwright desktop/mobile flows, including Back to results.
@@ -430,10 +488,12 @@ M7 is complete when all of the following pass:
 
 ## 13. Effort and sequencing
 
-M7.1 is a small, high-value correctness change, approximately one to two focused development days.
-The full M7 provider/API/UI/history redesign is a moderate refactor, approximately another working
-week depending on final interaction polish. M8 is a separate importer and data-model project; allow
-roughly one to two weeks after the lexical source and license are approved.
+M7.1 is a high-value correctness change, roughly two to three focused development days — a touch more
+than an API/UI-only fix because it includes the `bible_fts` sort-column schema change, a
+`content.sqlite` rebuild/redeploy, and adopting the grouped envelope (§5.4, §11). The full M7
+provider/API/UI/history redesign is a moderate refactor, approximately another working week depending
+on final interaction polish. M8 is a separate importer and data-model project; allow roughly one to two
+weeks after the lexical source and license are approved.
 
 Do not combine M7 and M8 into one release. Ship the general search architecture first, measure it,
 then add lexical data through the provider extension point.
