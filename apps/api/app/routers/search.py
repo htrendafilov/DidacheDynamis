@@ -5,11 +5,22 @@ from fastapi import APIRouter, Depends, Query
 
 from .. import settings
 from ..db import get_conn
-from ..models import BookSearchHit, BookSearchResult, SearchHit, SearchResult
+from ..models import (
+    BookSearchHit,
+    BookSearchResult,
+    SearchGroup,
+    SearchHit,
+    SearchResponse,
+)
 
 router = APIRouter(prefix=settings.API_V1, tags=["search"])
 
 _TOKEN = re.compile(r"\w+", re.UNICODE)
+# Canonical sort key + a stable tie-breaker so pages never duplicate or omit a hit. book_order/
+# chapter/verse are stored as text in FTS5, so cast them to INTEGER to sort numerically.
+_CANONICAL = (
+    "CAST(book_order AS INTEGER), CAST(chapter AS INTEGER), CAST(verse AS INTEGER), work_id, ref"
+)
 
 
 def _fts_query(q: str) -> str | None:
@@ -20,42 +31,65 @@ def _fts_query(q: str) -> str | None:
     return " ".join(f'"{t}"' for t in toks)
 
 
-@router.get("/search", response_model=SearchResult)
+@router.get("/search", response_model=SearchResponse)
 def search(
     q: str = Query(..., min_length=1, max_length=200),
     works: str | None = Query(None, description="comma-separated work ids to restrict to"),
-    limit: int = Query(20, ge=1, le=100),
+    sort: str = Query("relevance", pattern="^(relevance|canonical)$"),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     conn: sqlite3.Connection = Depends(get_conn),
-) -> SearchResult:
+) -> SearchResponse:
     match = _fts_query(q)
     if match is None:
-        return SearchResult(query=q, limit=limit, offset=offset, hits=[])
+        empty = SearchGroup(type="bible", total=0, offset=offset, limit=limit, has_more=False, hits=[])
+        return SearchResponse(query=q, sort=sort, total=0, groups=[empty])
 
-    sql = (
-        "SELECT ref, work_id, snippet(bible_fts, 0, '<b>', '</b>', '…', 10) AS snip "
-        "FROM bible_fts WHERE bible_fts MATCH ?"
-    )
+    where = "bible_fts MATCH ?"
     params: list = [match]
     if works:
         ids = [w for w in works.split(",") if w]
         if ids:
-            sql += " AND work_id IN (%s)" % ",".join("?" * len(ids))
+            where += " AND work_id IN (%s)" % ",".join("?" * len(ids))
             params += ids
-    sql += " ORDER BY bm25(bible_fts) LIMIT ? OFFSET ?"
-    params += [limit, offset]
+
+    total = conn.execute(f"SELECT count(*) FROM bible_fts WHERE {where}", params).fetchone()[0]
+
+    order = f"bm25(bible_fts), {_CANONICAL}" if sort == "relevance" else _CANONICAL
+    rows = conn.execute(
+        f"SELECT ref, work_id, snippet(bible_fts, 0, '<b>', '</b>', '…', 10) AS snip "
+        f"FROM bible_fts WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
+        [*params, limit, offset],
+    ).fetchall()
 
     hits: list[SearchHit] = []
-    for r in conn.execute(sql, params).fetchall():
+    for r in rows:
         try:
             osis, ch, vs = r["ref"].rsplit(".", 2)
-            hits.append(
-                SearchHit(work_id=r["work_id"], ref=r["ref"], osis=osis,
-                          chapter=int(ch), verse=int(vs), snippet=r["snip"])
-            )
+            chapter, verse = int(ch), int(vs)
         except (ValueError, KeyError):
             continue
-    return SearchResult(query=q, limit=limit, offset=offset, hits=hits)
+        hits.append(
+            SearchHit(
+                work_id=r["work_id"],
+                title=f"{osis} {chapter}:{verse}",
+                snippet=r["snip"],
+                osis=osis,
+                chapter=chapter,
+                verse=verse,
+                ref=r["ref"],
+            )
+        )
+
+    group = SearchGroup(
+        type="bible",
+        total=total,
+        offset=offset,
+        limit=limit,
+        has_more=offset + len(hits) < total,
+        hits=hits,
+    )
+    return SearchResponse(query=q, sort=sort, total=total, groups=[group])
 
 
 @router.get("/search/books", response_model=BookSearchResult)

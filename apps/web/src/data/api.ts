@@ -52,20 +52,33 @@ export interface Passage {
   headings: Heading[];
 }
 
+export type SearchSort = "relevance" | "canonical";
+
 export interface SearchHit {
+  kind: "bible";
   work_id: string;
-  ref: string;
+  title: string;
+  snippet: string;
   osis: string;
   chapter: number;
   verse: number;
-  snippet: string;
+  ref: string;
 }
 
-export interface SearchResult {
-  query: string;
-  limit: number;
+export interface SearchGroup {
+  type: string;
+  total: number;
   offset: number;
+  limit: number;
+  has_more: boolean;
   hits: SearchHit[];
+}
+
+export interface SearchResponse {
+  query: string;
+  sort: SearchSort;
+  total: number;
+  groups: SearchGroup[];
 }
 
 export interface BookSearchHit {
@@ -193,10 +206,17 @@ export const api = {
     get<CrossReferences>(
       `/xref/${osis}/${chapter}/${verse}?preview_work=${encodeURIComponent(previewWork)}`,
     ),
-  search: (q: string, works?: string) =>
-    get<SearchResult>(
-      `/search?q=${encodeURIComponent(q)}` + (works ? `&works=${encodeURIComponent(works)}` : ""),
-    ),
+  search: (
+    q: string,
+    opts: { works?: string; sort?: SearchSort; limit?: number; offset?: number } = {},
+  ) => {
+    const params = new URLSearchParams({ q });
+    if (opts.works) params.set("works", opts.works);
+    if (opts.sort) params.set("sort", opts.sort);
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+    if (opts.offset != null) params.set("offset", String(opts.offset));
+    return get<SearchResponse>(`/search?${params.toString()}`);
+  },
   searchBooks: (q: string, works?: string) =>
     get<BookSearchResult>(
       `/search/books?q=${encodeURIComponent(q)}` +

@@ -133,20 +133,55 @@ def test_passage_verse_range_rejects_bad_input(client):
         assert r.status_code == 400, bad
 
 
+def _bible_group(res: dict) -> dict:
+    return next(g for g in res["groups"] if g["type"] == "bible")
+
+
 def test_search(client):
     res = client.get("/api/v1/search", params={"q": "shepherd"}).json()
-    refs = {h["ref"] for h in res["hits"]}
-    assert "Ps.23.1" in refs
-    hit = next(h for h in res["hits"] if h["ref"] == "Ps.23.1")
+    assert res["sort"] == "relevance"
+    group = _bible_group(res)
+    hit = next(h for h in group["hits"] if h["ref"] == "Ps.23.1")
+    assert hit["kind"] == "bible" and hit["title"] == "Ps 23:1"
     assert "<b>" in hit["snippet"]
     assert hit["osis"] == "Ps" and hit["chapter"] == 23 and hit["verse"] == 1
 
 
 def test_search_work_filter(client):
     res = client.get("/api/v1/search", params={"q": "loved", "works": "web"}).json()
-    assert any(h["osis"] == "John" for h in res["hits"])
+    assert any(h["osis"] == "John" for h in _bible_group(res)["hits"])
     res2 = client.get("/api/v1/search", params={"q": "loved", "works": "nonexistent"}).json()
-    assert res2["hits"] == []
+    group = _bible_group(res2)
+    assert group["hits"] == [] and group["total"] == 0
+
+
+def test_search_canonical_order_reaches_every_hit(client):
+    # "the" matches both Psalm 23:1 and John 3:16; canonical order must put Psalms (book 19)
+    # before John (book 43) — the fixture stand-in for "Genesis 1:1 is reachable for 'earth'".
+    res = client.get("/api/v1/search", params={"q": "the", "sort": "canonical"}).json()
+    group = _bible_group(res)
+    assert group["total"] == 2
+    assert [h["ref"] for h in group["hits"]] == ["Ps.23.1", "John.3.16"]
+
+
+def test_search_pagination_is_stable_and_complete(client):
+    # Page size 1: each page yields exactly one hit, in canonical order, with no duplicate or gap,
+    # and has_more flips off on the last page.
+    page1 = _bible_group(
+        client.get(
+            "/api/v1/search", params={"q": "the", "sort": "canonical", "limit": 1, "offset": 0}
+        ).json()
+    )
+    assert page1["total"] == 2 and page1["has_more"] is True
+    assert [h["ref"] for h in page1["hits"]] == ["Ps.23.1"]
+
+    page2 = _bible_group(
+        client.get(
+            "/api/v1/search", params={"q": "the", "sort": "canonical", "limit": 1, "offset": 1}
+        ).json()
+    )
+    assert page2["has_more"] is False
+    assert [h["ref"] for h in page2["hits"]] == ["John.3.16"]
 
 
 def test_search_books(client):

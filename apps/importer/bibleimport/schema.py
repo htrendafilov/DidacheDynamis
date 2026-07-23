@@ -99,8 +99,13 @@ CREATE TABLE xrefs (
 CREATE INDEX idx_xrefs_ref ON xrefs(osis_code, chapter, verse);
 
 -- Full-text search (contentless FTS5 mirroring plain_text / body).
+-- book_order/chapter/verse are UNINDEXED sort keys so the search API can order verse hits
+-- canonically (Gen before Exod, 1:2 before 1:10) and paginate deterministically; a bare string
+-- ref cannot be ordered numerically. CAST them to INTEGER in ORDER BY (FTS5 stores columns as text).
 CREATE VIRTUAL TABLE bible_fts USING fts5(
-    text, work_id UNINDEXED, ref UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
+    text, work_id UNINDEXED, ref UNINDEXED,
+    book_order UNINDEXED, chapter UNINDEXED, verse UNINDEXED,
+    tokenize = 'unicode61 remove_diacritics 2'
 );
 CREATE VIRTUAL TABLE commentary_fts USING fts5(
     text, work_id UNINDEXED, ref UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'

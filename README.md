@@ -69,8 +69,10 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   (paged/scroll with scroll-spy), full-text book search, and shareable section deep links
   (`#/book/<work>/<section>`); the public-domain 1689 Baptist Confession is the first shipped book.
   🚧 Initial slice complete.
-- **M7 planned** — persistent desktop/mobile Search Workspace, all-content search, source/testament/
-  book scopes, complete pagination, relevance/canonical ordering, refinement, and local history.
+- **M7.1** — search correctness: grouped `/search` envelope with true totals, `has_more`, 50-result
+  pages, and relevance/canonical ordering (every Bible hit reachable, no duplicates). ✅
+- **M7 (rest) planned** — persistent desktop/mobile Search Workspace, all-content search (commentary/
+  dictionary/books), source/testament/book scopes, refinement, and local history.
 - **M8 planned** — licensed Strong's lexical data, word-level annotations, and structured
   Strong-number/lemma search through the M7 search-provider architecture.
 - **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference

@@ -414,9 +414,13 @@ does not parse SWORD modules directly.
 
 ## 11. Delivery milestones
 
-### M7.1 — Correctness and completeness (Bible)
+### M7.1 — Correctness and completeness (Bible) — DELIVERED 2026-07-23
 
 Includes the one schema change Bible ordering depends on — it is **not** an API/UI-only step (§5.4).
+Shipped: `bible_fts` sort columns + importer, grouped `/search` envelope with `total`/`has_more`,
+`sort=relevance|canonical` with a stable canonical tie-breaker, 50-result pages, and the overlay UI's
+count + Load more + sort toggle (EN/BG). Requires a `content.sqlite` rebuild before deploy (the API now
+orders by the new columns). Regression tests cover canonical order and pagination completeness.
 
 - Add sortable `book_order`/`chapter`/`verse` columns to `bible_fts` and rebuild `content.sqlite`.
 - Introduce the **final grouped `/search` envelope** (§7) with a single `bible` group carrying `total`,

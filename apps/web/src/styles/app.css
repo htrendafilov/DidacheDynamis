@@ -480,6 +480,34 @@ input[type="search"] {
   text-transform: uppercase;
   color: var(--muted);
 }
+.search-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+.search-count {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.search-sort {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+.search-sort button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+}
+.search-sort button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.search-load-more {
+  display: block;
+  width: 100%;
+  margin-top: 0.6rem;
+}
 .result-ref {
   font-weight: 600;
   color: var(--accent);

@@ -57,20 +57,35 @@ class Book(BaseModel):
     chapter_count: int
 
 
+# Unified search envelope (M7.1: Bible only). Each hit is a discriminated union on `kind` with the
+# common fields kind/work_id/title/snippet; kind-specific locator fields follow. New content types
+# (commentary, dictionary, book, strongs) are added as new hit models + groups in M7.2 without
+# changing the Bible hit JSON, so the client contract does not migrate twice.
 class SearchHit(BaseModel):
+    kind: str = "bible"
     work_id: str
-    ref: str
+    title: str  # display label, e.g. "John 3:16" (client may re-localize the book name)
+    snippet: str
     osis: str
     chapter: int
     verse: int
-    snippet: str
+    ref: str
 
 
-class SearchResult(BaseModel):
-    query: str
-    limit: int
+class SearchGroup(BaseModel):
+    type: str  # content type, e.g. "bible"
+    total: int
     offset: int
+    limit: int
+    has_more: bool
     hits: list[SearchHit]
+
+
+class SearchResponse(BaseModel):
+    query: str
+    sort: str  # "relevance" | "canonical"
+    total: int
+    groups: list[SearchGroup]
 
 
 class BookSearchHit(BaseModel):

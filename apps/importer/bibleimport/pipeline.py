@@ -104,8 +104,18 @@ def _write_work(
         [(meta.id, h.osis, h.chapter, h.before_verse, h.kind, h.text) for h in headings],
     )
     conn.executemany(
-        "INSERT INTO bible_fts(text,work_id,ref) VALUES(?,?,?)",
-        [(v.plain_text, meta.id, f"{v.osis}.{v.chapter}.{v.verse}") for v in verses],
+        "INSERT INTO bible_fts(text,work_id,ref,book_order,chapter,verse) VALUES(?,?,?,?,?,?)",
+        [
+            (
+                v.plain_text,
+                meta.id,
+                f"{v.osis}.{v.chapter}.{v.verse}",
+                BY_OSIS[v.osis].order if v.osis in BY_OSIS else 999,
+                v.chapter,
+                v.verse,
+            )
+            for v in verses
+        ],
     )
 
 
