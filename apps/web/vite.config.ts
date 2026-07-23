@@ -1,7 +1,24 @@
+import { execSync } from "node:child_process";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-const buildId = process.env.VITE_BUILD_ID?.trim() || new Date().toISOString();
+// A unique id per build, used to detect stale open tabs after a deploy (see UpdateNotice). Prefer an
+// explicit VITE_BUILD_ID (CI/Docker set it to the commit SHA), then the local git SHA for
+// traceability, and only fall back to a timestamp when git is unavailable (e.g. a bare container).
+function resolveBuildId(): string {
+  const fromEnv = process.env.VITE_BUILD_ID?.trim();
+  if (fromEnv) return fromEnv;
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+const buildId = resolveBuildId();
 
 // Dev server proxies API calls to the FastAPI backend on :8080.
 export default defineConfig({

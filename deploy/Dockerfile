@@ -10,6 +10,9 @@ FROM node:22-slim AS web
 WORKDIR /web
 ARG VITE_DROPBOX_APP_KEY=""
 ENV VITE_DROPBOX_APP_KEY=${VITE_DROPBOX_APP_KEY}
+# Commit SHA for the build-version stamp (no .git in this stage); CI passes github.sha.
+ARG VITE_BUILD_ID=""
+ENV VITE_BUILD_ID=${VITE_BUILD_ID}
 COPY apps/web/package*.json ./
 RUN npm ci
 COPY apps/web/ ./
