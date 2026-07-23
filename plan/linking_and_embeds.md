@@ -63,9 +63,10 @@ work on the user's blog.
   simple GETs need no preflight.
 - **Self-contained UI: DONE.** The widget injects one small `<style>` and reuses a single pop-up; it
   is theme-neutral and inserts passage text with `textContent` only (no HTML).
-- **Security/perf:** read-only public data; no tokens/user data. `embed.js` is ~6.8 KB and cached at
-  the edge (a `/embed-demo.html` page and `docs/user/embedding-scripture.md` document usage). Open:
-  cache-busting/versioning of `embed.js` on updates (currently a hard edge refresh).
+- **Security/perf:** read-only public data; no tokens/user data. `embed.js` is ~6.8 KB and uses
+  `no-cache, must-revalidate`, so its stable URL receives updates without a hard refresh
+  (`/embed-demo.html` and `docs/user/embedding-scripture.md` document usage). Future hardening:
+  Subresource Integrity once the URL is versioned.
 
 ## Ordering & reuse
 1. **Deep links (§1)** first — the canonical ref parser/serializer is the shared foundation.

@@ -1,3 +1,12 @@
+from app.main import (
+    API_CACHE_CONTROL,
+    HASHED_ASSET_CACHE_CONTROL,
+    HTML_CACHE_CONTROL,
+    STATIC_FILE_CACHE_CONTROL,
+    static_cache_control,
+)
+
+
 def test_security_headers(client):
     h = client.get("/api/v1/meta").headers
     csp = h.get("Content-Security-Policy", "")
@@ -122,9 +131,10 @@ def test_passage_verse_range(client):
     one = client.get("/api/v1/works/web/passage/John/3", params={"verses": "16"}).json()
     assert [v["verse"] for v in one["verses"]] == [16]
     # A range that selects no existing verse is a 404, not an empty 200.
-    assert client.get(
-        "/api/v1/works/web/passage/John/3", params={"verses": "20-30"}
-    ).status_code == 404
+    assert (
+        client.get("/api/v1/works/web/passage/John/3", params={"verses": "20-30"}).status_code
+        == 404
+    )
 
 
 def test_passage_verse_range_rejects_bad_input(client):
@@ -236,11 +246,23 @@ def test_search_rejects_unknown_type(client):
 
 def test_cache_headers_and_304(client):
     r = client.get("/api/v1/works/web/passage/John/3")
-    assert r.headers.get("Cache-Control", "").startswith("public")
+    assert r.headers.get("Cache-Control") == API_CACHE_CONTROL
     etag = r.headers.get("ETag")
     assert etag
     r2 = client.get("/api/v1/works/web/passage/John/3", headers={"If-None-Match": etag})
     assert r2.status_code == 304
+    assert r2.headers.get("Cache-Control") == API_CACHE_CONTROL
+
+
+def test_spa_cache_policy_separates_entrypoint_assets_and_public_files():
+    assert static_cache_control("", "index.html") == HTML_CACHE_CONTROL
+    assert static_cache_control("read", "index.html") == HTML_CACHE_CONTROL
+    assert (
+        static_cache_control("assets/index-abc123.js", "index-abc123.js")
+        == HASHED_ASSET_CACHE_CONTROL
+    )
+    assert static_cache_control("version.json", "version.json") == STATIC_FILE_CACHE_CONTROL
+    assert static_cache_control("embed.js", "embed.js") == STATIC_FILE_CACHE_CONTROL
 
 
 def test_commentary_can_be_filtered_to_a_verse(client):
@@ -252,9 +274,7 @@ def test_commentary_can_be_filtered_to_a_verse(client):
 
 
 def test_dictionary_prefix_and_entry(client):
-    words = client.get(
-        "/api/v1/dictionary/easton/entries", params={"prefix": "shep"}
-    ).json()
+    words = client.get("/api/v1/dictionary/easton/entries", params={"prefix": "shep"}).json()
     assert words == [{"headword": "Shepherd"}]
     entry = client.get("/api/v1/dictionary/easton/entry/Shepherd").json()
     assert entry["body"]["blocks"][0]["text"] == "One who tends a flock."

@@ -97,8 +97,11 @@ fetch.
 - Passages are URL-addressable, e.g. `/read?p1=web:John:3&p2=mh:John:3&p3=notes`, so a layout is
   shareable/bookmarkable.
 - Reading settings + last layout persist in `localStorage` and restore on return.
-- API responses are fetched with the content `?v=<checksum>` so the browser + Cloudflare cache
-  aggressively and a new import busts the cache.
+- API responses revalidate with an ETag on every use, so a new code or content deployment cannot leave
+  stale JSON in the browser. Vite's fingerprinted `/assets/*` files remain immutable and long-lived.
+- Every SPA build emits an uncached `/version.json`. The running app checks it on startup, periodically,
+  and when the tab regains focus; if a newer build exists it offers a user-controlled reload so an
+  editor is never interrupted.
 
 ## 8. Layout (files)
 

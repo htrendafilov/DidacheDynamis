@@ -1,5 +1,7 @@
 {
   "app.title": "Библия",
+  "update.available": "Налична е нова версия.",
+  "update.reload": "Презареди",
   "topbar.search": "Търсене",
   "topbar.addPane": "Нов панел",
   "topbar.settings": "Настройки",

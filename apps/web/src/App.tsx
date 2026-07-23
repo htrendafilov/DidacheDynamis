@@ -6,6 +6,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ReadingSettings } from "./components/ReadingSettings";
 import { SearchPanel } from "./components/SearchPanel";
 import { TopBar } from "./components/TopBar";
+import { UpdateNotice } from "./components/UpdateNotice";
 import { useWorks } from "./data/hooks";
 import i18n from "./i18n";
 import { bookName } from "./i18n/bookNames";
@@ -139,6 +140,7 @@ export default function App() {
           setShowSearch(false);
         }}
       />
+      <UpdateNotice />
 
       {showSettings && (
         <div className="overlay-panel">

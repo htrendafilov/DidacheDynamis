@@ -7,7 +7,6 @@ services:
       - "127.0.0.1:8080:8080"   # Caddy reverse-proxies to this; not publicly exposed
     environment:
       - API_PORT=8080
-      - CACHE_MAX_AGE=86400
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
       interval: 30s
