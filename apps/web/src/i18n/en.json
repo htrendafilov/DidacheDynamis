@@ -1,5 +1,7 @@
 {
   "app.title": "Bible Reader",
+  "update.available": "A new version is available.",
+  "update.reload": "Reload",
   "topbar.search": "Search",
   "topbar.addPane": "Add pane",
   "topbar.settings": "Settings",

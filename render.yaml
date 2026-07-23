@@ -14,8 +14,6 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      - key: CACHE_MAX_AGE
-        value: "86400"
       # Public OAuth app identifier, injected into the Vite build via Docker ARG.
       # Existing services must set this manually in the Render dashboard.
       - key: VITE_DROPBOX_APP_KEY

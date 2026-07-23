@@ -1,7 +1,8 @@
 """FastAPI app: read-only reader API + (in prod) the built SPA.
 
-Immutable content is cacheable: GET /api responses get an ETag (from the content version)
-and Cache-Control, and honour If-None-Match with 304 — so Cloudflare/browsers serve most reads.
+GET /api responses get an ETag and must revalidate, preventing stale data contracts while still
+allowing cheap 304 responses. The SPA entry document is never stored; fingerprinted assets are
+immutable and can be cached indefinitely.
 """
 
 from __future__ import annotations
@@ -17,6 +18,20 @@ from . import settings
 from .db import content_version
 from .routers import commentary, dictionary, general_books, health, passages, search, works, xrefs
 
+API_CACHE_CONTROL = "public, max-age=0, must-revalidate"
+HTML_CACHE_CONTROL = "no-store, max-age=0, must-revalidate"
+HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable"
+STATIC_FILE_CACHE_CONTROL = "no-cache, must-revalidate"
+
+
+def static_cache_control(full_path: str, target_name: str) -> str:
+    """Return the browser/edge policy for one built SPA file."""
+    if full_path.startswith("assets/"):
+        return HASHED_ASSET_CACHE_CONTROL
+    if target_name == "index.html":
+        return HTML_CACHE_CONTROL
+    return STATIC_FILE_CACHE_CONTROL
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,9 +42,11 @@ async def lifespan(app: FastAPI):
 class CacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        if not (request.method == "GET"
-                and request.url.path.startswith(settings.API_V1)
-                and response.status_code == 200):
+        if not (
+            request.method == "GET"
+            and request.url.path.startswith(settings.API_V1)
+            and response.status_code == 200
+        ):
             return response
 
         body = b""
@@ -38,17 +55,19 @@ class CacheMiddleware(BaseHTTPMiddleware):
 
         version = getattr(request.app.state, "content_version", None) or "0"
         etag = '"' + hashlib.md5(version.encode() + body).hexdigest() + '"'  # noqa: S324
-        cache_control = f"public, max-age={settings.CACHE_MAX_AGE}"
         media_type = response.headers.get("content-type", "application/json")
 
         if request.headers.get("if-none-match") == etag:
-            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": cache_control})
+            return Response(
+                status_code=304,
+                headers={"ETag": etag, "Cache-Control": API_CACHE_CONTROL},
+            )
 
         return Response(
             content=body,
             status_code=200,
             media_type=media_type,
-            headers={"ETag": etag, "Cache-Control": cache_control},
+            headers={"ETag": etag, "Cache-Control": API_CACHE_CONTROL},
         )
 
 
@@ -82,7 +101,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Bible Reader API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CacheMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)  # added last -> outermost -> headers on every response
+app.add_middleware(
+    SecurityHeadersMiddleware
+)  # added last -> outermost -> headers on every response
 
 app.include_router(health.router)
 app.include_router(works.router)
@@ -104,10 +125,16 @@ if settings.WEB_DIST_PATH.exists():
             return Response(status_code=404)
         target = settings.WEB_DIST_PATH / full_path
         if full_path and target.is_file():
-            return FileResponse(target)
+            return FileResponse(
+                target,
+                headers={"Cache-Control": static_cache_control(full_path, target.name)},
+            )
         # Hashed build assets must 404 when missing — never fall back to index.html, or a
         # stale lazy-chunk URL (from a tab opened before a deploy) would receive HTML and fail
         # to execute as JS. A 404 lets the client detect it and reload (see main.tsx).
         if full_path.startswith("assets/"):
             return Response(status_code=404)
-        return FileResponse(_INDEX)
+        return FileResponse(
+            _INDEX,
+            headers={"Cache-Control": HTML_CACHE_CONTROL},
+        )

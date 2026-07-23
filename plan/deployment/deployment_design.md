@@ -23,9 +23,9 @@ tier's worst traps (no free-Postgres-expiry problem since we use SQLite; no pers
    keep-warm ping (UptimeRobot every ~10 min) hitting `/health`. Keeping one service awake 24/7 ≈ 730
    instance-hours, under the **750 free hours/month** — so it fits *if this is the only free service in
    the workspace*.
-2. **5 GB/month origin bandwidth + 0.1 CPU.** Both are absorbed by **Cloudflare** in front: static JS/CSS
-   and immutable `/api/v1` GETs are cached at the edge, so origin egress and CPU stay tiny. This only
-   holds with correct cache rules; if the cache-hit ratio is poor, 5 GB and 0.1 CPU get tight fast.
+2. **5 GB/month origin bandwidth + 0.1 CPU.** The large fingerprinted JS/CSS bundles are absorbed by
+   **Cloudflare**. HTML is tiny and API JSON revalidates with ETags to prevent stale contracts. If API
+   traffic makes the Render bandwidth limit tight, content-versioned API URLs are the next cache lever.
 
 **Recommendation:** **start on Render Free** for the simplest GitHub-native deploy; keep the **VM as the
 scale/fallback target** for when cold starts, the 5 GB cap, or 0.1 CPU become limiting (or if a sustained
@@ -93,15 +93,18 @@ or build toolchain live on the VM.
    ```
    Cloudflare terminates TLS at the edge; Caddy uses a Cloudflare Origin CA cert or a normal cert
    (document the chosen mode).
-5. **Cloudflare:** add the `bible` DNS record, **orange-cloud** it. Cache rules: cache static assets +
-   immutable `/api/v1` GETs; respect origin `Cache-Control`.
+5. **Cloudflare:** add the `bible` DNS record, **orange-cloud** it and respect origin
+   `Cache-Control`. Do not add a hostname-wide "Cache Everything" rule.
 6. Add GitHub repo secrets: `SSH_DEPLOY_KEY`, `VM_HOST` (and `VM_USER`, `DEPLOY_DIR` if not defaulted).
 
 After this, everything is pipeline-driven.
 
 ## 5. Edge / caching / uptime
 
-- **Cloudflare** absorbs most of the ≥100-concurrent load because content is immutable and cacheable.
+- **Cloudflare/browser policy:** never store `index.html`; cache fingerprinted `/assets/*` for one year
+  as immutable; revalidate unhashed files and API JSON. Cloudflare respects these origin headers and
+  must not apply a hostname-wide "Cache Everything" rule. This makes deployments visible immediately
+  without giving up efficient caching of the large bundles.
 - **Uptime:** container `restart: always`; external check (UptimeRobot free) hitting `/health`.
 - Logs go to stdout without secrets or personal data.
 

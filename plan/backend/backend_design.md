@@ -79,9 +79,10 @@ GET /xref/{osis}/{chapter}/{verse}           → cross-references (+ target prev
 GET /search?q=&works=&lang=&limit=&offset=   → FTS5 across selected works; snippets + refs
 ```
 
-- **Caching:** content is immutable per version → `Cache-Control: public, max-age=…, immutable` +
-  `ETag` (derived from the DB `checksum`). The SPA appends `?v=<checksum>`; a new import busts caches.
-  Cloudflare then serves the majority of reads.
+- **Caching:** API responses use `ETag` plus
+  `Cache-Control: public, max-age=0, must-revalidate`. Browsers therefore cannot retain an old API
+  response or response shape across a deployment, while unchanged responses can still complete as
+  `304 Not Modified`. Fingerprinted SPA assets, rather than API JSON, carry the long immutable TTL.
 - **No auth / no CSRF surface** — reading is fully public; there are no writes.
 - **Search:** FTS5 `MATCH` with `bm25()` ranking and `snippet()`/`highlight()` for context. Scope by
   `works` and `lang`. Guard with `limit` caps + a query-length cap.
@@ -92,8 +93,8 @@ GET /search?q=&works=&lang=&limit=&offset=   → FTS5 across selected works; sni
 
 Read-only SQLite, **WAL** mode, opened `mode=ro&immutable=1`, one connection per worker (or a tiny
 pool). Gunicorn with **N = 4–8 Uvicorn workers** on the 4-vCPU VM. No server-side write contention
-exists. Combined with Cloudflare caching of immutable GETs, origin load is a small fraction of client
-requests — comfortably beyond 100 concurrent.
+exists. Cloudflare serves the large fingerprinted bundles, while the lean read-only API revalidates
+responses and remains comfortably beyond 100 concurrent.
 
 ## 6. Importer CLI (`bibleimport`)
 

@@ -75,7 +75,7 @@ versification and emits a diff report for owner review.
 ```
 Browser (SPA + notes in IndexedDB; optional direct Dropbox App Folder sync)
    │  HTTPS
-Cloudflare (CDN + cache: static assets + immutable GET /api responses)
+Cloudflare (CDN: immutable fingerprinted assets; HTML/API revalidate)
    │
 Caddy (bible.trendafilovi.net → 127.0.0.1:PORT)
    │
