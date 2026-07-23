@@ -1,157 +1,86 @@
-import re
 import sqlite3
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .. import settings
 from ..db import get_conn
-from ..models import (
-    BookSearchHit,
-    BookSearchResult,
-    SearchGroup,
-    SearchHit,
-    SearchResponse,
-)
+from ..models import SearchGroup, SearchResponse
+from ..search_providers import ALL_TYPES, PREVIEW, PROVIDERS, fts_query, resolve_work_ids
 
 router = APIRouter(prefix=settings.API_V1, tags=["search"])
 
-_TOKEN = re.compile(r"\w+", re.UNICODE)
-# Canonical sort key + a stable tie-breaker so pages never duplicate or omit a hit. book_order/
-# chapter/verse are stored as text in FTS5, so cast them to INTEGER to sort numerically.
-_CANONICAL = (
-    "CAST(book_order AS INTEGER), CAST(chapter AS INTEGER), CAST(verse AS INTEGER), work_id, ref"
-)
+_TESTAMENT = {"ot": "OT", "nt": "NT"}
 
 
-def _fts_query(q: str) -> str | None:
-    """Build a safe FTS5 MATCH string: AND of quoted tokens (avoids syntax injection)."""
-    toks = _TOKEN.findall(q)
-    if not toks:
+def _csv(value: str | None, cap: int, name: str) -> list[str] | None:
+    if not value:
         return None
-    return " ".join(f'"{t}"' for t in toks)
+    items = [v for v in value.split(",") if v]
+    if len(items) > cap:
+        raise HTTPException(status_code=400, detail=f"too many {name} values")
+    return items or None
 
 
 @router.get("/search", response_model=SearchResponse)
 def search(
     q: str = Query(..., min_length=1, max_length=200),
-    works: str | None = Query(None, description="comma-separated work ids to restrict to"),
+    types: str | None = Query(None, description="content types, e.g. bible,commentary"),
+    works: str | None = Query(None, description="restrict to these work ids"),
+    canon: str | None = Query(None, pattern="^(ot|nt)$", description="testament filter"),
+    books: str | None = Query(None, description="restrict Bible/commentary to these OSIS books"),
+    languages: str | None = Query(None, description="restrict to these content languages"),
     sort: str = Query("relevance", pattern="^(relevance|canonical)$"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> SearchResponse:
-    match = _fts_query(q)
-    if match is None:
-        empty = SearchGroup(type="bible", total=0, offset=offset, limit=limit, has_more=False, hits=[])
-        return SearchResponse(query=q, sort=sort, total=0, groups=[empty])
+    requested = _csv(types, len(ALL_TYPES), "types") or list(ALL_TYPES)
+    unknown = next((t for t in requested if t not in PROVIDERS), None)
+    if unknown is not None:
+        raise HTTPException(status_code=400, detail=f"unknown content type: {unknown}")
+    requested = [t for i, t in enumerate(requested) if t not in requested[:i]]  # dedupe, keep order
 
-    where = "bible_fts MATCH ?"
-    params: list = [match]
-    if works:
-        ids = [w for w in works.split(",") if w]
-        if ids:
-            where += " AND work_id IN (%s)" % ",".join("?" * len(ids))
-            params += ids
+    work_filter = _csv(works, 20, "works")
+    book_filter = _csv(books, 66, "books")
+    language_filter = _csv(languages, 10, "languages")
+    testament = _TESTAMENT.get(canon or "")
 
-    total = conn.execute(f"SELECT count(*) FROM bible_fts WHERE {where}", params).fetchone()[0]
+    # A multi-type ("All") query returns a small preview per group; a single-type query paginates it.
+    preview = len(requested) > 1
+    match = fts_query(q)
 
-    order = f"bm25(bible_fts), {_CANONICAL}" if sort == "relevance" else _CANONICAL
-    rows = conn.execute(
-        f"SELECT ref, work_id, snippet(bible_fts, 0, '<b>', '</b>', '…', 10) AS snip "
-        f"FROM bible_fts WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
-        [*params, limit, offset],
-    ).fetchall()
-
-    hits: list[SearchHit] = []
-    for r in rows:
-        try:
-            osis, ch, vs = r["ref"].rsplit(".", 2)
-            chapter, verse = int(ch), int(vs)
-        except (ValueError, KeyError):
+    groups: list[SearchGroup] = []
+    grand_total = 0
+    for content_type in requested:
+        provider = PROVIDERS[content_type]
+        group_limit, group_offset = (PREVIEW, 0) if preview else (limit, offset)
+        if match is None:
+            groups.append(
+                SearchGroup(
+                    type=content_type,
+                    total=0,
+                    offset=group_offset,
+                    limit=group_limit,
+                    has_more=False,
+                    hits=[],
+                )
+            )
             continue
-        hits.append(
-            SearchHit(
-                work_id=r["work_id"],
-                title=f"{osis} {chapter}:{verse}",
-                snippet=r["snip"],
-                osis=osis,
-                chapter=chapter,
-                verse=verse,
-                ref=r["ref"],
+        work_ids = resolve_work_ids(conn, content_type, work_filter, language_filter)
+        total = provider.count(conn, match, work_ids, testament, book_filter)
+        hits = provider.page(
+            conn, match, work_ids, testament, book_filter, sort, group_limit, group_offset
+        )
+        grand_total += total
+        groups.append(
+            SearchGroup(
+                type=content_type,
+                total=total,
+                offset=group_offset,
+                limit=group_limit,
+                has_more=group_offset + len(hits) < total,
+                hits=hits,
             )
         )
 
-    group = SearchGroup(
-        type="bible",
-        total=total,
-        offset=offset,
-        limit=limit,
-        has_more=offset + len(hits) < total,
-        hits=hits,
-    )
-    return SearchResponse(query=q, sort=sort, total=total, groups=[group])
-
-
-@router.get("/search/books", response_model=BookSearchResult)
-def search_books(
-    q: str = Query(..., min_length=1, max_length=200),
-    works: str | None = Query(None, description="comma-separated book work ids to restrict to"),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    conn: sqlite3.Connection = Depends(get_conn),
-) -> BookSearchResult:
-    """Full-text search across General Book sections (their own tree, not verse refs)."""
-    match = _fts_query(q)
-    if match is None:
-        return BookSearchResult(query=q, limit=limit, offset=offset, hits=[])
-
-    sql = (
-        "SELECT work_id, section_id, snippet(book_fts, 0, '<b>', '</b>', '…', 12) AS snip "
-        "FROM book_fts WHERE book_fts MATCH ?"
-    )
-    params: list = [match]
-    if works:
-        ids = [w for w in works.split(",") if w]
-        if ids:
-            sql += " AND work_id IN (%s)" % ",".join("?" * len(ids))
-            params += ids
-    sql += " ORDER BY bm25(book_fts) LIMIT ? OFFSET ?"
-    params += [limit, offset]
-
-    raw = conn.execute(sql, params).fetchall()
-    if not raw:
-        return BookSearchResult(query=q, limit=limit, offset=offset, hits=[])
-
-    # A leaf section's own title is often just its ordinal ("1"), so build a breadcrumb from its
-    # ancestors' titles ("Chapter 1. Scripture › 1") to give each hit readable context.
-    work_ids = sorted({r["work_id"] for r in raw})
-    tree = {
-        (row["work_id"], row["section_id"]): (row["parent_id"], row["title"])
-        for row in conn.execute(
-            "SELECT work_id, section_id, parent_id, title FROM book_sections "
-            "WHERE work_id IN (%s)" % ",".join("?" * len(work_ids)),
-            work_ids,
-        )
-    }
-
-    def breadcrumb(work_id: str, section_id: str) -> str:
-        titles: list[str] = []
-        seen: set[str] = set()
-        cur: str | None = section_id
-        while cur is not None and (work_id, cur) in tree and cur not in seen:
-            seen.add(cur)
-            parent, title = tree[(work_id, cur)]
-            titles.append(title)
-            cur = parent
-        return " › ".join(reversed(titles))
-
-    hits = [
-        BookSearchHit(
-            work_id=r["work_id"],
-            section_id=r["section_id"],
-            title=breadcrumb(r["work_id"], r["section_id"]),
-            snippet=r["snip"],
-        )
-        for r in raw
-    ]
-    return BookSearchResult(query=q, limit=limit, offset=offset, hits=hits)
+    return SearchResponse(query=q, sort=sort, total=grand_total, groups=groups)

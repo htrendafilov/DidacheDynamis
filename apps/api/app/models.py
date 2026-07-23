@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field
 
 
 class Run(BaseModel):
@@ -57,12 +59,11 @@ class Book(BaseModel):
     chapter_count: int
 
 
-# Unified search envelope (M7.1: Bible only). Each hit is a discriminated union on `kind` with the
-# common fields kind/work_id/title/snippet; kind-specific locator fields follow. New content types
-# (commentary, dictionary, book, strongs) are added as new hit models + groups in M7.2 without
-# changing the Bible hit JSON, so the client contract does not migrate twice.
-class SearchHit(BaseModel):
-    kind: str = "bible"
+# Unified search envelope. Each hit is a discriminated union on `kind` with the common fields
+# kind/work_id/title/snippet plus a kind-specific locator. The Bible hit JSON is unchanged from M7.1,
+# so adding the other content types here is additive for the client.
+class BibleHit(BaseModel):
+    kind: Literal["bible"] = "bible"
     work_id: str
     title: str  # display label, e.g. "John 3:16" (client may re-localize the book name)
     snippet: str
@@ -72,8 +73,41 @@ class SearchHit(BaseModel):
     ref: str
 
 
+class CommentaryHit(BaseModel):
+    kind: Literal["commentary"] = "commentary"
+    work_id: str
+    title: str
+    snippet: str
+    osis: str
+    chapter: int
+    verse_start: int
+    entry_id: int
+
+
+class DictionaryHit(BaseModel):
+    kind: Literal["dictionary"] = "dictionary"
+    work_id: str
+    title: str  # headword
+    snippet: str
+    headword: str
+
+
+class BookHit(BaseModel):
+    kind: Literal["book"] = "book"
+    work_id: str
+    title: str  # section breadcrumb
+    snippet: str
+    section_id: str
+
+
+SearchHit = Annotated[
+    BibleHit | CommentaryHit | DictionaryHit | BookHit,
+    Field(discriminator="kind"),
+]
+
+
 class SearchGroup(BaseModel):
-    type: str  # content type, e.g. "bible"
+    type: str  # content type: bible | commentary | dictionary | book
     total: int
     offset: int
     limit: int
@@ -86,20 +120,6 @@ class SearchResponse(BaseModel):
     sort: str  # "relevance" | "canonical"
     total: int
     groups: list[SearchGroup]
-
-
-class BookSearchHit(BaseModel):
-    work_id: str
-    section_id: str
-    title: str
-    snippet: str
-
-
-class BookSearchResult(BaseModel):
-    query: str
-    limit: int
-    offset: int
-    hits: list[BookSearchHit]
 
 
 class Meta(BaseModel):

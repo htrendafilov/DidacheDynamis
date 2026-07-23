@@ -133,76 +133,105 @@ def test_passage_verse_range_rejects_bad_input(client):
         assert r.status_code == 400, bad
 
 
+def _group(res: dict, type_: str) -> dict:
+    return next(g for g in res["groups"] if g["type"] == type_)
+
+
 def _bible_group(res: dict) -> dict:
-    return next(g for g in res["groups"] if g["type"] == "bible")
+    return _group(res, "bible")
 
 
 def test_search(client):
     res = client.get("/api/v1/search", params={"q": "shepherd"}).json()
     assert res["sort"] == "relevance"
-    group = _bible_group(res)
-    hit = next(h for h in group["hits"] if h["ref"] == "Ps.23.1")
+    hit = next(h for h in _bible_group(res)["hits"] if h["ref"] == "Ps.23.1")
     assert hit["kind"] == "bible" and hit["title"] == "Ps 23:1"
     assert "<b>" in hit["snippet"]
     assert hit["osis"] == "Ps" and hit["chapter"] == 23 and hit["verse"] == 1
 
 
+def test_search_all_content_types_are_grouped(client):
+    res = client.get("/api/v1/search", params={"q": "the"}).json()
+    assert {g["type"] for g in res["groups"]} == {"bible", "commentary", "dictionary", "book"}
+    assert _bible_group(res)["total"] == 2  # Ps 23:1 + John 3:16
+
+
 def test_search_work_filter(client):
-    res = client.get("/api/v1/search", params={"q": "loved", "works": "web"}).json()
+    res = client.get(
+        "/api/v1/search", params={"q": "loved", "works": "web", "types": "bible"}
+    ).json()
     assert any(h["osis"] == "John" for h in _bible_group(res)["hits"])
-    res2 = client.get("/api/v1/search", params={"q": "loved", "works": "nonexistent"}).json()
-    group = _bible_group(res2)
-    assert group["hits"] == [] and group["total"] == 0
+    res2 = client.get(
+        "/api/v1/search", params={"q": "loved", "works": "nonexistent", "types": "bible"}
+    ).json()
+    assert _bible_group(res2)["hits"] == [] and _bible_group(res2)["total"] == 0
 
 
 def test_search_canonical_order_reaches_every_hit(client):
     # "the" matches both Psalm 23:1 and John 3:16; canonical order must put Psalms (book 19)
     # before John (book 43) — the fixture stand-in for "Genesis 1:1 is reachable for 'earth'".
-    res = client.get("/api/v1/search", params={"q": "the", "sort": "canonical"}).json()
+    res = client.get(
+        "/api/v1/search", params={"q": "the", "sort": "canonical", "types": "bible"}
+    ).json()
     group = _bible_group(res)
     assert group["total"] == 2
     assert [h["ref"] for h in group["hits"]] == ["Ps.23.1", "John.3.16"]
 
 
 def test_search_pagination_is_stable_and_complete(client):
-    # Page size 1: each page yields exactly one hit, in canonical order, with no duplicate or gap,
-    # and has_more flips off on the last page.
-    page1 = _bible_group(
-        client.get(
-            "/api/v1/search", params={"q": "the", "sort": "canonical", "limit": 1, "offset": 0}
-        ).json()
-    )
+    # Page size 1: each page yields one hit in canonical order, no duplicate or gap, has_more flips.
+    common = {"q": "the", "sort": "canonical", "types": "bible", "limit": 1}
+    page1 = _bible_group(client.get("/api/v1/search", params={**common, "offset": 0}).json())
     assert page1["total"] == 2 and page1["has_more"] is True
     assert [h["ref"] for h in page1["hits"]] == ["Ps.23.1"]
-
-    page2 = _bible_group(
-        client.get(
-            "/api/v1/search", params={"q": "the", "sort": "canonical", "limit": 1, "offset": 1}
-        ).json()
-    )
+    page2 = _bible_group(client.get("/api/v1/search", params={**common, "offset": 1}).json())
     assert page2["has_more"] is False
     assert [h["ref"] for h in page2["hits"]] == ["John.3.16"]
 
 
-def test_search_books(client):
-    res = client.get("/api/v1/search/books", params={"q": "sufficient"}).json()
-    assert res["hits"], res
-    hit = res["hits"][0]
-    assert hit["work_id"] == "baptist1689"
-    assert hit["section_id"] == "chapter-1-scripture.1"
-    assert hit["title"] == "Chapter 1. Scripture › 1"  # breadcrumb, not the bare leaf key
-    assert "<b>" in hit["snippet"]
+def test_search_testament_and_book_filters(client):
+    nt = _bible_group(
+        client.get("/api/v1/search", params={"q": "the", "types": "bible", "canon": "nt"}).json()
+    )
+    assert [h["ref"] for h in nt["hits"]] == ["John.3.16"]  # no OT Psalms
+    ot = _bible_group(
+        client.get("/api/v1/search", params={"q": "the", "types": "bible", "canon": "ot"}).json()
+    )
+    assert [h["ref"] for h in ot["hits"]] == ["Ps.23.1"]
+    only_john = _bible_group(
+        client.get("/api/v1/search", params={"q": "the", "types": "bible", "books": "John"}).json()
+    )
+    assert [h["ref"] for h in only_john["hits"]] == ["John.3.16"]
 
 
-def test_search_books_work_filter(client):
-    res = client.get(
-        "/api/v1/search/books", params={"q": "counsel", "works": "nonexistent"}
+def test_search_commentary(client):
+    res = client.get("/api/v1/search", params={"q": "love", "types": "commentary"}).json()
+    hit = _group(res, "commentary")["hits"][0]
+    assert hit["kind"] == "commentary" and hit["work_id"] == "mhc"
+    assert (hit["osis"], hit["chapter"], hit["verse_start"]) == ("John", 3, 16)
+    assert hit["title"] == "John 3:16" and isinstance(hit["entry_id"], int)
+
+
+def test_search_dictionary_matches_headword_and_body(client):
+    # A headword-only term (not in the definition) and a body-only term both find the same entry.
+    by_headword = client.get(
+        "/api/v1/search", params={"q": "shepherd", "types": "dictionary"}
     ).json()
-    assert res["hits"] == []
-    res2 = client.get(
-        "/api/v1/search/books", params={"q": "counsel", "works": "baptist1689"}
-    ).json()
-    assert any(h["section_id"] == "chapter-1-scripture.2" for h in res2["hits"])
+    by_body = client.get("/api/v1/search", params={"q": "flock", "types": "dictionary"}).json()
+    for res in (by_headword, by_body):
+        hit = _group(res, "dictionary")["hits"][0]
+        assert hit["kind"] == "dictionary" and hit["headword"] == "Shepherd"
+
+
+def test_search_book_type(client):
+    res = client.get("/api/v1/search", params={"q": "sufficient", "types": "book"}).json()
+    hit = _group(res, "book")["hits"][0]
+    assert hit["kind"] == "book" and hit["section_id"] == "chapter-1-scripture.1"
+    assert hit["title"] == "Chapter 1. Scripture › 1"  # breadcrumb
+
+
+def test_search_rejects_unknown_type(client):
+    assert client.get("/api/v1/search", params={"q": "x", "types": "bogus"}).status_code == 400
 
 
 def test_cache_headers_and_304(client):

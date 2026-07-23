@@ -7,52 +7,74 @@ import { useStore } from "../state/store";
 import { SearchPanel } from "./SearchPanel";
 
 const search = vi.fn();
-const searchBooks = vi.fn();
-
-vi.mock("../data/api", () => ({
-  api: {
-    search: (...args: unknown[]) => search(...args),
-    searchBooks: (...args: unknown[]) => searchBooks(...args),
-  },
-}));
+vi.mock("../data/api", () => ({ api: { search: (...args: unknown[]) => search(...args) } }));
 
 vi.mock("../data/hooks", () => ({
   useWorks: () => [
-    { id: "web", abbrev: "WEB", type: "bible" },
-    { id: "baptist1689", abbrev: "1689", type: "book" },
+    { id: "web", abbrev: "WEB", type: "bible", title: "World English Bible" },
+    { id: "mhc", abbrev: "MHC", type: "commentary", title: "Matthew Henry" },
+    { id: "easton", abbrev: "EBD", type: "dictionary", title: "Easton's" },
+    { id: "baptist1689", abbrev: "1689", type: "book", title: "1689 Confession" },
   ],
 }));
 
-function bibleHit(ref: string, verse: number): SearchHit {
-  const [osis, chapter] = ref.split(".");
-  return {
-    kind: "bible",
-    work_id: "web",
-    title: `${osis} ${chapter}:${verse}`,
-    snippet: "the <b>earth</b>",
-    osis,
-    chapter: Number(chapter),
-    verse,
-    ref,
-  };
+const gen: SearchHit = {
+  kind: "bible",
+  work_id: "web",
+  title: "Gen 1:1",
+  snippet: "the <b>earth</b>",
+  osis: "Gen",
+  chapter: 1,
+  verse: 1,
+  ref: "Gen.1.1",
+};
+const exod: SearchHit = { ...gen, title: "Exod 1:1", osis: "Exod", ref: "Exod.1.1" };
+const commentary: SearchHit = {
+  kind: "commentary",
+  work_id: "mhc",
+  title: "John 3:16",
+  snippet: "<b>love</b>",
+  osis: "John",
+  chapter: 3,
+  verse_start: 16,
+  entry_id: 5,
+};
+const dict: SearchHit = {
+  kind: "dictionary",
+  work_id: "easton",
+  title: "Grace",
+  snippet: "<b>grace</b>",
+  headword: "Grace",
+};
+const book: SearchHit = {
+  kind: "book",
+  work_id: "baptist1689",
+  title: "Chapter 1 › 1",
+  snippet: "<b>scripture</b>",
+  section_id: "chapter-1-scripture.1",
+};
+
+function group(type: string, hits: SearchHit[], total = hits.length, has_more = false) {
+  return { type, total, offset: 0, limit: 50, has_more, hits };
 }
 
-function bibleRes(hits: SearchHit[], total = hits.length, hasMore = false) {
-  return {
-    query: "q",
-    sort: "relevance",
-    total,
-    groups: [{ type: "bible", total, offset: 0, limit: 50, has_more: hasMore, hits }],
-  };
-}
-
-const noBooks = { hits: [] };
+// Preview response for a multi-type "All" query: Bible has 2 total but 1 previewed.
+const allRes = () => ({
+  query: "q",
+  sort: "relevance",
+  total: 5,
+  groups: [
+    group("bible", [gen], 2, true),
+    group("commentary", [commentary]),
+    group("dictionary", [dict]),
+    group("book", [book]),
+  ],
+});
 
 describe("SearchPanel", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     search.mockReset();
-    searchBooks.mockReset();
     useStore.setState({
       panes: [{ id: "a", type: "bible", workId: "web", osis: "John", chapter: 3 }],
     });
@@ -66,76 +88,86 @@ describe("SearchPanel", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
   }
 
-  it("runs the grouped search and shows Bible and Book groups with a count", async () => {
-    search.mockResolvedValue(bibleRes([bibleHit("John.3", 16)], 1));
-    searchBooks.mockResolvedValue({
-      hits: [
-        {
-          work_id: "baptist1689",
-          section_id: "chapter-1-scripture.1",
-          title: "Chapter 1. Scripture › 1",
-          snippet: "the Holy <b>Scripture</b>",
-        },
-      ],
+  it("shows grouped tabs with counts and a preview of each type", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
+
+    expect(await screen.findByRole("tab", { name: "All 5" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Bible 2" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Commentary 1" })).toBeInTheDocument();
+    // Each group previews in the All view (Bible book name is localized).
+    expect(screen.getByText("Genesis 1:1")).toBeInTheDocument();
+    expect(screen.getByText("Grace")).toBeInTheDocument();
+    expect(screen.getByText("Chapter 1 › 1")).toBeInTheDocument();
+    expect(search).toHaveBeenCalledWith("earth", { sort: "relevance", canon: undefined, works: undefined });
+  });
+
+  it("opens a group tab, paginates it, and appends without duplicates", async () => {
+    search.mockImplementation((_q: string, opts: { types?: string; offset?: number } = {}) => {
+      if (opts.types !== "bible") return Promise.resolve(allRes());
+      const page = opts.offset ? [exod] : [gen];
+      return Promise.resolve({
+        query: "q",
+        sort: "relevance",
+        total: 2,
+        groups: [group("bible", page, 2, !opts.offset)],
+      });
     });
 
     await runSearch();
+    fireEvent.click(await screen.findByRole("tab", { name: "Bible 2" }));
 
-    expect(await screen.findByText("Bible")).toBeInTheDocument();
-    expect(screen.getByText("1–1 of 1")).toBeInTheDocument();
-    expect(screen.getByText("Books")).toBeInTheDocument();
-    expect(screen.getByText("Chapter 1. Scripture › 1")).toBeInTheDocument();
-    expect(search).toHaveBeenCalledWith("earth", { sort: "relevance", limit: 50, offset: 0 });
-  });
-
-  it("loads more Bible hits without duplicating and updates the count", async () => {
-    search
-      .mockResolvedValueOnce(bibleRes([bibleHit("Gen.1", 1)], 2, true))
-      .mockResolvedValueOnce(bibleRes([bibleHit("John.3", 16)], 2, false));
-    searchBooks.mockResolvedValue(noBooks);
-
-    await runSearch();
     expect(await screen.findByText("1–1 of 2")).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: /Load 50 more/ }));
-
     await waitFor(() => expect(screen.getByText("1–2 of 2")).toBeInTheDocument());
-    expect(search).toHaveBeenLastCalledWith("earth", { sort: "relevance", limit: 50, offset: 1 });
+    expect(screen.getByText("Exodus 1:1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Load 50 more/ })).not.toBeInTheDocument();
   });
 
-  it("re-queries canonically when the sort is switched", async () => {
-    search.mockResolvedValue(bibleRes([bibleHit("John.3", 16)], 1));
-    searchBooks.mockResolvedValue(noBooks);
-
+  it("re-queries with the testament filter", async () => {
+    search.mockResolvedValue(allRes());
     await runSearch();
-    await screen.findByText("Bible");
+    await screen.findByRole("tab", { name: "All 5" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Canonical" }));
+    fireEvent.click(screen.getByRole("button", { name: "New Testament" }));
     await waitFor(() =>
       expect(search).toHaveBeenLastCalledWith("earth", {
-        sort: "canonical",
-        limit: 50,
-        offset: 0,
+        sort: "relevance",
+        canon: "nt",
+        works: undefined,
       }),
     );
   });
 
-  it("opens a Bible result in a Bible pane on click", async () => {
-    search.mockResolvedValue(bibleRes([bibleHit("Gen.1", 1)], 1));
-    searchBooks.mockResolvedValue(noBooks);
-
+  it("navigates each result type to the right pane", async () => {
+    search.mockResolvedValue(allRes());
     await runSearch();
-    fireEvent.click(await screen.findByRole("button", { name: /Genesis 1:1/ }));
 
-    const biblePane = useStore.getState().panes.find((p) => p.type === "bible");
-    expect(biblePane).toMatchObject({ osis: "Gen", chapter: 1 });
+    fireEvent.click(await screen.findByRole("button", { name: /Chapter 1 › 1/ }));
+    expect(useStore.getState().panes.find((p) => p.type === "book")).toMatchObject({
+      workId: "baptist1689",
+      sectionId: "chapter-1-scripture.1",
+    });
   });
 
-  it("shows no-results only when both searches are empty", async () => {
-    search.mockResolvedValue(bibleRes([]));
-    searchBooks.mockResolvedValue(noBooks);
+  it("navigates a dictionary result to a dictionary pane", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
 
+    fireEvent.click(await screen.findByRole("button", { name: /Grace/ }));
+    expect(useStore.getState().panes.find((p) => p.type === "dictionary")).toMatchObject({
+      workId: "easton",
+      headword: "Grace",
+    });
+  });
+
+  it("shows no results when every group is empty", async () => {
+    search.mockResolvedValue({
+      query: "q",
+      sort: "relevance",
+      total: 0,
+      groups: [group("bible", []), group("commentary", []), group("dictionary", []), group("book", [])],
+    });
     await runSearch();
     await waitFor(() => expect(screen.getByText("No results.")).toBeInTheDocument());
   });

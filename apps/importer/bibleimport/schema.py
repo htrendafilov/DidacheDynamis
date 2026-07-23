@@ -57,8 +57,10 @@ CREATE TABLE headings (
 );
 CREATE INDEX idx_headings_chapter ON headings(work_id, osis_code, chapter);
 
--- Populated in M3 (kept here so the schema is stable):
+-- Populated in M3 (kept here so the schema is stable). entry_id is a stable per-entry key so the
+-- search API can order/paginate commentary deterministically even when entries share a reference.
 CREATE TABLE commentary_entries (
+    entry_id    INTEGER PRIMARY KEY,
     work_id     TEXT NOT NULL REFERENCES works(id),
     osis_code   TEXT NOT NULL,
     chapter     INTEGER NOT NULL,
@@ -98,23 +100,29 @@ CREATE TABLE xrefs (
 );
 CREATE INDEX idx_xrefs_ref ON xrefs(osis_code, chapter, verse);
 
--- Full-text search (contentless FTS5 mirroring plain_text / body).
--- book_order/chapter/verse are UNINDEXED sort keys so the search API can order verse hits
--- canonically (Gen before Exod, 1:2 before 1:10) and paginate deterministically; a bare string
--- ref cannot be ordered numerically. CAST them to INTEGER in ORDER BY (FTS5 stores columns as text).
+-- Full-text search (contentless FTS5 mirroring plain_text / body). UNINDEXED columns carry the
+-- locator (for navigation) plus numeric sort keys so the search API can order canonically/by source
+-- and paginate deterministically; CAST numeric UNINDEXED columns to INTEGER in ORDER BY (FTS5 stores
+-- every column as text). osis/testament/book_order enable book and testament filters without an
+-- API-side canon map. dictionary_fts.headword_text and book_fts.title_text are *indexed* extra
+-- columns so a headword/title-only term matches and bm25() can weight it above body text.
 CREATE VIRTUAL TABLE bible_fts USING fts5(
-    text, work_id UNINDEXED, ref UNINDEXED,
+    text, work_id UNINDEXED, ref UNINDEXED, osis UNINDEXED, testament UNINDEXED,
     book_order UNINDEXED, chapter UNINDEXED, verse UNINDEXED,
     tokenize = 'unicode61 remove_diacritics 2'
 );
 CREATE VIRTUAL TABLE commentary_fts USING fts5(
-    text, work_id UNINDEXED, ref UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
+    text, work_id UNINDEXED, entry_id UNINDEXED, osis UNINDEXED, testament UNINDEXED,
+    book_order UNINDEXED, chapter UNINDEXED, verse_start UNINDEXED,
+    tokenize = 'unicode61 remove_diacritics 2'
 );
 CREATE VIRTUAL TABLE dictionary_fts USING fts5(
-    text, work_id UNINDEXED, headword UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
+    text, headword_text, work_id UNINDEXED, headword UNINDEXED, sort_key UNINDEXED,
+    tokenize = 'unicode61 remove_diacritics 2'
 );
 CREATE VIRTUAL TABLE book_fts USING fts5(
-    text, work_id UNINDEXED, section_id UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
+    text, title_text, work_id UNINDEXED, section_id UNINDEXED, sort_order UNINDEXED,
+    tokenize = 'unicode61 remove_diacritics 2'
 );
 """
 

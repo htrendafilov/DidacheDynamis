@@ -71,8 +71,11 @@ offline by the importer. Personal notes are client-side (IndexedDB). This makes 
   🚧 Initial slice complete.
 - **M7.1** — search correctness: grouped `/search` envelope with true totals, `has_more`, 50-result
   pages, and relevance/canonical ordering (every Bible hit reachable, no duplicates). ✅
-- **M7 (rest) planned** — persistent desktop/mobile Search Workspace, all-content search (commentary/
-  dictionary/books), source/testament/book scopes, refinement, and local history.
+- **M7.2** — unified cross-content search: a provider layer over Bible/commentary/dictionary/General
+  Book FTS with per-type groups, tabs/counts, testament/work/source filters, weighted headword/title
+  matching, and per-type result navigation. ✅
+- **M7 (rest) planned** — persistent desktop/mobile Search Workspace (docked drawer + full-screen),
+  granular book-picker, refinement, and local search history.
 - **M8 planned** — licensed Strong's lexical data, word-level annotations, and structured
   Strong-number/lemma search through the M7 search-provider architecture.
 - **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference

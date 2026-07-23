@@ -17,11 +17,27 @@ export function DictionaryPane({ pane }: { pane: Pane }) {
   const works = useWorks();
   const work = works?.find((item) => item.id === pane.workId);
 
+  // Navigate to a headword requested from search (pane.headword). Also seed the prefix so the entry
+  // shows up in the list; the entry itself loads regardless of the list.
   useEffect(() => {
-    if (headword && words && !words.some((word) => word.headword === headword)) {
+    if (pane.headword) {
+      setHeadword(pane.headword);
+      setPrefix(pane.headword.slice(0, 2));
+    }
+  }, [pane.headword]);
+
+  useEffect(() => {
+    // Clear a browsed selection that scrolled out of the current prefix list, but never clobber a
+    // headword that was explicitly navigated to (pane.headword) before its list has loaded.
+    if (
+      headword &&
+      headword !== pane.headword &&
+      words &&
+      !words.some((word) => word.headword === headword)
+    ) {
       setHeadword(null);
     }
-  }, [words, headword]);
+  }, [words, headword, pane.headword]);
 
   return (
     <div className="pane dictionary-pane">

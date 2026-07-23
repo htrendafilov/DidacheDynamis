@@ -8,12 +8,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# Canon-group boundary for the current Protestant 66-book canon. Defined here (the single canon
+# reference), not in the frontend or the search API, so a future canon profile changes it in one place.
+OT_MAX_ORDER = 39
+
+
 @dataclass(frozen=True)
 class CanonBook:
     usfm: str  # source code used by USFX/USFM/Paratext, e.g. "GEN", "JHN"
     osis: str  # stable canonical code used everywhere in our data, e.g. "Gen", "John"
     order: int  # 1..66
     name_en: str
+
+    @property
+    def testament(self) -> str:
+        return "OT" if self.order <= OT_MAX_ORDER else "NT"
 
 
 # Protestant 66-book canon, in canonical order.

@@ -104,12 +104,15 @@ def _write_work(
         [(meta.id, h.osis, h.chapter, h.before_verse, h.kind, h.text) for h in headings],
     )
     conn.executemany(
-        "INSERT INTO bible_fts(text,work_id,ref,book_order,chapter,verse) VALUES(?,?,?,?,?,?)",
+        "INSERT INTO bible_fts(text,work_id,ref,osis,testament,book_order,chapter,verse) "
+        "VALUES(?,?,?,?,?,?,?,?)",
         [
             (
                 v.plain_text,
                 meta.id,
                 f"{v.osis}.{v.chapter}.{v.verse}",
+                v.osis,
+                BY_OSIS[v.osis].testament if v.osis in BY_OSIS else "NT",
                 BY_OSIS[v.osis].order if v.osis in BY_OSIS else 999,
                 v.chapter,
                 v.verse,
@@ -263,11 +266,16 @@ def append_study_content(
                 )
             ],
         )
+        # Stable, deterministic entry_id assigned in load order (source order), reused as the FTS
+        # locator so commentary can be ordered/paginated without ambiguity.
+        indexed_commentary = list(enumerate(commentary, start=1))
         conn.executemany(
             "INSERT INTO commentary_entries"
-            "(work_id,osis_code,chapter,verse_start,verse_end,body_json) VALUES(?,?,?,?,?,?)",
+            "(entry_id,work_id,osis_code,chapter,verse_start,verse_end,body_json) "
+            "VALUES(?,?,?,?,?,?,?)",
             [
                 (
+                    entry_id,
                     mhc.id,
                     row.osis,
                     row.chapter,
@@ -275,19 +283,25 @@ def append_study_content(
                     row.verse_end,
                     json.dumps(row.body, ensure_ascii=False),
                 )
-                for row in commentary
+                for entry_id, row in indexed_commentary
             ],
         )
         conn.executemany(
-            "INSERT INTO commentary_fts(text,work_id,ref) VALUES(?,?,?)",
+            "INSERT INTO commentary_fts"
+            "(text,work_id,entry_id,osis,testament,book_order,chapter,verse_start) "
+            "VALUES(?,?,?,?,?,?,?,?)",
             [
                 (
                     row.plain_text,
                     mhc.id,
-                    f"{row.osis}.{row.chapter}"
-                    + (f".{row.verse_start}" if row.verse_start is not None else ""),
+                    entry_id,
+                    row.osis,
+                    BY_OSIS[row.osis].testament if row.osis in BY_OSIS else "NT",
+                    BY_OSIS[row.osis].order if row.osis in BY_OSIS else 999,
+                    row.chapter,
+                    row.verse_start if row.verse_start is not None else 0,
                 )
-                for row in commentary
+                for entry_id, row in indexed_commentary
             ],
         )
         conn.executemany(
@@ -305,8 +319,10 @@ def append_study_content(
             ],
         )
         conn.executemany(
-            "INSERT INTO dictionary_fts(text,work_id,headword) VALUES(?,?,?)",
-            [(row.plain_text, easton.id, row.headword) for row in dictionary],
+            "INSERT INTO dictionary_fts(text,headword_text,work_id,headword,sort_key) "
+            "VALUES(?,?,?,?,?)",
+            [(row.plain_text, row.headword, easton.id, row.headword, row.sort_key)
+             for row in dictionary],
         )
         conn.executemany(
             "INSERT INTO xrefs(osis_code,chapter,verse,target_ref,votes) VALUES(?,?,?,?,?)",
@@ -447,12 +463,14 @@ def append_book(
                 for row in sections
             ],
         )
+        # Index every section that has a body or a title (parent/chapter nodes are title-only but
+        # should still be findable by their heading); title_text is a weighted searchable column.
         conn.executemany(
-            "INSERT INTO book_fts(text,work_id,section_id) VALUES(?,?,?)",
+            "INSERT INTO book_fts(text,title_text,work_id,section_id,sort_order) VALUES(?,?,?,?,?)",
             [
-                (row.plain_text, meta.id, row.section_id)
+                (row.plain_text, row.title, meta.id, row.section_id, row.sort_order)
                 for row in sections
-                if row.plain_text
+                if row.plain_text or row.title
             ],
         )
         conn.commit()

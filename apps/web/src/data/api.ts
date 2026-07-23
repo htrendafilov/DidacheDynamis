@@ -53,8 +53,9 @@ export interface Passage {
 }
 
 export type SearchSort = "relevance" | "canonical";
+export type SearchKind = "bible" | "commentary" | "dictionary" | "book";
 
-export interface SearchHit {
+export interface BibleHit {
   kind: "bible";
   work_id: string;
   title: string;
@@ -65,8 +66,37 @@ export interface SearchHit {
   ref: string;
 }
 
+export interface CommentaryHit {
+  kind: "commentary";
+  work_id: string;
+  title: string;
+  snippet: string;
+  osis: string;
+  chapter: number;
+  verse_start: number;
+  entry_id: number;
+}
+
+export interface DictionaryHit {
+  kind: "dictionary";
+  work_id: string;
+  title: string;
+  snippet: string;
+  headword: string;
+}
+
+export interface BookHit {
+  kind: "book";
+  work_id: string;
+  title: string;
+  snippet: string;
+  section_id: string;
+}
+
+export type SearchHit = BibleHit | CommentaryHit | DictionaryHit | BookHit;
+
 export interface SearchGroup {
-  type: string;
+  type: SearchKind;
   total: number;
   offset: number;
   limit: number;
@@ -79,20 +109,6 @@ export interface SearchResponse {
   sort: SearchSort;
   total: number;
   groups: SearchGroup[];
-}
-
-export interface BookSearchHit {
-  work_id: string;
-  section_id: string;
-  title: string;
-  snippet: string;
-}
-
-export interface BookSearchResult {
-  query: string;
-  limit: number;
-  offset: number;
-  hits: BookSearchHit[];
 }
 
 export interface Meta {
@@ -208,18 +224,26 @@ export const api = {
     ),
   search: (
     q: string,
-    opts: { works?: string; sort?: SearchSort; limit?: number; offset?: number } = {},
+    opts: {
+      types?: string;
+      works?: string;
+      canon?: "ot" | "nt";
+      books?: string;
+      languages?: string;
+      sort?: SearchSort;
+      limit?: number;
+      offset?: number;
+    } = {},
   ) => {
     const params = new URLSearchParams({ q });
+    if (opts.types) params.set("types", opts.types);
     if (opts.works) params.set("works", opts.works);
+    if (opts.canon) params.set("canon", opts.canon);
+    if (opts.books) params.set("books", opts.books);
+    if (opts.languages) params.set("languages", opts.languages);
     if (opts.sort) params.set("sort", opts.sort);
     if (opts.limit != null) params.set("limit", String(opts.limit));
     if (opts.offset != null) params.set("offset", String(opts.offset));
     return get<SearchResponse>(`/search?${params.toString()}`);
   },
-  searchBooks: (q: string, works?: string) =>
-    get<BookSearchResult>(
-      `/search/books?q=${encodeURIComponent(q)}` +
-        (works ? `&works=${encodeURIComponent(works)}` : ""),
-    ),
 };

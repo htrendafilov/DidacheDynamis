@@ -1,14 +1,36 @@
 import { Fragment, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, type BookSearchHit, type SearchHit, type SearchSort } from "../data/api";
+import {
+  api,
+  type SearchGroup,
+  type SearchHit,
+  type SearchKind,
+  type SearchSort,
+} from "../data/api";
 import { useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
 import { useStore } from "../state/store";
 
-// The API's FTS snippet marks matches with <b>…</b> only. Render it without
-// dangerouslySetInnerHTML: split on those markers and let React escape the text,
-// so any stray markup in the source can never be interpreted as HTML.
+const KIND_ORDER: SearchKind[] = ["bible", "commentary", "dictionary", "book"];
+const KIND_ICON: Record<SearchKind, string> = {
+  bible: "📖",
+  commentary: "💬",
+  dictionary: "📔",
+  book: "📚",
+};
+const PAGE = 50;
+
+interface GroupState {
+  total: number;
+  hits: SearchHit[];
+  hasMore: boolean;
+}
+
+type Selected = "all" | SearchKind;
+
+// The API's FTS snippet marks matches with <b>…</b> only. Render it without dangerouslySetInnerHTML:
+// split on those markers and let React escape the text, so stray markup can never become HTML.
 function Snippet({ html }: { html: string }) {
   const parts = html.split(/(<b>|<\/b>)/);
   let bold = false;
@@ -21,66 +43,146 @@ function Snippet({ html }: { html: string }) {
   return <>{nodes}</>;
 }
 
-interface BibleResults {
-  hits: SearchHit[];
-  total: number;
-  hasMore: boolean;
-}
-
-const PAGE = 50;
-
 export function SearchPanel({ onClose }: { onClose: () => void }) {
   const { t, i18n } = useTranslation();
+  const works = useWorks();
+  const openPassage = useStore((s) => s.openPassage);
+  const openCommentary = useStore((s) => s.openCommentary);
+  const openDictionary = useStore((s) => s.openDictionary);
+  const openBookSection = useStore((s) => s.openBookSection);
+
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SearchSort>("relevance");
-  const [bible, setBible] = useState<BibleResults | null>(null);
-  const [bookHits, setBookHits] = useState<BookSearchHit[] | null>(null);
+  const [canon, setCanon] = useState<"" | "ot" | "nt">("");
+  const [workFilter, setWorkFilter] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Selected>("all");
+  const [groups, setGroups] = useState<Partial<Record<SearchKind, GroupState>>>({});
   const [searched, setSearched] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const goToRef = useStore((s) => s.goToRef);
-  const updatePane = useStore((s) => s.updatePane);
-  const openBookSection = useStore((s) => s.openBookSection);
-  const panes = useStore((s) => s.panes);
-  const works = useWorks();
 
-  function toBible(group: { hits: SearchHit[]; total: number; has_more: boolean } | undefined) {
-    return { hits: group?.hits ?? [], total: group?.total ?? 0, hasMore: group?.has_more ?? false };
+  const merge = (group: SearchGroup): GroupState => ({
+    total: group.total,
+    hits: group.hits,
+    hasMore: group.has_more,
+  });
+
+  // Build query params from current state, with explicit overrides for the control that just changed
+  // (React state updates are async, so we cannot read the new value back from state in the handler).
+  function buildOpts(
+    over: {
+      sort?: SearchSort;
+      canon?: "" | "ot" | "nt";
+      works?: Set<string>;
+      types?: string;
+      offset?: number;
+    } = {},
+  ) {
+    const effWorks = over.works ?? workFilter;
+    return {
+      sort: over.sort ?? sort,
+      canon: (over.canon ?? canon) || undefined,
+      works: effWorks.size ? [...effWorks].join(",") : undefined,
+      types: over.types,
+      offset: over.offset,
+    };
+  }
+
+  async function execute(selection: Selected, o: ReturnType<typeof buildOpts>) {
+    const query = q.trim();
+    if (!query) return;
+    if (selection === "all") {
+      const res = await api.search(query, o);
+      const map: Partial<Record<SearchKind, GroupState>> = {};
+      res.groups.forEach((g) => (map[g.type] = merge(g)));
+      setGroups(map);
+    } else {
+      const res = await api.search(query, { ...o, types: selection, offset: o.offset ?? 0 });
+      const g = res.groups[0];
+      if (g) setGroups((prev) => ({ ...prev, [selection]: merge(g) }));
+    }
   }
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
-    const query = q.trim();
-    if (!query) return;
-    const [res, books] = await Promise.all([
-      api.search(query, { sort, limit: PAGE, offset: 0 }),
-      api.searchBooks(query),
-    ]);
-    setBible(toBible(res.groups.find((group) => group.type === "bible")));
-    setBookHits(books.hits);
+    if (!q.trim()) return;
+    setSelected("all");
+    await execute("all", buildOpts());
     setSearched(true);
   }
 
-  async function changeSort(next: SearchSort) {
-    setSort(next);
-    const query = q.trim();
-    if (!searched || !query) return;
-    const res = await api.search(query, { sort: next, limit: PAGE, offset: 0 });
-    setBible(toBible(res.groups.find((group) => group.type === "bible")));
+  function selectTab(next: Selected) {
+    setSelected(next);
+    if (searched) void execute(next, buildOpts());
   }
 
-  async function loadMore() {
-    const query = q.trim();
-    if (!bible || !query) return;
+  function applyFilter(o: ReturnType<typeof buildOpts>) {
+    if (searched) void execute(selected, o);
+  }
+
+  async function loadMore(kind: SearchKind) {
+    const current = groups[kind];
+    if (!current) return;
     setLoadingMore(true);
-    const res = await api.search(query, { sort, limit: PAGE, offset: bible.hits.length });
-    const next = toBible(res.groups.find((group) => group.type === "bible"));
-    setBible((prev) =>
-      prev ? { hits: [...prev.hits, ...next.hits], total: next.total, hasMore: next.hasMore } : prev,
-    );
+    const res = await api.search(q.trim(), buildOpts({ types: kind, offset: current.hits.length }));
+    const g = res.groups[0];
+    if (g) {
+      setGroups((prev) => ({
+        ...prev,
+        [kind]: { total: g.total, hits: [...current.hits, ...g.hits], hasMore: g.has_more },
+      }));
+    }
     setLoadingMore(false);
   }
 
-  const nothingFound = searched && bible?.hits.length === 0 && bookHits?.length === 0;
+  const grandTotal = KIND_ORDER.reduce((sum, k) => sum + (groups[k]?.total ?? 0), 0);
+  const nothingFound = searched && grandTotal === 0;
+
+  function label(hit: SearchHit): string {
+    if (hit.kind === "bible")
+      return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}:${hit.verse}`;
+    if (hit.kind === "commentary")
+      return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}${
+        hit.verse_start ? `:${hit.verse_start}` : ""
+      }`;
+    return hit.title;
+  }
+
+  function open(hit: SearchHit) {
+    if (hit.kind === "bible") openPassage(hit.work_id, hit.osis, hit.chapter);
+    else if (hit.kind === "commentary") openCommentary(hit.work_id, hit.osis, hit.chapter);
+    else if (hit.kind === "dictionary") openDictionary(hit.work_id, hit.headword);
+    else openBookSection(hit.work_id, hit.section_id);
+    onClose();
+  }
+
+  // A called function (not a nested <Component/>) so the results stay part of this component's tree
+  // and do not remount — remounting would detach the buttons between render and click.
+  function resultList(hits: SearchHit[], kind: SearchKind) {
+    return (
+      <ul className="search-results">
+        {hits.map((hit) => (
+          <li key={`${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`}>
+            <button
+              type="button"
+              className={kind === "bible" ? "result" : "result result-book"}
+              onClick={() => open(hit)}
+            >
+              <span aria-hidden="true">{KIND_ICON[kind]}</span>{" "}
+              <span className="result-ref">{label(hit)}</span>{" "}
+              <span className="result-version">
+                {works?.find((w) => w.id === hit.work_id)?.abbrev ?? hit.work_id.toUpperCase()}
+              </span>{" "}
+              <span className="result-snippet">
+                <Snippet html={hit.snippet} />
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  const visibleKinds = KIND_ORDER.filter((k) => (groups[k]?.total ?? 0) > 0);
 
   return (
     <div className="search-panel">
@@ -97,100 +199,146 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
           ✕
         </button>
       </form>
-      {nothingFound && <p className="muted">{t("search.noResults")}</p>}
-      {bible && bible.hits.length > 0 && (
-        <>
-          <div className="search-group-header">
-            <h3 className="search-group">{t("search.bibleResults")}</h3>
-            <span className="search-count">
-              {t("search.countRange", { from: 1, to: bible.hits.length, total: bible.total })}
-            </span>
-            <div className="search-sort" role="group" aria-label={t("search.sortLabel")}>
+
+      {searched && (
+        <div className="search-filters">
+          <div className="search-sort" role="group" aria-label={t("search.testamentLabel")}>
+            {(["", "ot", "nt"] as const).map((value) => (
               <button
+                key={value || "all"}
                 type="button"
-                className={sort === "relevance" ? "active" : ""}
-                aria-pressed={sort === "relevance"}
-                onClick={() => changeSort("relevance")}
+                className={canon === value ? "active" : ""}
+                aria-pressed={canon === value}
+                onClick={() => {
+                  setCanon(value);
+                  applyFilter(buildOpts({ canon: value }));
+                }}
               >
-                {t("search.sortRelevance")}
+                {t(value === "" ? "search.testAll" : value === "ot" ? "search.testOt" : "search.testNt")}
               </button>
-              <button
-                type="button"
-                className={sort === "canonical" ? "active" : ""}
-                aria-pressed={sort === "canonical"}
-                onClick={() => changeSort("canonical")}
-              >
-                {t("search.sortCanonical")}
-              </button>
-            </div>
+            ))}
           </div>
-          <ul className="search-results">
-            {bible.hits.map((h) => (
-              <li key={`${h.work_id}-${h.ref}`}>
-                <button
-                  type="button"
-                  className="result"
-                  onClick={() => {
-                    const target =
-                      panes.find((pane) => pane.type === "bible" && pane.workId === h.work_id) ??
-                      panes.find((pane) => pane.type === "bible");
-                    if (target) updatePane(target.id, { workId: h.work_id });
-                    goToRef(h.osis, h.chapter, target?.id);
-                    onClose();
-                  }}
-                >
-                  <span className="result-ref">
-                    {bookName(h.osis, i18n.language, h.osis)} {h.chapter}:{h.verse}
-                  </span>{" "}
-                  <span className="result-version">
-                    {works?.find((work) => work.id === h.work_id)?.abbrev ?? h.work_id.toUpperCase()}
-                  </span>{" "}
-                  <span className="result-snippet">
-                    <Snippet html={h.snippet} />
-                  </span>
-                </button>
-              </li>
+          <div className="search-sort" role="group" aria-label={t("search.sortLabel")}>
+            {(["relevance", "canonical"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={sort === value ? "active" : ""}
+                aria-pressed={sort === value}
+                onClick={() => {
+                  setSort(value);
+                  applyFilter(buildOpts({ sort: value }));
+                }}
+              >
+                {t(value === "relevance" ? "search.sortRelevance" : "search.sortCanonical")}
+              </button>
             ))}
-          </ul>
-          {bible.hasMore && (
-            <button
-              type="button"
-              className="search-load-more"
-              disabled={loadingMore}
-              onClick={loadMore}
-            >
-              {loadingMore ? t("reader.loading") : t("search.loadMore", { count: PAGE })}
-            </button>
+          </div>
+          {works && works.length > 0 && (
+            <details className="search-works">
+              <summary>
+                {t("search.sources")}
+                {workFilter.size > 0 ? ` (${workFilter.size})` : ""}
+              </summary>
+              <div className="search-works-list">
+                {works
+                  .filter((w) => w.type !== "xref")
+                  .map((w) => (
+                    <label key={w.id}>
+                      <input
+                        type="checkbox"
+                        checked={workFilter.has(w.id)}
+                        onChange={(e) => {
+                          const next = new Set(workFilter);
+                          if (e.target.checked) next.add(w.id);
+                          else next.delete(w.id);
+                          setWorkFilter(next);
+                          applyFilter(buildOpts({ works: next }));
+                        }}
+                      />
+                      {w.abbrev} <span className="muted">{w.title}</span>
+                    </label>
+                  ))}
+              </div>
+            </details>
           )}
-        </>
+        </div>
       )}
-      {bookHits && bookHits.length > 0 && (
-        <>
-          <h3 className="search-group">{t("search.bookResults")}</h3>
-          <ul className="search-results">
-            {bookHits.map((h) => (
-              <li key={`${h.work_id}-${h.section_id}`}>
+
+      {searched && visibleKinds.length > 0 && (
+        <nav className="search-tabs" role="tablist" aria-label={t("search.groups")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selected === "all"}
+            className={selected === "all" ? "active" : ""}
+            onClick={() => selectTab("all")}
+          >
+            {t("search.all")} {grandTotal}
+          </button>
+          {visibleKinds.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              role="tab"
+              aria-selected={selected === kind}
+              className={selected === kind ? "active" : ""}
+              onClick={() => selectTab(kind)}
+            >
+              {t(`source.${kind}`)} {groups[kind]?.total ?? 0}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {nothingFound && <p className="muted">{t("search.noResults")}</p>}
+
+      {selected === "all" &&
+        visibleKinds.map((kind) => {
+          const group = groups[kind];
+          if (!group || group.hits.length === 0) return null;
+          return (
+            <section key={kind}>
+              <div className="search-group-header">
+                <h3 className="search-group">{t(`source.${kind}`)}</h3>
+                <span className="search-count">{group.total}</span>
+                {group.total > group.hits.length && (
+                  <button type="button" className="search-see-all" onClick={() => selectTab(kind)}>
+                    {t("search.seeAll", { total: group.total })}
+                  </button>
+                )}
+              </div>
+              {resultList(group.hits, kind)}
+            </section>
+          );
+        })}
+
+      {selected !== "all" &&
+        groups[selected] &&
+        (() => {
+          const group = groups[selected]!;
+          return (
+            <section>
+              <div className="search-group-header">
+                <h3 className="search-group">{t(`source.${selected}`)}</h3>
+                <span className="search-count">
+                  {t("search.countRange", { from: 1, to: group.hits.length, total: group.total })}
+                </span>
+              </div>
+              {resultList(group.hits, selected)}
+              {group.hasMore && (
                 <button
                   type="button"
-                  className="result result-book"
-                  onClick={() => {
-                    openBookSection(h.work_id, h.section_id);
-                    onClose();
-                  }}
+                  className="search-load-more"
+                  disabled={loadingMore}
+                  onClick={() => loadMore(selected)}
                 >
-                  <span className="result-ref">{h.title}</span>{" "}
-                  <span className="result-version">
-                    {works?.find((work) => work.id === h.work_id)?.abbrev ?? h.work_id.toUpperCase()}
-                  </span>{" "}
-                  <span className="result-snippet">
-                    <Snippet html={h.snippet} />
-                  </span>
+                  {loadingMore ? t("reader.loading") : t("search.loadMore", { count: PAGE })}
                 </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+              )}
+            </section>
+          );
+        })()}
     </div>
   );
 }

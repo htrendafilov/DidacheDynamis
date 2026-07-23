@@ -432,15 +432,22 @@ orders by the new columns). Regression tests cover canonical order and paginatio
 - Make Genesis 1:1 reachable for `earth`; add regression tests for canonical ordering and
   pagination stability (no duplicate/omitted hits across pages).
 
-### M7.2 — Unified cross-content engine
+### M7.2 — Unified cross-content engine — DELIVERED 2026-07-23
 
-- Land the remaining schema/importer changes in **one batched rebuild** (§5.4, §8): commentary
-  `entry_id`, weighted dictionary headwords, weighted General Book titles, and canon-group metadata.
-- Add the provider-based query service (`SearchService` + per-type providers).
-- Expose commentary, dictionary, and General Book groups as new `groups[]` entries — no breaking
-  change to the M7.1 client contract.
-- Add type, work, canon, book, and language filters.
-- Retire the separate `/search/books` call once the client and tests use the unified endpoint.
+Requires a `content.sqlite` rebuild (batched schema changes, §5.4/§8). Shipped:
+
+- Batched schema/importer changes in one rebuild: commentary `entry_id`; indexed+weighted dictionary
+  `headword_text` and book `title_text`; `osis`/`testament`/`book_order` on `bible_fts` and
+  `commentary_fts`; `testament` canon-group metadata from `books.py` (`OT_MAX_ORDER`).
+- Provider layer (`app/search_providers.py`): Bible/Commentary/Dictionary/GeneralBook providers with
+  count + page + hit normalization; `bm25()` weights the headword/title columns above body.
+- Unified `/search` returns `groups[]` for all four types (multi-type = per-group preview; single
+  `types=` = paginated). Filters: `types`, `works`, `canon` (testament), `books`, `languages`.
+- `/search/books` retired; the web client uses the unified endpoint with group tabs/counts, testament
+  + sort + source filters, per-type navigation (`openPassage`/`openCommentary`/`openDictionary`/
+  `openBookSection`), and Load-more pagination. EN/BG strings added.
+- Deferred to M7.3 workspace: a granular book-picker and the full docked/full-screen UI (the API
+  already accepts `books=`).
 
 ### M7.3 — Search Workspace UI
 
