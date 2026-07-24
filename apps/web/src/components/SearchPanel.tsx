@@ -46,10 +46,12 @@ function Snippet({ html }: { html: string }) {
 export function SearchPanel({
   mode = "fullscreen",
   open = true,
+  onNavigate,
   onClose,
 }: {
   mode?: "docked" | "fullscreen";
   open?: boolean;
+  onNavigate?: (kind: SearchKind) => void;
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -167,6 +169,8 @@ export function SearchPanel({
     else if (hit.kind === "commentary") openCommentary(hit.work_id, hit.osis, hit.chapter);
     else if (hit.kind === "dictionary") openDictionary(hit.work_id, hit.headword);
     else openBookSection(hit.work_id, hit.section_id);
+    // Zustand actions are synchronous, so the destination pane exists before the shell selects it.
+    onNavigate?.(hit.kind);
     // Docked (desktop) stays open so several results can be read; full-screen (mobile) closes to
     // reveal the pane the result opened in.
     if (mode === "fullscreen") onClose();

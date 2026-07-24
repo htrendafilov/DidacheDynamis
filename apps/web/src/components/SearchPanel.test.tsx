@@ -106,9 +106,11 @@ describe("SearchPanel", () => {
   it("closes on mobile (fullscreen) after opening a result", async () => {
     search.mockResolvedValue(allRes());
     const onClose = vi.fn();
-    await runSearch({ mode: "fullscreen", onClose });
+    const onNavigate = vi.fn();
+    await runSearch({ mode: "fullscreen", onNavigate, onClose });
 
     fireEvent.click(await screen.findByRole("button", { name: /Genesis 1:1/ }));
+    expect(onNavigate).toHaveBeenCalledWith("bible");
     expect(onClose).toHaveBeenCalledOnce();
   });
 

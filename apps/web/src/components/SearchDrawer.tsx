@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { SearchKind } from "../data/api";
 import { SearchPanel } from "./SearchPanel";
 
 export const SEARCH_MIN_WIDTH = 320;
@@ -20,12 +21,14 @@ export function SearchDrawer({
   fullscreen,
   width,
   onWidthChange,
+  onNavigate,
   onClose,
 }: {
   open: boolean;
   fullscreen: boolean;
   width: number;
   onWidthChange: (width: number) => void;
+  onNavigate?: (kind: SearchKind) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -63,7 +66,7 @@ export function SearchDrawer({
           onPointerUp={onPointerUp}
         />
       )}
-      <SearchPanel mode={mode} open={open} onClose={onClose} />
+      <SearchPanel mode={mode} open={open} onNavigate={onNavigate} onClose={onClose} />
     </aside>
   );
 }

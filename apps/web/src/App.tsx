@@ -257,6 +257,10 @@ export default function App() {
             fullscreen={isNarrow}
             width={settings.searchWidth ?? SEARCH_DEFAULT_WIDTH}
             onWidthChange={(searchWidth) => setSettings({ searchWidth })}
+            onNavigate={(type) => {
+              const destination = useStore.getState().panes.findIndex((pane) => pane.type === type);
+              if (destination >= 0) setActiveMobile(destination);
+            }}
             onClose={() => setShowSearch(false)}
           />
         )}

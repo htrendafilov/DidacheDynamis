@@ -56,13 +56,31 @@ export function BiblePane({ pane }: { pane: Pane }) {
   useEffect(() => {
     const target = pane.focusVerse;
     if (!target || !data) return;
+    // usePassage clears stale data in an effect, so the render immediately after a pane navigation
+    // can still contain the previous passage. Do not consume the target until the response and DOM
+    // belong to the passage requested by the pane.
+    if (
+      data.work_id !== pane.workId ||
+      data.osis !== pane.osis ||
+      data.chapter !== pane.chapter
+    ) {
+      return;
+    }
     const element = bodyRef.current?.querySelector<HTMLElement>(`[data-verse="${target}"]`);
     clearFocusVerse(pane.id);
     if (!element) return;
     element.scrollIntoView?.({ behavior: "smooth", block: "center" });
     element.classList.add("verse-flash");
     window.setTimeout(() => element.classList.remove("verse-flash"), 1600);
-  }, [pane.focusVerse, data, pane.id, clearFocusVerse]);
+  }, [
+    pane.focusVerse,
+    pane.workId,
+    pane.osis,
+    pane.chapter,
+    data,
+    pane.id,
+    clearFocusVerse,
+  ]);
 
   return (
     <div className="pane bible-pane">
