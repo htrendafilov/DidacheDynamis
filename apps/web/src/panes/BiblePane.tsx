@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BibleVersionSelector } from "../components/BibleVersionSelector";
@@ -18,7 +18,9 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const updatePane = useStore((s) => s.updatePane);
   const goToRef = useStore((s) => s.goToRef);
   const requestOpenNote = useStore((s) => s.requestOpenNote);
+  const clearFocusVerse = useStore((s) => s.clearFocusVerse);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const books = useBooks(pane.workId);
   const works = useWorks();
@@ -47,6 +49,38 @@ export function BiblePane({ pane }: { pane: Pane }) {
   }, [books, pane.osis, pane.chapter]);
 
   const change = (osis: string, chapter: number) => goToRef(osis, chapter, pane.id);
+
+  // Scroll to and briefly flash a verse requested from search (pane.focusVerse), once the passage
+  // has rendered. The flash timeout is intentionally not tied to effect cleanup: clearing the store
+  // flag re-runs this effect, and a cleanup would cancel the pending un-flash.
+  useEffect(() => {
+    const target = pane.focusVerse;
+    if (!target || !data) return;
+    // usePassage clears stale data in an effect, so the render immediately after a pane navigation
+    // can still contain the previous passage. Do not consume the target until the response and DOM
+    // belong to the passage requested by the pane.
+    if (
+      data.work_id !== pane.workId ||
+      data.osis !== pane.osis ||
+      data.chapter !== pane.chapter
+    ) {
+      return;
+    }
+    const element = bodyRef.current?.querySelector<HTMLElement>(`[data-verse="${target}"]`);
+    clearFocusVerse(pane.id);
+    if (!element) return;
+    element.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    element.classList.add("verse-flash");
+    window.setTimeout(() => element.classList.remove("verse-flash"), 1600);
+  }, [
+    pane.focusVerse,
+    pane.workId,
+    pane.osis,
+    pane.chapter,
+    data,
+    pane.id,
+    clearFocusVerse,
+  ]);
 
   return (
     <div className="pane bible-pane">
@@ -83,7 +117,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
         </div>
       </div>
 
-      <div className="pane-body">
+      <div className="pane-body" ref={bodyRef}>
         {loading && <p className="muted">{t("reader.loading")}</p>}
         {error && <p className="muted">{t("reader.error")}</p>}
         {data && (

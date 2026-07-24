@@ -56,7 +56,7 @@ function PerLine({
   return (
     <>
       {verses.map((v) => (
-        <div key={v.verse} className="verse-block">
+        <div key={v.verse} className="verse-block" data-verse={v.verse}>
           {(hmap.get(v.verse) ?? []).map((h, i) => (
             <HeadingView key={i} h={h} />
           ))}
@@ -115,7 +115,7 @@ function Flowing({
         if (b.type === "heading") return <HeadingView key={i} h={b.h} />;
         if (b.type === "poetry")
           return (
-            <div key={i} className={`line q q${b.level}`}>
+            <div key={i} className={`line q q${b.level}`} data-verse={b.verseNum}>
               {b.verseNum !== undefined && (
                 <VNum n={b.verseNum} onClick={onVerseClick} />
               )}{" "}
@@ -125,7 +125,7 @@ function Flowing({
         return (
           <p key={i} className="para">
             {b.segs.map((s, j) => (
-              <span key={j}>
+              <span key={j} data-verse={s.verseNum}>
                 {j > 0 ? " " : ""}
                 {s.verseNum !== undefined && (
                   <VNum n={s.verseNum} onClick={onVerseClick} />

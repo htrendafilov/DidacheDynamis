@@ -76,8 +76,10 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
 - **M7.2** — unified cross-content search: a provider layer over Bible/commentary/dictionary/General
   Book FTS with per-type groups, tabs/counts, testament/work/source filters, weighted headword/title
   matching, and per-type result navigation. ✅
-- **M7 (rest) planned** — persistent desktop/mobile Search Workspace (docked drawer + full-screen),
-  granular book-picker, refinement, and local search history.
+- **M7.3** — Search Workspace: a resizable docked drawer (desktop) / full-screen (mobile) that stays
+  open while reading results, survives collapse, and flashes the exact verse a Bible result opens. ✅
+- **M7 (rest) planned** — granular book-picker, mobile filter sheet + chips, server-side refinement,
+  and local search history (M7.4).
 - **M8 planned** — licensed Strong's lexical data, word-level annotations, and structured
   Strong-number/lemma search through the M7 search-provider architecture.
 - **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference

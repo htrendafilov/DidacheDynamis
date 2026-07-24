@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SearchHit } from "../data/api";
@@ -80,13 +81,38 @@ describe("SearchPanel", () => {
     });
   });
 
-  async function runSearch() {
-    render(<SearchPanel onClose={() => {}} />);
+  async function runSearch(props: Partial<ComponentProps<typeof SearchPanel>> = {}) {
+    render(<SearchPanel onClose={() => {}} {...props} />);
     fireEvent.change(screen.getByPlaceholderText("Search the text…"), {
       target: { value: "earth" },
     });
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
   }
+
+  it("stays open on desktop (docked) and flags the verse to flash", async () => {
+    search.mockResolvedValue(allRes());
+    const onClose = vi.fn();
+    await runSearch({ mode: "docked", onClose });
+
+    fireEvent.click(await screen.findByRole("button", { name: /Genesis 1:1/ }));
+    expect(useStore.getState().panes.find((p) => p.type === "bible")).toMatchObject({
+      osis: "Gen",
+      chapter: 1,
+      focusVerse: 1,
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes on mobile (fullscreen) after opening a result", async () => {
+    search.mockResolvedValue(allRes());
+    const onClose = vi.fn();
+    const onNavigate = vi.fn();
+    await runSearch({ mode: "fullscreen", onNavigate, onClose });
+
+    fireEvent.click(await screen.findByRole("button", { name: /Genesis 1:1/ }));
+    expect(onNavigate).toHaveBeenCalledWith("bible");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 
   it("shows grouped tabs with counts and a preview of each type", async () => {
     search.mockResolvedValue(allRes());

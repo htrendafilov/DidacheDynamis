@@ -1,13 +1,13 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1 and M7.2 delivered; M7.3/M7.4 and M8 proposed**  
-Last reviewed: 2026-07-24
+Status: **M7.1–M7.3 delivered; M7.4 and M8 proposed**  
+Last reviewed: 2026-07-25
 
-This document records the delivered unified search foundation and proposes its remaining workspace,
-history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and General Book
-indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament filters, and
-relevance/canonical ordering. Search is still a temporary overlay; the persistent workspace,
-granular book picker, history, and refine field remain M7.3/M7.4.
+This document records the delivered unified search foundation/workspace and proposes its remaining
+filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
+General Book indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament
+filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace;
+the granular book picker, history, and refine field remain M7.4.
 
 See also:
 
@@ -441,20 +441,27 @@ Requires a `content.sqlite` rebuild (batched schema changes, §5.4/§8). Shipped
 - `/search/books` retired; the web client uses the unified endpoint with group tabs/counts, testament
   + sort + source filters, per-type navigation (`openPassage`/`openCommentary`/`openDictionary`/
   `openBookSection`), and Load-more pagination. EN/BG strings added.
-- Deferred to M7.3 workspace: a granular book-picker and the full docked/full-screen UI (the API
-  already accepts `books=`).
+- Deferred after M7.2: the full docked/full-screen UI to M7.3 and the granular book picker to M7.4
+  (the API already accepts `books=`).
 
-### M7.3 — Search Workspace UI
+### M7.3 — Search Workspace UI — DELIVERED 2026-07-25
 
-- Replace the overlay with the resizable desktop workspace and mobile full-screen view.
-- Reuse the shipped group tabs/counts, filters, ordering, and result navigation inside a filter
-  sheet/chip workflow with retained search scroll.
-- When a Bible result opens, scroll to and temporarily mark the exact verse (currently the chapter
-  opens without an exact-verse marker).
-- Keep Search open while desktop results are read.
+Shipped:
+- The overlay is replaced by a **Search Workspace** (`components/SearchDrawer.tsx`): a resizable drawer
+  docked to the right of the reading panes on desktop, and a full-screen view on mobile. Drawer width is
+  persisted (`settings.searchWidth`) and pointer-drag resizable within `[320, 680]`px.
+- The workspace **stays mounted while collapsed** (display:none), so the query, filters, results, and
+  scroll survive collapse/restore. On desktop it **stays open while results are read**; on mobile it
+  closes to reveal the opened pane.
+- Opening a **Bible result scrolls to and briefly flashes the exact verse** (`data-verse` anchors in
+  `CIRRenderer`, `pane.focusVerse` + `.verse-flash`); commentary/dictionary/book navigate as before.
+- Reuses the shipped group tabs/counts, testament/work filters, and relevance/canonical ordering.
+- **Deferred to M7.4/polish:** the granular book picker, a dedicated mobile bottom-sheet for filters
+  (filters are currently inline in the scrollable view), and removable filter **chips**.
 
 ### M7.4 — History and refinement
 
+- Add the granular Bible book picker, wired to the shipped API `books=` filter.
 - Add recent/pinned local history and clear/delete controls.
 - Add server-side refinement against the complete result set.
 - Restore complete search state from a history entry.

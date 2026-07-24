@@ -63,6 +63,17 @@ describe("CIRRenderer", () => {
     expect(container.querySelector(".reader")).toHaveAttribute("data-layout", "flowing");
   });
 
+  it("anchors verses with data-verse so search results can scroll to them", () => {
+    const perLine = render(
+      <CIRRenderer verses={johnVerse} headings={[]} layout="per-line" wordsOfChrist="off" />,
+    );
+    expect(perLine.container.querySelector('[data-verse="16"]')).toBeInTheDocument();
+    const flowing = render(
+      <CIRRenderer verses={johnVerse} headings={[]} layout="flowing" wordsOfChrist="off" />,
+    );
+    expect(flowing.container.querySelector('[data-verse="16"]')).toBeInTheDocument();
+  });
+
   it("renders section/title headings before the verse", () => {
     const { getByText } = render(
       <CIRRenderer

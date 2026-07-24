@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ReadingSettings } from "./components/ReadingSettings";
-import { SearchPanel } from "./components/SearchPanel";
+import { SEARCH_DEFAULT_WIDTH, SearchDrawer } from "./components/SearchDrawer";
 import { TopBar } from "./components/TopBar";
 import { UpdateNotice } from "./components/UpdateNotice";
 import { api } from "./data/api";
@@ -40,12 +40,14 @@ export default function App() {
   const panes = useStore((s) => s.panes);
   const settings = useStore((s) => s.settings);
   const [showSearch, setShowSearch] = useState(false);
+  const [searchEverOpened, setSearchEverOpened] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [deepLinkError, setDeepLinkError] = useState(false);
   const [activeMobile, setActiveMobile] = useState(0);
   const initializeDropbox = useDropboxSync((state) => state.initialize);
   const openBookSection = useStore((s) => s.openBookSection);
   const openPassage = useStore((s) => s.openPassage);
+  const setSettings = useStore((s) => s.setSettings);
   const works = useWorks();
   const didInitDeepLink = useRef(false);
   const isNarrow = useIsNarrow();
@@ -169,7 +171,10 @@ export default function App() {
     <div className="app">
       <TopBar
         onToggleSearch={() => {
-          setShowSearch((v) => !v);
+          setShowSearch((v) => {
+            if (!v) setSearchEverOpened(true);
+            return !v;
+          });
           setShowSettings(false);
         }}
         onToggleSettings={() => {
@@ -192,13 +197,9 @@ export default function App() {
           <ReadingSettings />
         </div>
       )}
-      {showSearch && (
-        <div className="overlay-panel">
-          <SearchPanel onClose={() => setShowSearch(false)} />
-        </div>
-      )}
 
-      <main className="panes">
+      <div className="workspace">
+        <main className="panes">
         {isNarrow ? (
           <div className="mobile-panes">
             {panes.length > 1 && (
@@ -249,7 +250,21 @@ export default function App() {
             ))}
           </PanelGroup>
         )}
-      </main>
+        </main>
+        {searchEverOpened && (
+          <SearchDrawer
+            open={showSearch}
+            fullscreen={isNarrow}
+            width={settings.searchWidth ?? SEARCH_DEFAULT_WIDTH}
+            onWidthChange={(searchWidth) => setSettings({ searchWidth })}
+            onNavigate={(type) => {
+              const destination = useStore.getState().panes.findIndex((pane) => pane.type === type);
+              if (destination >= 0) setActiveMobile(destination);
+            }}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }

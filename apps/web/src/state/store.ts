@@ -18,6 +18,7 @@ export interface Pane {
   sectionId?: string; // current section for a General Book pane
   headword?: string; // current entry for a dictionary pane
   bookTocOpen?: boolean;
+  focusVerse?: number; // transient: verse to scroll to and briefly flash (e.g. a search result)
 }
 
 export interface Settings {
@@ -28,6 +29,7 @@ export interface Settings {
   uiLang: UiLang;
   sync: boolean; // sync passage across bible panes
   bookMode?: BookReadingMode;
+  searchWidth?: number; // width (px) of the docked desktop search workspace
 }
 
 interface AppState {
@@ -40,7 +42,8 @@ interface AppState {
   changePaneType: (id: string, type: PaneSourceType) => void;
   setSettings: (patch: Partial<Settings>) => void;
   goToRef: (osis: string, chapter: number, fromPaneId?: string) => void;
-  openPassage: (workId: string, osis: string, chapter: number) => void;
+  openPassage: (workId: string, osis: string, chapter: number, verse?: number) => void;
+  clearFocusVerse: (paneId: string) => void;
   openCommentary: (workId: string, osis: string, chapter: number) => void;
   openDictionary: (workId: string, headword: string) => void;
   openBookSection: (workId: string, sectionId: string) => void;
@@ -123,8 +126,14 @@ export const useStore = create<AppState>()(
           }),
         });
       },
-      openPassage: (workId, osis, chapter) =>
-        set((s) => ({ panes: placePane(s.panes, { type: "bible", workId, osis, chapter }) })),
+      openPassage: (workId, osis, chapter, verse) =>
+        set((s) => ({
+          panes: placePane(s.panes, { type: "bible", workId, osis, chapter, focusVerse: verse }),
+        })),
+      clearFocusVerse: (paneId) =>
+        set((s) => ({
+          panes: s.panes.map((p) => (p.id === paneId ? { ...p, focusVerse: undefined } : p)),
+        })),
       openCommentary: (workId, osis, chapter) =>
         set((s) => ({ panes: placePane(s.panes, { type: "commentary", workId, osis, chapter }) })),
       openDictionary: (workId, headword) =>
