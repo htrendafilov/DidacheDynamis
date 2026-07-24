@@ -6,17 +6,27 @@ The app provides fast passage lookup, high-speed Full-Text Search (FTS5), and Tr
 
 ## Quick Passage Navigation
 
-- **Book & Chapter Selectors**: Use the two selectors in a Bible or Commentary pane header to open a
+- **Book & Chapter Selectors**: Use the selectors in a Bible or Commentary pane header to open a
   chapter (for example, *Genesis 1* or *Matthew 5*).
-- **Previous / Next Chapter**: Use the arrow buttons beside the chapter selector. They also cross book
-  boundaries. There are currently no chapter keyboard shortcuts or direct verse-range selector.
+- **Previous / Next Chapter**: Bible panes have arrow buttons beside the chapter selector. They also
+  cross book boundaries. Commentary panes follow synchronized passage changes but do not have their
+  own arrow buttons. There are currently no chapter keyboard shortcuts or direct verse-range selector.
+- **Shareable Bible chapter**: use `/#/b/<work>/<OSIS-book>/<chapter>`, for example
+  `/#/b/web/Matt/2`. The app validates the work, book, and chapter before opening it.
 
 ## Full-Text Search (FTS)
 
-Open **Search** from the top bar, enter one or more words, and submit the form. Search matches Bible
-verses containing all normalized words and returns highlighted snippets from the installed Bible
-works. Clicking a result opens its chapter and translation. Search scopes and phrase-sensitive quoted
-queries are not available yet.
+Open **Search** from the top bar, enter one or more words, and submit the form. Results are grouped
+with tabs and true counts for Bible, Commentary, Dictionary, and Books. You can:
+
+- select one or more installed sources;
+- limit Bible/commentary results to the Old or New Testament;
+- order by relevance or canonical/source order; and
+- load results in stable 50-result pages until all matches are reachable.
+
+Clicking a result opens the appropriate pane and source. Selecting individual Bible books, quoted
+phrase syntax, search history, refinement within a result set, and the persistent Search Workspace
+remain planned.
 
 ## Cross-References & Dictionary Lookups
 

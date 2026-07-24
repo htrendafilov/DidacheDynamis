@@ -27,6 +27,63 @@ PARA_TAGS = {"p", "m", "mi", "pi", "pc", "pmo", "pm", "pmc", "pmr", "ph", "pr", 
 POETRY_TAGS = {"q", "qm", "qr", "qc", "qa", "qd"}
 HEADING_TAGS = {"s", "ms", "mr", "sr", "sp", "d", "sd"}
 
+# Source files are untrusted even when owner-supplied. Keep both the compressed container and the
+# expanded XML bounded; the production WEB archive is ~3.2 MiB compressed / ~19 MiB expanded.
+MAX_SOURCE_BYTES = 64 * 1024 * 1024
+MAX_EXPANDED_XML_BYTES = 128 * 1024 * 1024
+MAX_ZIP_ENTRIES = 256
+MAX_COMPRESSION_RATIO = 100
+
+
+def _read_bounded(stream, limit: int, description: str) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = stream.read(min(1024 * 1024, limit + 1 - total))
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+        total += len(chunk)
+        if total > limit:
+            raise ValueError(f"{description} exceeds {limit} bytes")
+
+
+def _read_raw_xml(source: Path) -> bytes:
+    if source.stat().st_size > MAX_EXPANDED_XML_BYTES:
+        raise ValueError(f"USFX XML exceeds {MAX_EXPANDED_XML_BYTES} bytes")
+    with source.open("rb") as stream:
+        return _read_bounded(stream, MAX_EXPANDED_XML_BYTES, "USFX XML")
+
+
+def _read_zip_xml(source: Path) -> bytes:
+    if source.stat().st_size > MAX_SOURCE_BYTES:
+        raise ValueError(f"USFX ZIP exceeds {MAX_SOURCE_BYTES} bytes")
+    with zipfile.ZipFile(source) as zf:
+        entries = zf.infolist()
+        if len(entries) > MAX_ZIP_ENTRIES:
+            raise ValueError(f"USFX ZIP has more than {MAX_ZIP_ENTRIES} entries")
+        candidates = [
+            info
+            for info in entries
+            if not info.is_dir()
+            and info.filename.lower().endswith(".xml")
+            and "usfx" in info.filename.lower()
+        ]
+        if not candidates:
+            raise ValueError(f"no *usfx*.xml found in {source}")
+        info = candidates[0]
+        if info.flag_bits & 0x1:
+            raise ValueError("encrypted USFX ZIP members are not supported")
+        if info.file_size > MAX_EXPANDED_XML_BYTES:
+            raise ValueError(f"expanded USFX XML exceeds {MAX_EXPANDED_XML_BYTES} bytes")
+        ratio = info.file_size / max(info.compress_size, 1)
+        if ratio > MAX_COMPRESSION_RATIO:
+            raise ValueError(
+                f"USFX ZIP compression ratio {ratio:.1f} exceeds {MAX_COMPRESSION_RATIO}"
+            )
+        with zf.open(info) as stream:
+            return _read_bounded(stream, MAX_EXPANDED_XML_BYTES, "expanded USFX XML")
+
 
 def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
@@ -232,18 +289,13 @@ def parse_root(root) -> tuple[list[BookMeta], list[VerseRow], list[HeadingRow]]:
 def load_usfx(source: str | Path) -> tuple[list[BookMeta], list[VerseRow], list[HeadingRow]]:
     """Accepts a .zip (finds *_usfx.xml inside) or a path to the USFX .xml file."""
     source = Path(source)
-    if source.suffix.lower() == ".zip":
-        with zipfile.ZipFile(source) as zf:
-            names = [n for n in zf.namelist() if n.lower().endswith(".xml") and "usfx" in n.lower()]
-            if not names:
-                raise ValueError(f"no *usfx*.xml found in {source}")
-            data = zf.read(names[0])
-    else:
-        data = source.read_bytes()
-    root = fromstring(data.decode("utf-8") if isinstance(data, bytes) else data)
+    data = _read_zip_xml(source) if source.suffix.lower() == ".zip" else _read_raw_xml(source)
+    root = fromstring(data.decode("utf-8"))
     return parse_root(root)
 
 
 # Kept for symmetry with a future BytesIO caller.
 def load_usfx_bytes(data: bytes) -> tuple[list[BookMeta], list[VerseRow], list[HeadingRow]]:
+    if len(data) > MAX_EXPANDED_XML_BYTES:
+        raise ValueError(f"USFX XML exceeds {MAX_EXPANDED_XML_BYTES} bytes")
     return parse_root(fromstring(io.BytesIO(data).read().decode("utf-8")))

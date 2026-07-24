@@ -5,7 +5,8 @@ React + TypeScript + Vite SPA. See [`../00_system_design.md`](../00_system_desig
 
 ## 1. Libraries
 
-- `react` + `react-router` — app + URL-addressable passages.
+- `react` — application UI; a small hash parser handles the two shipped deep-link forms without
+  React Router.
 - `react-resizable-panels` — the 1–3 pane layout.
 - `zustand` — small store for panes / sync / reading settings.
 - `react-i18next` — EN/BG interface strings.
@@ -19,32 +20,32 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
 
 - **Top bar:** global search, reading-settings menu (including EN/BG interface language),
   add/remove pane (max 3).
-> **v1 ships English-only.** The Bulgarian Bible source is deferred until rights are cleared
-> (see [`../content_and_licensing.md`](../content_and_licensing.md)); the source list is data-driven
-> from `/works`, so BG appears automatically once imported — no UI rework.
+> The interface defaults to Bulgarian and can switch to English. The installed content set remains
+> English-only: the Bulgarian Bible source is deferred until rights are cleared (see
+> [`../content_and_licensing.md`](../content_and_licensing.md)).
 
 - **Panes** (`react-resizable-panels`, horizontal split on desktop). Each pane header has:
   - a **source selector** — Bible (EN; BG later) / Commentary / Dictionary / Books / Notes;
-  - for Bible/commentary panes, a **passage selector** — book → chapter;
-  - a **link/sync** toggle that groups panes to follow the same reference.
-- **Mobile:** one active pane + a bottom segmented control to switch source; "3 panes" degrades to
-  swipeable tabs.
+  - for Bible/commentary panes, a **passage selector** — book → chapter.
+- **Sync** is one global Settings checkbox: passage changes update every open Bible/commentary pane.
+- **Mobile:** one active pane with a keyboard-accessible top tab bar for switching the saved panes.
 
 ## 3. Reading settings (global, persisted in `localStorage`)
 
 - **Verse layout:** `per-line` vs `flowing` — a render mode over the same CIR, not two datasets.
 - **Words of Christ:** `off` / `bold` / `red` — a class toggled on `wordsOfJesus` nodes.
-- Font size, light/dark theme, interface language, sync-scroll on/off, and a global General Book view
+- Font size, light/dark theme, interface language, pane sync on/off, and a global General Book view
   (`pages` / `scrolling`).
 
 ## 4. Panes behavior
 
-- **Bible pane** — selects WEB or KJV and renders CIR (paragraphs / poetry / headings / verses). Verse numbers are
-  interactive → **verse popover**: cross-references (`/xref`), a commentary snippet, "open in
-  commentary pane", "add note here".
+- **Bible pane** — selects WEB or KJV and renders CIR (paragraphs / poetry / headings / verses). Verse
+  numbers open TSK cross-references (clicking one navigates the same Bible work) and an "add note for
+  this verse" action. Commentary snippets/open-in-commentary actions are not shipped.
 - **Commentary pane** — Matthew Henry for the current ref; its embedded KJV quotation is visually
   separated from the commentary, while the pane follows any linked Bible by canonical reference.
-- **Dictionary pane** — prefix search box + headword list; entry view; internal links between entries.
+- **Dictionary pane** — prefix search box + headword list and entry view. Automatic/internal
+  dictionary links are not shipped.
 - **General Book pane** — selects an imported reference/theology book, displays its hierarchical TOC,
   and renders sections with the same Document CIR used by commentary and dictionary entries. The pane
   header orders source, book, then the show/hide-contents control. The global Settings panel chooses
@@ -64,38 +65,40 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
   distinguish one-sided changes from true conflicts; if both browsers changed a note, the local note
   stays in place and the remote version becomes a clearly titled topic note for manual resolution.
   The Dropbox token lives only in `sessionStorage` and never reaches the Bible Reader API.
-- **Search** — modal or dedicated pane; scope chips (which works, which language); results show
-  snippet + ref; clicking opens the result in a chosen pane and highlights the verse.
+- **Search (M7.2)** — a temporary overlay with grouped tabs/counts for Bible, commentary, dictionary,
+  and books; work and testament filters; relevance/canonical ordering; and stable 50-result
+  pagination. Clicking opens/reuses the appropriate pane. Exact verse scroll/mark, book picker,
+  language UI, refine, history, and persistent desktop/mobile workspace are later M7 steps.
 
 ## 5. CIR renderer
 
-`render/CIRRenderer.tsx` maps CIR node types to elements:
+`render/CIRRenderer.tsx` maps Bible line/run CIR to elements:
 
-| Node | Rendering |
+| CIR field | Rendering |
 |---|---|
-| `heading` | section heading |
-| `paragraph` / `poetryLine` | block; `flowing` mode keeps verses inline, `per-line` breaks per verse |
-| `verse` | verse-number label/superscript + children |
-| `wordsOfJesus` | `<span class="woj">` styled by the words-of-Christ setting |
-| `divineName` | small-caps span |
-| `emphasis` | `<em>` |
-| `text` | text node |
-| unknown | rendered as plain text (importer already reported it) |
+| separate heading rows | section/Psalm heading before a verse |
+| line `kind: p` / `q` | prose or level-indented poetry |
+| line `para_start` | flowing paragraph boundary |
+| verse row | verse-number button/superscript + lines |
+| run `wj: true` | `<span class="woj">` styled by the words-of-Christ setting |
+| run `t` | text |
 
 Verse-per-line vs flowing is a container class + how `verse` boundaries emit line breaks — no second
-fetch.
+fetch. Commentary/dictionary/book blocks use `DocumentRenderer`, including structured scripture
+reference runs rendered by `ScriptureRef`.
 
 ## 6. Internationalization
 
 - `i18n/{en.json,bg.json}` for chrome strings.
-- **Book names** come from the API `books` table (each work carries its own names): the BG Bible shows
-  Bulgarian names, the EN Bible English names — independent of the chrome language toggle.
+- Canonical OSIS book names come from `i18n/bookNames.ts` and follow the interface language. API names
+  are fallbacks; switching to Bulgarian changes labels even though WEB/KJV text remains English.
 - `direction` stored per work for future non-LTR languages (en/bg are both LTR).
 
 ## 7. URL / state
 
-- Passages are URL-addressable, e.g. `/read?p1=web:John:3&p2=mh:John:3&p3=notes`, so a layout is
-  shareable/bookmarkable.
+- Shipped hashes are `#/b/<work>/<osis>/<chapter>` for a validated Bible chapter and
+  `#/book/<work>/<section>` for a General Book section. Commentary/dictionary/exact-verse and
+  multi-pane workspace serialization are explicitly deferred in `linking_and_embeds.md`.
 - Reading settings + last layout persist in `localStorage` and restore on return.
 - API responses revalidate with an ETag on every use, so a new code or content deployment cannot leave
   stale JSON in the browser. Vite's fingerprinted `/assets/*` files remain immutable and long-lived.
@@ -107,11 +110,11 @@ fetch.
 
 ```
 apps/web/src/
-  App.tsx, router.tsx
+  App.tsx, responsive.ts
   panes/{PaneHost,BiblePane,CommentaryPane,DictionaryPane,BookPane,NotesPane}.tsx
-  components/{TopBar,PassageSelector,SourceSelector,VersePopover,SearchPanel,ReadingSettings}.tsx
-  render/CIRRenderer.tsx
-  state/store.ts                # zustand: panes, sync, settings
+  components/{TopBar,PassageSelector,SourceSelector,ScriptureRef,SearchPanel,ReadingSettings}.tsx
+  render/{CIRRenderer,DocumentRenderer}.tsx
+  state/{store,deeplink}.ts     # zustand state + shipped hash parsing
   data/api.ts                   # typed fetch of /api/v1 (mirrors OpenAPI)
   data/notes.ts                 # Dexie notes + export/import
   i18n/{index.ts,en.json,bg.json}
@@ -123,7 +126,8 @@ apps/web/src/
 - Vitest + RTL: CIRRenderer (per-line vs flowing; words-of-Christ off/bold/red), pane source
   switching, notes CRUD/import conflicts/save queue/image safety in IndexedDB, i18n switch,
   book-name localization.
-- Playwright (few flows): open EN+BG synced panes; toggle verse layout + red-letter; add a note and
-  reopen after reload; search and open a result; click a cross-reference and land on the verse.
+- Playwright (manual full-stack workflow): toggle verse layout/red-letter; persist a note; search and
+  open a result; click a cross-reference and verify its destination; validate Bible hashes; exercise
+  General Books/mobile TOC and axe accessibility.
 - Accessibility: keyboard nav, visible focus, semantic landmarks, contrast, scalable text,
   screen-reader labels — part of acceptance, not polish.

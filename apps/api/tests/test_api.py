@@ -1,3 +1,8 @@
+import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+from app.db import CONTENT_SCHEMA_VERSION, database_status
 from app.main import (
     API_CACHE_CONTROL,
     HASHED_ASSET_CACHE_CONTROL,
@@ -42,10 +47,72 @@ def test_ready_has_content(client):
 
 
 def test_ready_503_when_no_content(client, monkeypatch):
-    monkeypatch.setattr("app.routers.health.content_version", lambda: None)
+    monkeypatch.setattr(
+        "app.routers.health.database_status",
+        lambda: {
+            "status": "no-content",
+            "content_version": None,
+            "schema_version": None,
+            "expected_schema_version": CONTENT_SCHEMA_VERSION,
+        },
+    )
     r = client.get("/ready")
     assert r.status_code == 503
     assert r.json()["status"] == "no-content"
+
+
+def test_database_status_rejects_an_old_schema(tmp_path):
+    old_db = tmp_path / "old.sqlite"
+    conn = sqlite3.connect(old_db)
+    conn.execute("CREATE TABLE works (id TEXT, checksum TEXT)")
+    conn.close()
+
+    status = database_status(old_db)
+    assert status == {
+        "status": "schema-outdated",
+        "content_version": None,
+        "schema_version": 0,
+        "expected_schema_version": CONTENT_SCHEMA_VERSION,
+    }
+
+
+def test_api_refuses_an_incompatible_content_schema(client):
+    previous = client.app.state.database_status
+    client.app.state.database_status = {
+        "status": "schema-outdated",
+        "content_version": None,
+        "schema_version": 0,
+        "expected_schema_version": CONTENT_SCHEMA_VERSION,
+    }
+    try:
+        response = client.get("/api/v1/meta")
+    finally:
+        client.app.state.database_status = previous
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "schema-outdated"
+
+
+def test_simultaneous_read_only_requests_use_independent_connections(client):
+    workers = 16
+    barrier = threading.Barrier(workers)
+
+    def read_passage() -> list[int]:
+        barrier.wait()
+        return [
+            client.get("/api/v1/works/web/passage/John/3").status_code
+            for _ in range(4)
+        ]
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        statuses = [
+            status
+            for result in pool.map(lambda _: read_passage(), range(workers))
+            for status in result
+        ]
+
+    assert len(statuses) == 64
+    assert statuses == [200] * 64
 
 
 def test_meta(client):
@@ -242,6 +309,18 @@ def test_search_book_type(client):
 
 def test_search_rejects_unknown_type(client):
     assert client.get("/api/v1/search", params={"q": "x", "types": "bogus"}).status_code == 400
+
+
+def test_search_caps_offset_without_hiding_current_corpus(client):
+    at_cap = client.get(
+        "/api/v1/search",
+        params={"q": "shepherd", "types": "bible", "offset": 100_000},
+    )
+    assert at_cap.status_code == 200
+    assert client.get(
+        "/api/v1/search",
+        params={"q": "shepherd", "types": "bible", "offset": 100_001},
+    ).status_code == 422
 
 
 def test_cache_headers_and_304(client):

@@ -31,7 +31,7 @@ def search(
     languages: str | None = Query(None, description="restrict to these content languages"),
     sort: str = Query("relevance", pattern="^(relevance|canonical)$"),
     limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100_000),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> SearchResponse:
     requested = _csv(types, len(ALL_TYPES), "types") or list(ALL_TYPES)

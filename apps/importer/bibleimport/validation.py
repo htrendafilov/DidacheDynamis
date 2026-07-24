@@ -19,6 +19,7 @@ class Diagnostics:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     stats: dict = field(default_factory=dict)
+    alignment: dict[str, object] | None = None
 
     @property
     def ok(self) -> bool:

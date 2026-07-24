@@ -6,11 +6,13 @@ database the API serves. Runs offline, never in the request path.
 
 See [`../../plan/backend/backend_design.md`](../../plan/backend/backend_design.md) §2–6.
 
-## Status (M6)
+## Status (M7.2 + review hardening)
 - Schema + FTS5 (`schema.py`), canonical book table (`books.py`), CIR (`canonical.py`).
 - **USFX adapter** (`formats/usfx.py`) — handles words-of-Jesus (`<wj>`), poetry (`<q>`), Psalm titles
   (`<d>`), paragraph structure; skips footnotes/cross-refs.
-- Validation + EN↔BG alignment hook (`validation.py`).
+- Checksum-bound expected versification deltas; undeclared alignment differences block before write.
+- Bounded compressed/expanded inputs, safe XML parsing, structured audit lines, and atomic JSON
+  diagnostics reports.
 - Imports the **World English Bible** (66 books, ~31,098 verses).
 - Imports hierarchical SWORD General Books into Document CIR; the public-domain 1689 Baptist
   Confession is the first production module.
@@ -31,6 +33,7 @@ bibleimport build --format usfx --work-id web --title "World English Bible" --ab
 
 # Rebuild the complete production content set, including General Books
 bibleimport build-all --sources-dir ../../data/sources --out ../../data/content.sqlite
+# Report: ../../data/content.sqlite.diagnostics.json (or pass --report <path>)
 
 # Tests
 pytest -q

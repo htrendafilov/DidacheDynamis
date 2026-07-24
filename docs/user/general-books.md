@@ -12,8 +12,9 @@ In addition to scripture, the app provides a reader pane for non-scriptural hist
 
 - **Table of Contents Drawer**: Use the left sidebar drawer to browse chapters and sections.
 - **Scripture Proof Texts**: The confession's proof-text citations are interactive — hover, focus, or
-  tap one to see the passage text in a pop-up, with an "Open in Bible pane" link. Embedding these
-  pop-ups on external sites is still planned.
+  tap one to see the passage text in a pop-up, with an "Open in Bible pane" link. The shipped
+  [`embed.js` widget](embedding-scripture.md) provides the same marked-reference behavior on external
+  sites.
 - **Shareable Section Links**: The address bar updates as you read (`…/#/book/…`); copy it to link
   someone straight to the section you are on, and it reopens there.
 - **Paged / Scrolling Options**: Read continuously or flip page-by-page. In scrolling mode the table

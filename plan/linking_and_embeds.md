@@ -1,30 +1,26 @@
 # Plan: deep links, scripture pop-ups, and external embeds
 
-**Status:** planned (after General Books — pop-ups appear in commentary/book content).
+**Status:** partially delivered. Bible-chapter and General Book section hashes, structured in-app
+pop-ups, external `embed.js`, and API CORS are shipped. Exact-verse/commentary/dictionary links and
+multi-pane workspace serialization are explicitly deferred until after the remaining M7/M8 work.
 Three related features that build on each other: (1) shareable deep links, (2) in-app scripture
 reference pop-ups, (3) the same pop-ups embeddable on external sites (e.g. a blog).
 
 ## 1. Deep links (URL-addressable content)
-Open any content directly from a URL, and keep the URL in sync as the user navigates so links are
-shareable/bookmarkable. **Routing is not wired up yet** — the app uses the zustand pane store with no
-router; deep links will add either `react-router` (a new dependency) or a small hand-rolled
-parse/serialize layer over `history` + the store.
+The shipped implementation is a small hand-written parser in `state/deeplink.ts`; React Router is not
+installed.
 
-- **Scheme (proposal):** a compact, canonical form per content type, e.g.
-  - Bible verse/passage: `/b/web/John/3/16` or `/b/web/John/3/16-19`
-  - Commentary: `/c/mhc/John/3` (optionally `/16`)
-  - Dictionary word: `/d/easton/Grace`
-  - Book section: `/k/1689/ch1`
-  - Multi-pane layout (shareable workspace): query form `?p1=b:web:John:3&p2=c:mhc:John:3`.
-- **On load:** parse the URL → configure the store's panes (`apps/web/src/state/store.ts`).
-- **On navigation:** pane/passage changes push URL state (replace vs push chosen to keep history sane).
-- **Validate** parsed input: cap pane count (1–3), allow only known work IDs, and range-check
-  book/chapter/verse against `/works`+`/books` before applying — reject/clamp bad links, don't crash.
+- **Bible chapter (shipped):** `#/b/<work>/<osis>/<chapter>`, for example `#/b/web/Matt/2`. On load and
+  `hashchange`, the app validates the work against `/works` and book/chapter against `/books`. A bad
+  target is removed and produces a visible localized error.
+- **General Book section (shipped):** `#/book/<work>/<section>`. The active section is mirrored with
+  `history.replaceState`, so scroll-spy updates do not pollute browser history.
+- **Deferred:** exact verse/range, commentary, dictionary, and complete 1–3-pane workspace URLs.
+  This is a deliberate post-M8 product/design item, not an undocumented promise. It must define pane
+  count/target validation and push-vs-replace history semantics before implementation.
 - **Preserve the Dropbox OAuth callback:** `App` already reads `?code`/`?state` (`state` starts `dbx-`)
-  on load for the PKCE flow (`dropboxAuth.ts` strips them after). The deep-link parser must run
-  *alongside* that — ignore/pass through OAuth params and not clobber them, or Dropbox connect breaks.
-- Reuses existing passage/commentary/dictionary/book APIs; mostly a frontend routing layer +
-  a canonical ref parser/serializer (share with the embed widget in §3).
+  on load for the PKCE flow (`dropboxAuth.ts` strips them after). Hash links run alongside those query
+  parameters and do not clobber them.
 
 ## 2. In-app scripture reference pop-ups
 When commentary / book / dictionary content cites a passage (e.g. "John 3:1-19"), make it interactive:
@@ -69,11 +65,13 @@ work on the user's blog.
   Subresource Integrity once the URL is versioned.
 
 ## Ordering & reuse
-1. **Deep links (§1)** first — the canonical ref parser/serializer is the shared foundation.
-2. **In-app pop-ups (§2)** — importer `ref` nodes + verse-range API + reuse the cross-reference popover.
-3. **Embed widget (§3)** — reuses §1 links + §2 pop-up behavior in a standalone script + API CORS.
+1. **Bible/book hashes (§1): DONE.**
+2. **In-app structured pop-ups (§2): DONE.**
+3. **Embed widget + API CORS (§3): DONE.**
+4. **Deferred linking remainder:** exact verse/range, commentary/dictionary, and multi-pane workspace
+   after M8; no route format is reserved yet.
 
 ## Open questions
-- Final URL scheme (path vs query; how to encode multi-pane layouts) — pick before building §1.
+- Final scheme for the deferred multi-pane/commentary/dictionary forms.
 - Which citation formats/languages the fallback linkifier must handle (English + Bulgarian book names).
 - Embed distribution: a `<script>` include vs. a copy-paste snippet; versioning of `embed.js`.

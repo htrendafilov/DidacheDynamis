@@ -18,14 +18,20 @@ sequenceDiagram
 
 The API uses one read-only SQLite connection per request. Middleware attaches content-version-aware
 ETags and public cache headers to successful `/api/v1` GET responses. Security headers, including the
-Dropbox-aware Content Security Policy, are attached to every response.
+Dropbox-aware Content Security Policy, are attached to every response. The public read-only API also
+returns `Access-Control-Allow-Origin: *` so the external `embed.js` widget can fetch scripture from
+another site; SPA/HTML responses do not get that CORS header.
+
+The importer writes a SQLite `PRAGMA user_version`. Startup records the database status, `/ready`
+returns `503` with `status: "schema-outdated"` when that version is incompatible, and API middleware
+rejects content requests clearly instead of allowing a later missing-column SQL error.
 
 ## Implemented endpoints
 
 | Endpoint | Purpose |
 |---|---|
 | `GET /health` | Process liveness |
-| `GET /ready` | Database readiness and content version |
+| `GET /ready` | Database readiness, schema version, and content version |
 | `GET /api/v1/meta` | Content version and work count |
 | `GET /api/v1/works` | Installed works and attribution metadata |
 | `GET /api/v1/works/{work_id}/books` | Bible books and chapter counts |

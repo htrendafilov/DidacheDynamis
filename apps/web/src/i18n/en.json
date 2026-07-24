@@ -1,5 +1,7 @@
 {
   "app.title": "Bible Reader",
+  "common.dismiss": "Dismiss",
+  "link.invalidBible": "This Bible link does not point to an available book and chapter.",
   "update.available": "A new version is available.",
   "update.reload": "Reload",
   "topbar.search": "Search",

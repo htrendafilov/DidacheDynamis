@@ -21,7 +21,7 @@ flowchart TD
 | Probe Endpoint | Purpose | Checks Performed | Success Code | Failure Code |
 |---|---|---|---|---|
 | `GET /health` | Liveness | Verifies Python process is running | `200 OK` | Host down / Process dead |
-| `GET /ready` | Readiness | Verifies process + queries `content.sqlite` works table | `200 OK` | `503 Service Unavailable` |
+| `GET /ready` | Readiness | Verifies DB availability, schema version, and content checksums | `200 OK` | `503 Service Unavailable` |
 
 > [!IMPORTANT]
 > External uptime monitors (such as UptimeRobot) **must probe `/ready`** rather than `/health`. This ensures alerts trigger if the database becomes corrupted, unreadable, or missing.
@@ -37,3 +37,10 @@ flowchart TD
    - File: [`.github/workflows/uptime.yml`](../../.github/workflows/uptime.yml).
    - Probes both public endpoints every 90 minutes with retries.
    - Automatically opens a deduplicated **`outage`** GitHub issue when probes fail, and closes it upon recovery.
+
+3. **Deployment Workflow (manual container path)**:
+   - [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) is manual
+     (`workflow_dispatch`): it builds/pushes a commit-SHA + `latest` image to GHCR, SSHes to the VM,
+     pulls with Compose, and checks readiness.
+   - It intentionally does not deploy on every commit. The current native production procedure is
+     documented in [`plan/deployment/live-runbook.md`](../../plan/deployment/live-runbook.md).

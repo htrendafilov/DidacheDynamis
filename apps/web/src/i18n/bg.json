@@ -1,5 +1,7 @@
 {
   "app.title": "Библия",
+  "common.dismiss": "Скрий",
+  "link.invalidBible": "Тази библейска връзка не сочи към налична книга и глава.",
   "update.available": "Налична е нова версия.",
   "update.reload": "Презареди",
   "topbar.search": "Търсене",

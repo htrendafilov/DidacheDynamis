@@ -37,8 +37,17 @@ This guide provides solutions for common user, developer, and deployment issues.
 ## Deployment & Operations Troubleshooting
 
 ### Q: `/ready` endpoint returns HTTP 503 Service Unavailable
-- **Cause**: The API server cannot locate or query `data/content.sqlite`.
-- **Solution**: Verify `data/content.sqlite` exists and has read permissions. Check systemd logs:
+- **Cause**: Inspect the JSON `status`: `no-content` means the database is missing/empty;
+  `invalid-content` means it cannot be queried; `schema-outdated` means it was built by an older
+  importer schema.
+- **Solution**: Verify the file and permissions. For `schema-outdated`, rebuild with the current
+  importer (do not hand-edit the database), then restart the API:
+  ```bash
+  apps/importer/.venv/bin/bibleimport build-all \
+    --sources-dir data/sources \
+    --out data/content.sqlite
+  ```
+  Check systemd logs if readiness is still failing:
   ```bash
   journalctl -u bible-app -n 50 --no-pager
   ```

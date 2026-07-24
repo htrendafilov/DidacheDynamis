@@ -11,11 +11,11 @@ import hashlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import settings
-from .db import content_version
+from .db import database_status
 from .routers import commentary, dictionary, general_books, health, passages, search, works, xrefs
 
 API_CACHE_CONTROL = "public, max-age=0, must-revalidate"
@@ -35,8 +35,20 @@ def static_cache_control(full_path: str, target_name: str) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.content_version = content_version()
+    app.state.database_status = database_status()
+    app.state.content_version = app.state.database_status["content_version"]
     yield
+
+
+class ContentSchemaMiddleware(BaseHTTPMiddleware):
+    """Fail API requests clearly instead of letting an incompatible DB fail deep in a query."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith(settings.API_V1):
+            status = getattr(request.app.state, "database_status", None) or database_status()
+            if status["status"] != "ready":
+                return JSONResponse(status, status_code=503)
+        return await call_next(request)
 
 
 class CacheMiddleware(BaseHTTPMiddleware):
@@ -54,7 +66,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
             body += chunk
 
         version = getattr(request.app.state, "content_version", None) or "0"
-        etag = '"' + hashlib.md5(version.encode() + body).hexdigest() + '"'  # noqa: S324
+        etag = '"' + hashlib.md5(version.encode() + body).hexdigest() + '"'
         media_type = response.headers.get("content-type", "application/json")
 
         if request.headers.get("if-none-match") == etag:
@@ -101,6 +113,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Bible Reader API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CacheMiddleware)
+app.add_middleware(ContentSchemaMiddleware)
 app.add_middleware(
     SecurityHeadersMiddleware
 )  # added last -> outermost -> headers on every response

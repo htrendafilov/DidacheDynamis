@@ -63,6 +63,23 @@ body {
   font-weight: 600;
 }
 
+.link-error-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.45rem 1rem;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--woj) 16%, var(--bg));
+  border-bottom: 1px solid var(--woj);
+  font-size: 0.9rem;
+}
+.link-error-notice button {
+  flex: 0 0 auto;
+  padding-block: 0.2rem;
+  font-weight: 600;
+}
+
 /* Top bar */
 .topbar {
   display: flex;
@@ -1088,7 +1105,8 @@ button.danger {
   min-height: 0;
 }
 
-@media (max-width: 640px) {
+/* Keep aligned with MOBILE_MAX_WIDTH in src/responsive.ts. */
+@media (max-width: 720px) {
   .reader {
     font-size: calc(1rem * var(--font-scale));
   }

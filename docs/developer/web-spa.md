@@ -25,8 +25,8 @@ flowchart TD
 
 ## Key modules
 
-- `src/App.tsx`: top-level panels, responsive mobile tab behavior, settings/search overlays, and
-  Dropbox initialization.
+- `src/App.tsx`: top-level panels, responsive mobile tab behavior, settings/search overlays,
+  Dropbox initialization, build-update notice, and validated hash deep links.
 - `src/panes/PaneHost.tsx`: routes each persisted pane record to its pane component; lazy-loads Notes.
 - `src/render/CIRRenderer.tsx`: Bible verse CIR, verse layouts, poetry, headings, and words of Christ.
 - `src/render/DocumentRenderer.tsx`: shared study-document CIR for commentary, dictionary, and books.
@@ -37,6 +37,7 @@ flowchart TD
 - `src/i18n/en.json`, `src/i18n/bg.json`: interface strings; `src/i18n/bookNames.ts` localizes canonical
   book names from OSIS codes.
 - `src/styles/app.css`: application styles and responsive rules.
+- `src/components/WorkFooter.tsx`: per-work attribution footer and source-information tabs.
 
 ## Code splitting
 
@@ -46,13 +47,22 @@ off the initial reading path.
 
 ## URL state
 
-Pane and passage state persists locally (`localStorage`) and is **not** reflected in the URL, with one
-exception: **General Book section deep links**. The active book pane's section is mirrored into the URL
-hash as `#/book/<workId>/<sectionId>` (via `state/deeplink.ts`), using `history.replaceState` so it
-never pollutes history or fires `hashchange`. On load — and on `hashchange` — a valid book hash opens
-that section (`openBookSection`); a bogus work id is ignored. The hash is used (not the query string)
-specifically so it can never collide with the Dropbox OAuth `?code`/`?state` params.
+Pane and settings state persists locally in `localStorage`. Two hash routes are shipped:
 
-The broader canonical URL scheme for every pane type (Bible/commentary/dictionary + multi-pane layouts)
-is still planned in `plan/linking_and_embeds.md` §1; do not document those route formats as implemented
-until that work lands.
+- `#/book/<workId>/<sectionId>` opens a General Book section and follows the active section as the user
+  reads.
+- `#/b/<workId>/<osis>/<chapter>` opens a Bible work and chapter. The app checks the work, canonical
+  book, and chapter against the API before applying it; an invalid link is removed and shown as a
+  visible error.
+
+These routes are implemented in `state/deeplink.ts` without React Router. The hash is deliberately
+separate from Dropbox OAuth's `?code`/`?state` callback parameters. Commentary, dictionary, exact-
+verse, and complete multi-pane workspace URLs remain deferred in `plan/linking_and_embeds.md`; ordinary
+pane navigation is not mirrored into a multi-pane URL yet.
+
+## Runtime update behavior
+
+Every Vite build emits `/version.json`. `UpdateNotice` checks it at startup, on a timer, and when the
+tab regains focus. A changed build ID prompts the user to reload rather than interrupting a note edit.
+Missing old lazy chunks trigger one guarded reload. Hashed assets remain immutable while HTML,
+`version.json`, and `embed.js` revalidate.

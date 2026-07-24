@@ -16,7 +16,8 @@ SWORD tools first; provenance and exact commands are recorded in `data/sources/R
 ## Implemented commands
 
 ```bash
-# Build the complete shipped content set
+# Build the complete shipped content set. The JSON report defaults to
+# data/content.sqlite.diagnostics.json; override it with --report <path>.
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 
 # Build only WEB
@@ -44,10 +45,28 @@ are no standalone `info` or `validate-versification` commands.
 ## Validation and parser safety
 
 Bible builds check duplicate/non-positive references, empty verses, missing/extra canonical books, and
-chapter gaps. `align_versification()` provides the EN↔BG comparison hook, but it is not exposed as a
-CLI command yet.
+chapter gaps. An appended Bible starts with an empty alignment allow-list: exact alignment passes, but
+any undeclared difference is fatal before a write. The shipped KJV specification records the reviewed
+WEB↔KJV textual-variant verses and ties them to both source checksums. Those expected differences stay
+visible as warnings and structured report data. A changed/new source must be reviewed explicitly; the
+importer never silently renumbers or accepts new differences.
 
 XML and embedded OSIS fragments use `defusedxml`; study sources and expanded SWORD IMP streams have
-explicit size caps. General Book markup is parsed through a strict allow-list. The importer does not
-currently implement a general entropy check, and the USFX adapter does not yet apply a source/expanded
-ZIP size ceiling; treat those as hardening follow-ups rather than existing guarantees.
+explicit size caps. USFX applies separate ZIP-container and expanded-XML ceilings, a ZIP entry-count
+limit, declared member-size checks, and a compression-ratio limit before bounded extraction. General
+Book markup is parsed through a strict allow-list. These concrete limits replace a vague entropy
+threshold, which is not a reliable archive-bomb defense.
+
+Each import emits an `AUDIT` JSON line with the work ID, source filename (never its arbitrary absolute
+path), source byte count, SHA-256, imported counts, and result. Every command atomically writes a
+diagnostics report on success or validation failure; reports include source version/checksum,
+statistics, warnings/errors, and expected/unexpected alignment deltas.
+
+`content.sqlite` carries `PRAGMA user_version`. After pulling a schema-changing commit, rebuild it
+exactly with:
+
+```bash
+apps/importer/.venv/bin/bibleimport build-all \
+  --sources-dir data/sources \
+  --out data/content.sqlite
+```

@@ -53,7 +53,10 @@ export function ReadingSettings() {
         <select
           aria-label={t("topbar.language")}
           value={settings.uiLang}
-          onChange={(e) => setSettings({ uiLang: e.target.value as UiLang })}
+          onChange={(e) => {
+            const uiLang = e.target.value as UiLang;
+            setSettings({ uiLang });
+          }}
         >
           <option value="en">English</option>
           <option value="bg">Български</option>

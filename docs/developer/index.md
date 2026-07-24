@@ -39,13 +39,13 @@ git lfs pull
 # Set up importer virtualenv
 python3 -m venv apps/importer/.venv
 . apps/importer/.venv/bin/activate
-pip install -e apps/importer
+pip install -e "apps/importer[dev]"
 deactivate
 
 # Set up API virtualenv
 python3 -m venv apps/api/.venv
 . apps/api/.venv/bin/activate
-pip install -e apps/api
+pip install -e "apps/api[dev]"
 deactivate
 ```
 
@@ -60,6 +60,15 @@ deactivate
 ```
 
 ### 3. Run Development Servers
+
+After the setup above, the convenience script builds a missing DB and runs both processes:
+
+```bash
+./scripts/dev.sh
+```
+
+Set `REBUILD_CONTENT=1 ./scripts/dev.sh` after a schema/importer change. The equivalent separate
+commands are:
 
 Start the FastAPI backend (Port `8080`):
 ```bash

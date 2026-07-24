@@ -1,5 +1,12 @@
 # Bible Reading Software — Simple Delivery Plan
 
+> [!CAUTION]
+> **Deprecated historical proposal.** This document predates the implemented architecture and is kept
+> only as design history. Its Render/PostgreSQL/admin UI/server-import workflow and Milestones 1–6
+> were not adopted. The authoritative system and M0–M8 roadmap are
+> [`00_system_design.md`](00_system_design.md), the focused design files under `plan/`, and shipped
+> behavior in [`../docs/`](../docs/).
+
 > Recommended workflow for a Bible-reading web application with a single-page frontend and a backend API. The goal is to remain simple, agent-friendly, testable, and releasable by one person or a small team.
 
 ## 1. Executive recommendation
