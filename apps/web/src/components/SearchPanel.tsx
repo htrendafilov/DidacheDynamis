@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -43,13 +43,28 @@ function Snippet({ html }: { html: string }) {
   return <>{nodes}</>;
 }
 
-export function SearchPanel({ onClose }: { onClose: () => void }) {
+export function SearchPanel({
+  mode = "fullscreen",
+  open = true,
+  onClose,
+}: {
+  mode?: "docked" | "fullscreen";
+  open?: boolean;
+  onClose: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const works = useWorks();
   const openPassage = useStore((s) => s.openPassage);
   const openCommentary = useStore((s) => s.openCommentary);
   const openDictionary = useStore((s) => s.openDictionary);
   const openBookSection = useStore((s) => s.openBookSection);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the query field when the workspace opens (the input stays mounted across collapse, so a
+  // one-time autoFocus is not enough).
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
 
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SearchSort>("relevance");
@@ -147,12 +162,14 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
     return hit.title;
   }
 
-  function open(hit: SearchHit) {
-    if (hit.kind === "bible") openPassage(hit.work_id, hit.osis, hit.chapter);
+  function openHit(hit: SearchHit) {
+    if (hit.kind === "bible") openPassage(hit.work_id, hit.osis, hit.chapter, hit.verse);
     else if (hit.kind === "commentary") openCommentary(hit.work_id, hit.osis, hit.chapter);
     else if (hit.kind === "dictionary") openDictionary(hit.work_id, hit.headword);
     else openBookSection(hit.work_id, hit.section_id);
-    onClose();
+    // Docked (desktop) stays open so several results can be read; full-screen (mobile) closes to
+    // reveal the pane the result opened in.
+    if (mode === "fullscreen") onClose();
   }
 
   // A called function (not a nested <Component/>) so the results stay part of this component's tree
@@ -165,7 +182,7 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               className={kind === "bible" ? "result" : "result result-book"}
-              onClick={() => open(hit)}
+              onClick={() => openHit(hit)}
             >
               <span aria-hidden="true">{KIND_ICON[kind]}</span>{" "}
               <span className="result-ref">{label(hit)}</span>{" "}
@@ -185,19 +202,22 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
   const visibleKinds = KIND_ORDER.filter((k) => (groups[k]?.total ?? 0) > 0);
 
   return (
-    <div className="search-panel">
+    <div className={`search-panel search-panel-${mode}`}>
+      <div className="search-workspace-header">
+        <h2>{t("search.workspace")}</h2>
+        <button type="button" onClick={onClose} aria-label={t("search.close")}>
+          ✕
+        </button>
+      </div>
       <form onSubmit={run} className="search-form">
         <input
-          autoFocus
+          ref={inputRef}
           type="search"
           value={q}
           placeholder={t("search.placeholder")}
           onChange={(e) => setQ(e.target.value)}
         />
         <button type="submit">{t("topbar.search")}</button>
-        <button type="button" onClick={onClose} aria-label="close">
-          ✕
-        </button>
       </form>
 
       {searched && (

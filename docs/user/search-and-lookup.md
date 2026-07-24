@@ -16,17 +16,23 @@ The app provides fast passage lookup, high-speed Full-Text Search (FTS5), and Tr
 
 ## Full-Text Search (FTS)
 
-Open **Search** from the top bar, enter one or more words, and submit the form. Results are grouped
-with tabs and true counts for Bible, Commentary, Dictionary, and Books. You can:
+Open **Search** from the top bar to reveal the **Search Workspace** — a drawer docked to the right of
+your panes on the desktop (drag its left edge to resize), or a full-screen view on a phone. Enter one
+or more words and submit. Results are grouped with tabs and true counts for Bible, Commentary,
+Dictionary, and Books. You can:
 
 - select one or more installed sources;
 - limit Bible/commentary results to the Old or New Testament;
 - order by relevance or canonical/source order; and
 - load results in stable 50-result pages until all matches are reachable.
 
-Clicking a result opens the appropriate pane and source. Selecting individual Bible books, quoted
-phrase syntax, search history, refinement within a result set, and the persistent Search Workspace
-remain planned.
+Clicking a result opens the appropriate pane and source. On the desktop the workspace **stays open** so
+you can open several results in a row; opening a **Bible result scrolls to and briefly highlights the
+exact verse**. Collapsing the workspace and reopening it keeps your query, filters, and results. On a
+phone, opening a result closes the full-screen search to reveal the pane.
+
+Selecting individual Bible books, quoted-phrase syntax, search history, and refinement within a result
+set remain planned (M7.4).
 
 ## Cross-References & Dictionary Lookups
 

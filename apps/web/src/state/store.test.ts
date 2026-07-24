@@ -98,6 +98,18 @@ describe("store", () => {
     });
   });
 
+  it("sets and clears a focus verse (for scroll-to + flash from search)", () => {
+    useStore.setState({ panes: [biblePane("a", "John", 3)] });
+    useStore.getState().openPassage("web", "John", 3, 16);
+    expect(useStore.getState().panes[0].focusVerse).toBe(16);
+    useStore.getState().clearFocusVerse("a");
+    expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
+    // Opening without a verse clears any stale focus verse.
+    useStore.setState({ panes: [{ ...biblePane("a", "John", 3), focusVerse: 9 }] });
+    useStore.getState().openPassage("web", "John", 3);
+    expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
+  });
+
   it("opens a book section: reuses a book pane, else adds one, else converts the last pane", () => {
     // No book pane, room available -> adds a book pane.
     useStore.getState().openBookSection("baptist1689", "chapter-1-scripture.1");
