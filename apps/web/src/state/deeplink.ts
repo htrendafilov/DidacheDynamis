@@ -3,6 +3,8 @@
 // canonical URL scheme for every pane type is planned separately (plan/linking_and_embeds.md §1);
 // this is the M6 follow-up for sharing a book section.
 
+import type { Book } from "../data/api";
+
 export interface BookDeepLink {
   workId: string;
   sectionId: string;
@@ -71,4 +73,3 @@ export function bibleDeepLinkExists(link: BibleDeepLink, books: Book[]): boolean
   const book = books.find((candidate) => candidate.osis === link.osis);
   return Boolean(book && link.chapter <= book.chapter_count);
 }
-import type { Book } from "../data/api";

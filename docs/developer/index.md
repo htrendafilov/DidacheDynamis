@@ -39,13 +39,13 @@ git lfs pull
 # Set up importer virtualenv
 python3 -m venv apps/importer/.venv
 . apps/importer/.venv/bin/activate
-pip install -e apps/importer
+pip install -e "apps/importer[dev]"
 deactivate
 
 # Set up API virtualenv
 python3 -m venv apps/api/.venv
 . apps/api/.venv/bin/activate
-pip install -e apps/api
+pip install -e "apps/api[dev]"
 deactivate
 ```
 

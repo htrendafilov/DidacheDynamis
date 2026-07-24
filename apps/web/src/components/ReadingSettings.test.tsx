@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +11,19 @@ import { TopBar } from "./TopBar";
 vi.mock("./DropboxSyncSettings", () => ({
   DropboxSyncSettings: () => <section data-testid="dropbox-settings">Dropbox</section>,
 }));
+
+function AppLanguageHarness() {
+  const uiLang = useStore((state) => state.settings.uiLang);
+  useEffect(() => {
+    void i18n.changeLanguage(uiLang);
+  }, [uiLang]);
+  return (
+    <>
+      <TopBar onToggleSearch={() => undefined} onToggleSettings={() => undefined} />
+      <ReadingSettings />
+    </>
+  );
+}
 
 describe("ReadingSettings", () => {
   beforeEach(async () => {
@@ -31,12 +46,7 @@ describe("ReadingSettings", () => {
   });
 
   it("switches visible application chrome between English and Bulgarian", async () => {
-    render(
-      <>
-        <TopBar onToggleSearch={() => undefined} onToggleSettings={() => undefined} />
-        <ReadingSettings />
-      </>,
-    );
+    render(<AppLanguageHarness />);
     expect(screen.getByRole("button", { name: "Search" })).toBeVisible();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Language" }), {

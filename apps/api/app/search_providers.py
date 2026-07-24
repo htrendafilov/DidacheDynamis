@@ -26,7 +26,8 @@ def fts_query(q: str) -> str | None:
 
 def _in(col: str, values: list[str], params: list) -> str:
     params.extend(values)
-    return " AND %s IN (%s)" % (col, ",".join("?" * len(values)))
+    placeholders = ",".join("?" * len(values))
+    return f" AND {col} IN ({placeholders})"
 
 
 def resolve_work_ids(
@@ -37,8 +38,9 @@ def resolve_work_ids(
     Returns an empty list when a language filter excludes every work of the type (→ no hits).
     """
     if languages:
+        placeholders = ",".join("?" * len(languages))
         rows = conn.execute(
-            "SELECT id FROM works WHERE type=? AND language IN (%s)" % ",".join("?" * len(languages)),
+            f"SELECT id FROM works WHERE type=? AND language IN ({placeholders})",
             [type_, *languages],
         ).fetchall()
         ids = {r[0] for r in rows}
@@ -201,11 +203,12 @@ def _book_breadcrumbs(conn, work_ids: set[str]) -> dict[tuple[str, str], str]:
     """Map (work_id, section_id) -> "Chapter › Section" breadcrumb from the section tree."""
     if not work_ids:
         return {}
+    placeholders = ",".join("?" * len(work_ids))
     tree = {
         (row["work_id"], row["section_id"]): (row["parent_id"], row["title"])
         for row in conn.execute(
             "SELECT work_id, section_id, parent_id, title FROM book_sections "
-            "WHERE work_id IN (%s)" % ",".join("?" * len(work_ids)),
+            f"WHERE work_id IN ({placeholders})",
             sorted(work_ids),
         )
     }

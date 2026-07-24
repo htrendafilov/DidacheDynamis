@@ -90,11 +90,11 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
 ```bash
 # 1) build the content DB (once)
 python3 -m venv apps/importer/.venv && . apps/importer/.venv/bin/activate
-pip install -e apps/importer
+pip install -e "apps/importer[dev]"
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 
 # 2) API on :8080
-python3 -m venv apps/api/.venv && . apps/api/.venv/bin/activate && pip install -e apps/api
+python3 -m venv apps/api/.venv && . apps/api/.venv/bin/activate && pip install -e "apps/api[dev]"
 uvicorn app.main:app --app-dir apps/api --port 8080
 
 # 3) SPA dev server on :5173 (proxies /api to :8080)

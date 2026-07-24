@@ -35,7 +35,8 @@ book_sections(work_id, section_id, parent_id, sort_order, level, title, body_jso
 
 xrefs(osis_code, chapter, verse, target_ref, votes)          -- TSK; translation-independent
 
--- Standalone contentless FTS5 tables (selected locator/sort columns shown):
+-- Ordinary FTS5 virtual tables storing indexed content directly
+-- (selected locator/sort columns shown; these do not use content='' or external content):
 bible_fts(text, work_id UNINDEXED, ref UNINDEXED, osis UNINDEXED,
           testament UNINDEXED, book_order UNINDEXED, chapter UNINDEXED, verse UNINDEXED)
 commentary_fts(text, work_id UNINDEXED, entry_id UNINDEXED, osis UNINDEXED,
@@ -110,7 +111,7 @@ apps/importer/
   cli.py                 # bibleimport <cmd> …
   pipeline.py            # explicit parse → validate → build FTS → write sqlite → report
   canonical.py           # CIR types + builders
-  validation.py          # versification alignment, missing/dup/out-of-range refs, encoding
+  validation.py          # duplicate/non-positive refs, canon/chapter checks, alignment
   formats/{usfx,sword_bible,study,genbook}.py
 ```
 
@@ -134,9 +135,9 @@ TSK-derived TSV). SWORD binaries are never parsed directly.
 apps/api/app/
   main.py            # FastAPI app, static SPA mount, routers, cache headers
   db.py              # read-only sqlite connection mgmt (mode=ro, per request) + schema guard
-  routers/           # health, works, passages, commentary, dictionary, xref, search
+  routers/           # health, works, passages, commentary, dictionary, general_books, xrefs, search
   models.py          # Pydantic CIR + response models
-  settings.py        # env config (DB path, workers, cache max-age)
+  settings.py        # API prefix + DB and built-SPA paths from environment
   pyproject.toml     # ruff, pytest, deps
 ```
 

@@ -66,7 +66,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
             body += chunk
 
         version = getattr(request.app.state, "content_version", None) or "0"
-        etag = '"' + hashlib.md5(version.encode() + body).hexdigest() + '"'  # noqa: S324
+        etag = '"' + hashlib.md5(version.encode() + body).hexdigest() + '"'
         media_type = response.headers.get("content-type", "application/json")
 
         if request.headers.get("if-none-match") == etag:

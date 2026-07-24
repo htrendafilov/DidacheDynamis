@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 # Canon-group boundary for the current Protestant 66-book canon. Defined here (the single canon
 # reference), not in the frontend or the search API, so a future canon profile changes it in one place.
 OT_MAX_ORDER = 39

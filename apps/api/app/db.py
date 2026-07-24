@@ -76,7 +76,7 @@ def database_status(path: Path | None = None) -> DatabaseStatus:
         }
     import hashlib
 
-    h = hashlib.md5()  # noqa: S324 - not security, just a cache tag
+    h = hashlib.md5()
     for r in rows:
         h.update(f"{r['id']}:{r['checksum']};".encode())
     return {

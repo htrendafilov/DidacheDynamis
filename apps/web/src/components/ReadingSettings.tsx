@@ -42,7 +42,7 @@ function Segmented<T extends string>({
 }
 
 export function ReadingSettings() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
 
@@ -56,7 +56,6 @@ export function ReadingSettings() {
           onChange={(e) => {
             const uiLang = e.target.value as UiLang;
             setSettings({ uiLang });
-            void i18n.changeLanguage(uiLang);
           }}
         >
           <option value="en">English</option>
