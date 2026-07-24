@@ -18,6 +18,7 @@ The full v1 design lives in [`plan/`](plan/):
 - [`plan/backend/backend_design.md`](plan/backend/backend_design.md)
 - [`plan/deployment/deployment_design.md`](plan/deployment/deployment_design.md)
 - [`plan/search_workspace.md`](plan/search_workspace.md) — M7 Search Workspace and M8 Strong's plan
+- [`plan/review_remediation_2026-07-24.md`](plan/review_remediation_2026-07-24.md) — triage + fix plan for the 2026-07-24 code review
 
 ## Documentation
 
