@@ -32,8 +32,9 @@ server sessions, no admin UI in v1. Full design in [`plan/`](plan/).
 
 ## Security
 
-- Imported files are untrusted: size/entropy limits, XML with DTD/external-entities/network disabled,
-  no shell interpolation, checksum + audit line.
+- Imported files are untrusted: compressed/expanded byte ceilings, ZIP entry-count/compression-ratio
+  limits, XML with DTD/external-entities/network disabled, bounded markup depth where applicable, no
+  shell interpolation, checksum + audit line.
 - No secrets in the repo. Deployment secrets live in GitHub Actions repo secrets.
 
 ## Stop-and-ask

@@ -61,6 +61,15 @@ deactivate
 
 ### 3. Run Development Servers
 
+After the setup above, the convenience script builds a missing DB and runs both processes:
+
+```bash
+./scripts/dev.sh
+```
+
+Set `REBUILD_CONTENT=1 ./scripts/dev.sh` after a schema/importer change. The equivalent separate
+commands are:
+
 Start the FastAPI backend (Port `8080`):
 ```bash
 . apps/api/.venv/bin/activate

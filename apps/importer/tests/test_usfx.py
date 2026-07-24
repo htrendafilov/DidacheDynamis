@@ -1,5 +1,8 @@
 import json
+import zipfile
 from pathlib import Path
+
+import pytest
 
 from bibleimport.formats import usfx
 from bibleimport.validation import align_versification, validate
@@ -79,3 +82,33 @@ def test_cir_is_json_serialisable():
     _, verses, _ = parse()
     for v in verses:
         json.dumps(v.cir)  # must not raise
+
+
+def test_raw_usfx_rejects_oversized_xml(tmp_path, monkeypatch):
+    source = tmp_path / "large_usfx.xml"
+    source.write_bytes(b"x" * 65)
+    monkeypatch.setattr(usfx, "MAX_EXPANDED_XML_BYTES", 64)
+
+    with pytest.raises(ValueError, match="USFX XML exceeds 64 bytes"):
+        usfx.load_usfx(source)
+
+
+def test_zip_rejects_oversized_declared_member_before_extraction(tmp_path, monkeypatch):
+    source = tmp_path / "large.zip"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("large_usfx.xml", b"x" * 65)
+    monkeypatch.setattr(usfx, "MAX_EXPANDED_XML_BYTES", 64)
+
+    with pytest.raises(ValueError, match="expanded USFX XML exceeds 64 bytes"):
+        usfx.load_usfx(source)
+
+
+def test_zip_rejects_excessive_compression_ratio(tmp_path, monkeypatch):
+    source = tmp_path / "bomb.zip"
+    xml = b"<usfx>" + (b" " * 4096) + b"</usfx>"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("bomb_usfx.xml", xml)
+    monkeypatch.setattr(usfx, "MAX_COMPRESSION_RATIO", 2)
+
+    with pytest.raises(ValueError, match="compression ratio"):
+        usfx.load_usfx(source)

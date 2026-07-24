@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from ..db import content_version
+from ..db import database_status
 
 router = APIRouter(tags=["infra"])
 
@@ -17,7 +17,6 @@ def health() -> dict:
 @router.api_route("/ready", methods=["GET", "HEAD"])
 def ready() -> JSONResponse:
     """Readiness: 200 only when content is loaded, else 503 — so a monitor on /ready
-    also catches a missing/corrupt content database, not just a down process."""
-    v = content_version()
-    payload = {"status": "ready" if v else "no-content", "content_version": v}
-    return JSONResponse(payload, status_code=200 if v else 503)
+    also catches a missing, corrupt, or schema-incompatible content database."""
+    payload = database_status()
+    return JSONResponse(payload, status_code=200 if payload["status"] == "ready" else 503)

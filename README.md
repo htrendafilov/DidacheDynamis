@@ -6,8 +6,8 @@ Bilingual, multi-pane Bible reading web app served at **bible.trendafilovi.net**
 - English (public-domain) Bible, a commentary, a dictionary, and cross-references. A Bulgarian Bible is
   deferred until rights are cleared (see [`plan/content_and_licensing.md`](plan/content_and_licensing.md)).
 - Verse-per-line or continuous layout; words of Christ off / bold / red.
-- Bilingual interface (EN/BG). Browser-side personal notes with optional Dropbox App Folder sync.
-  Full-text search.
+- Bilingual interface (Bulgarian by default, switchable to English). Browser-side personal notes with
+  optional Dropbox App Folder sync. Unified full-text search across all content types.
 
 ## Design docs
 
@@ -38,14 +38,15 @@ apps/importer/     bibleimport CLI — builds content.sqlite offline
 data/              source texts + built content.sqlite artifact
 deploy/            Dockerfile, docker-compose, Caddy vhost snippet
 plan/              design docs
-scripts/           check.sh (lint+test+build), dev.sh
+scripts/           check.sh, dev.sh, e2e-server.sh, load-smoke.py
 ```
 
 ## Architecture in one line
 
 The production server holds **no mutable state**: it serves a **read-only SQLite database** built
-offline by the importer. Personal notes are client-side (IndexedDB). This makes it trivially handle
-100+ concurrent readers and portable across hosts (move = copy one file + repoint DNS).
+offline by the importer. Personal notes are client-side (IndexedDB). This removes write contention
+and keeps the service portable (move = copy one file + repoint DNS). A deterministic concurrency test
+and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is measured per host.
 
 ## Status
 
@@ -101,6 +102,9 @@ cd apps/web && npm install && npm run dev
 ```
 
 See the milestone list in `plan/00_system_design.md`.
+
+After the virtual environments and `apps/web/node_modules` are installed, `./scripts/dev.sh` builds a
+missing content DB and starts both servers. Set `REBUILD_CONTENT=1` to force a current-schema rebuild.
 
 ## Dropbox notes sync setup
 

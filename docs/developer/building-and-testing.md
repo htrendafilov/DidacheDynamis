@@ -41,3 +41,21 @@ npm run e2e
 Playwright starts [`scripts/e2e-server.sh`](../../scripts/e2e-server.sh) through `webServer`, rebuilding
 the content database and SPA unless `E2E_REUSE=1` is set. The manual GitHub workflow is
 [`e2e.yml`](../../.github/workflows/e2e.yml).
+
+### 4. Read-concurrency load smoke
+
+Pytest includes a deterministic simultaneous-request test against the fixture database. For an actual
+local or VM capacity smoke (kept out of timing-sensitive CI), run:
+
+```bash
+./scripts/load-smoke.py --url http://127.0.0.1:8080 \
+  --concurrency 100 --requests 1000 --max-error-rate 0.01 --max-p95-ms 500
+```
+
+The command exits non-zero if more than 1% of requests fail or p95 exceeds 500 ms. Record the output
+with the host/runtime details when using it to substantiate a capacity claim.
+
+Reference local run (2026-07-24, macOS development machine, one Uvicorn process, current production
+content): 1,000 requests at concurrency 100, 0 errors, p50 203.8 ms, p95 229.0 ms, 479.3 requests/s.
+This verifies the code/read path; run it separately on the production VM after deployment to measure
+that host.

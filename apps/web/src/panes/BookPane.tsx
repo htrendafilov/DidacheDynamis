@@ -6,6 +6,7 @@ import { WorkFooter } from "../components/WorkFooter";
 import type { GeneralBookSection } from "../data/api";
 import { useGeneralBook, useWorks } from "../data/hooks";
 import { DocumentRenderer } from "../render/DocumentRenderer";
+import { MOBILE_MEDIA_QUERY } from "../responsive";
 import { useStore, type Pane } from "../state/store";
 
 function flatten(sections: GeneralBookSection[]): GeneralBookSection[] {
@@ -90,7 +91,7 @@ export function BookPane({ pane }: { pane: Pane }) {
     } else {
       contentRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
     }
-    if (window.matchMedia?.("(max-width: 640px)").matches) {
+    if (window.matchMedia?.(MOBILE_MEDIA_QUERY).matches) {
       updatePane(pane.id, { bookTocOpen: false });
     }
   };

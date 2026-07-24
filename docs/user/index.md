@@ -12,13 +12,15 @@ Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible stu
 - **Dropbox Cloud Sync**: Optional direct browser-to-Dropbox App Folder synchronization with PKCE security.
 - **Reading Customizations**: Verse-per-line vs. flowing prose, Words of Christ styling (off, bold, red), and paged vs. scrolling reader modes.
 - **Bilingual Interface**: Full support for English and Bulgarian UI text.
+- **Source Information**: Every content pane ends with an Info control for edition, license,
+  attribution, publisher/source, and (where applicable) the Bible book list.
 - **Local Notes**: The Bible API has no accounts or notes tables; personal notes stay in the browser
   unless you explicitly enable direct Dropbox sync.
 
 ## Quick Start Guide
 
 1. **Navigating Passages**: Click the book selector at the top left to pick any book and chapter (e.g. *John 3*).
-2. **Opening Panes**: Click **+ New pane** on the top right to add a 2nd or 3rd pane.
+2. **Opening Panes**: Click **+ Add pane** on the top right to add a 2nd or 3rd pane.
 3. **Changing Pane Work**: In any pane header, click the dropdown to switch between *Bible*, *Commentary*, *Dictionary*, *Notes*, or *General Books*.
 4. **Taking Notes**: Open a *Notes* pane or click a verse number to attach a personal study note.
 

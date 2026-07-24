@@ -21,8 +21,8 @@ source switcher. Each pane is bound to a **source**:
 - **General Book pane** — hierarchical table of contents + standalone reference/theology documents.
 - **Notes pane** — free / verse-attached personal notes, stored **locally in the browser**.
 
-Panes can be **verse-synced**: changing the passage in one Bible pane scrolls a linked
-commentary / second-Bible pane to the same verse. A per-session toggle controls sync.
+Panes can be passage-synced: the global Settings toggle makes book/chapter changes update every open
+Bible/commentary pane. Exact scroll position and verse highlighting are not synchronized.
 
 ### Reading options (global, persisted client-side)
 - **Verse layout:** `per-line` (each verse on its own line) vs `flowing` (continuous paragraph text
@@ -39,9 +39,9 @@ commentary / second-Bible pane to the same verse. A per-session toggle controls 
 | + dictionary + cross-references (clarified in scope) | Easton's (PD) + Treasury of Scripture Knowledge (PD) |
 | verse-per-line vs continuous | render mode over one canonical representation |
 | words of Christ bold/red | `wordsOfJesus` node flag toggled by CSS class |
-| served at bible.trendafilovi.net behind Cloudflare | Caddy vhost → container; Cloudflare orange-cloud |
-| EN/BG interface | `react-i18next`; book names localized per work |
-| cheap + good uptime | **Render Free** for easy GitHub-native deploy (recommended launch), or self-host on the idle VM; Cloudflare caching in front. Same Docker image either way — see [`deployment/deployment_design.md`](deployment/deployment_design.md) §0 |
+| served at bible.trendafilovi.net behind Cloudflare | Cloudflare Tunnel → native VM service on loopback |
+| EN/BG interface | `react-i18next`; Bulgarian default; canonical book names follow UI language |
+| cheap + good uptime | existing VM + Cloudflare Tunnel; portable Docker/GHCR path remains available |
 | editable notes | client-side IndexedDB; optional direct Dropbox App Folder sync, no app accounts |
 | full-text search | SQLite FTS5 |
 
@@ -51,7 +51,8 @@ Notes are owned by the browser (IndexedDB), with optional direct browser-to-Drop
 and content is imported **rarely by the owner**. So the production server owns **no mutable state** —
 it serves a **read-only SQLite database** built offline by a CLI importer. Consequences:
 
-1. Trivially handles **≥100 concurrent** readers (SQLite WAL read path + Cloudflare caching).
+1. Avoids server-side write contention. Simultaneous-read integration tests and the repeatable
+   100-client load smoke verify a particular build/host; capacity is measured rather than assumed.
 2. "Switch hosts" = copy one `.sqlite` file + repoint DNS — no data migration.
 3. **No admin UI, app accounts, or server sessions** in v1. Dropbox PKCE OAuth runs entirely in the
    browser and its token never reaches the production server.
@@ -66,20 +67,18 @@ Both Bibles map to one reference space at import time, so pane-sync and cross-re
 translations and languages.
 
 **Known risk — versification.** Bulgarian Bibles can differ (Psalm numbering, verse splits/bridges,
-deuterocanon). The importer **validates alignment** against the English reference and **reports**
-mismatches; it never silently renumbers. v1 assumes the supplied BG text maps to KJV-style
-versification and emits a diff report for owner review.
+deuterocanon). An appended Bible starts with no allowed differences. Expected deltas must be reviewed,
+recorded in its specification, and tied to source/base checksums; they remain visible as warnings.
+Every undeclared or disappearing delta blocks before write. The importer never silently renumbers.
 
 ## 5. Runtime
 
 ```
 Browser (SPA + notes in IndexedDB; optional direct Dropbox App Folder sync)
    │  HTTPS
-Cloudflare (CDN: immutable fingerprinted assets; HTML/API revalidate)
+Cloudflare edge + Tunnel (immutable assets; HTML/API revalidate)
    │
-Caddy (bible.trendafilovi.net → 127.0.0.1:PORT)
-   │
-Docker container: FastAPI (Gunicorn/Uvicorn) + built SPA
+Native FastAPI/Gunicorn service on 127.0.0.1:8080
    │  read-only
 content.sqlite  (built offline by the bibleimport CLI)
 ```
@@ -127,9 +126,9 @@ WEB and matches the wording embedded in the Matthew Henry edition.
 
 ## 8. Build order (milestones)
 
-1. **M0 — Repo + pipeline + deploy path.** Monorepo, GitHub repo, `ci.yml` + `deploy.yml`, GHCR
-   image, one-off VM setup, `/health` + empty SPA auto-deploying from `main`.
-2. **M1 — Content + importer.** Schema + FTS; OSIS/USFM importer; import **WEB (EN)**. Importer keeps
+1. **M0 — Repo + pipeline + deploy path.** Monorepo, GitHub repo, CI, portable GHCR workflow, VM
+   setup, and `/health`. Production deployment remains deliberately manual.
+2. **M1 — Content + importer.** Schema + FTS; USFX importer; import **WEB (EN)**. Importer keeps
    the EN↔other-translation versification-alignment validation ready for when Bulgarian is added.
 3. **M2 — Read a Bible.** Passage API + renderer; verse-per-line vs flowing; words-of-Christ;
    book/chapter selector; the pane system (supports 1–3 panes though v1 has one Bible); i18n (EN/BG
@@ -140,9 +139,9 @@ WEB and matches the wording embedded in the Matthew Henry edition.
    backup/rollback rehearsal → public beta.
 7. **M6 — General Books.** Hierarchical SWORD General Book adapter + book API/TOC pane; ship the
    public-domain 1689 Baptist Confession first. Follow with section deep links and book search.
-8. **M7 — Search Workspace.** Replace the limited overlay with cross-content search, scopes,
-   complete paginated results, canonical/relevance ordering, refinement, and local history. See
-   [`search_workspace.md`](search_workspace.md).
+8. **M7 — Search.** M7.1/M7.2 delivered cross-content providers, scopes, complete pagination, and
+   canonical/relevance ordering in the overlay. M7.3/M7.4 retain the workspace, exact-verse marker,
+   refinement, and local history. See [`search_workspace.md`](search_workspace.md).
 9. **M8 — Strong's.** After source/licensing approval, preserve lexical annotations during import
    and add structured Strong-number/lemma search through the M7 provider interface. See
    [`search_workspace.md`](search_workspace.md#10-m8-strongs-ready-design).

@@ -43,5 +43,7 @@ flowchart TD
 - **Short-Lived OAuth Session**: The Dropbox access token is kept in `sessionStorage`, not persisted in
   IndexedDB or sent to the Bible API. Like all browser storage, it is readable by JavaScript running
   on the origin, so XSS prevention and the CSP remain important controls.
-- **Untrusted File Parsing**: Source file parsers in `apps/importer` disable XML DTD processing and external entity loading (preventing XXE attacks).
+- **Untrusted File Parsing**: Source file parsers in `apps/importer` disable XML DTD/external entities,
+  bound compressed and expanded bytes, reject excessive ZIP entry counts/compression ratios, and
+  avoid shell interpolation. This applies even to owner-supplied content.
 - **Sanitized Rich-Text Rendering**: Personal notes rich-text content is sanitized before rendering to eliminate Cross-Site Scripting (XSS) risks.

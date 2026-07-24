@@ -25,6 +25,7 @@ apps/web/dist/
 # content.sqlite is a BUILD ARTIFACT rebuilt from data/sources by the importer
 # (locally and in the Docker build) — do not commit it.
 data/content.sqlite
+data/*.diagnostics.json
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

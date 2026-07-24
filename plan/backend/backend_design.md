@@ -35,48 +35,53 @@ book_sections(work_id, section_id, parent_id, sort_order, level, title, body_jso
 
 xrefs(osis_code, chapter, verse, target_ref, votes)          -- TSK; translation-independent
 
--- FTS5 (contentless external-content tables mirroring plain_text/body):
-bible_fts(text, work_id UNINDEXED, ref UNINDEXED)
-commentary_fts(text, work_id UNINDEXED, ref UNINDEXED)
-dictionary_fts(text, work_id UNINDEXED, headword UNINDEXED)
-book_fts(text, work_id UNINDEXED, section_id UNINDEXED)
+-- Standalone contentless FTS5 tables (selected locator/sort columns shown):
+bible_fts(text, work_id UNINDEXED, ref UNINDEXED, osis UNINDEXED,
+          testament UNINDEXED, book_order UNINDEXED, chapter UNINDEXED, verse UNINDEXED)
+commentary_fts(text, work_id UNINDEXED, entry_id UNINDEXED, osis UNINDEXED,
+               testament UNINDEXED, book_order UNINDEXED, chapter UNINDEXED,
+               verse_start UNINDEXED)
+dictionary_fts(text, headword_text, work_id UNINDEXED, headword UNINDEXED,
+               sort_key UNINDEXED)
+book_fts(text, title_text, work_id UNINDEXED, section_id UNINDEXED,
+         sort_order UNINDEXED)
 ```
 
 Indexes on `(work_id, osis_code, chapter)` for passage/commentary lookups; on
 `dictionary_entries(work_id, sort_key)` for prefix listing; on `xrefs(osis_code, chapter, verse)`.
+`PRAGMA user_version` carries the schema version. The API checks it at startup/readiness and returns
+`schema-outdated` rather than querying an incompatible local build.
 
 ## 3. Canonical Intermediate Representation (CIR)
 
-`nodes_json` / `body_json` store an ordered list of typed nodes — **the source format never reaches
-the client.** The importer parses OSIS/USFM/ThML; the API returns CIR; the SPA renders CIR.
+`nodes_json` / `body_json` store normalized structures — **the source format never reaches the
+client.** Bible CIR is `{"lines":[...]}`: each line records prose/poetry kind, indentation,
+paragraph-start, and text runs with an optional words-of-Jesus flag. Commentary, dictionary, and
+General Book Document CIR is `{"blocks":[...]}` with heading/paragraph/quotation blocks and optional
+emphasis/strong/superscript/scripture-reference runs. `divineName`, source-note, and generic xref
+inline nodes from the original design remain deferred.
 
-- **Block nodes:** `paragraph`, `poetryLine`, `heading`, `verse`.
-- **Inline nodes:** `text`, `wordsOfJesus`, `emphasis`, `divineName`, `note`, `xref`.
-
-The first renderer must support paragraph, poetryLine, heading, verse, text, emphasis, wordsOfJesus,
-divineName. The importer **reports** (not silently drops) unsupported constructs.
-
-Example verse `nodes_json`:
+Example Bible `nodes_json`:
 ```json
-[{"t":"verse","n":16,"children":[
-  {"t":"wordsOfJesus","children":[{"t":"text","v":"For God so loved the world…"}]}
-]}]
+{"lines":[{"kind":"p","level":1,"para_start":true,
+  "runs":[{"t":"For God so loved the world…","wj":true}]}]}
 ```
 
 ## 4. API — `/api/v1`, all GET, all cacheable
 
 ```
 GET /health, /ready
-GET /works                                   → all works + metadata + attribution
-GET /works/{id}/books                        → localized book list + chapter counts
-GET /works/{id}/passage/{osis}/{chapter}     → CIR nodes for a chapter (?verse= optional)
-GET /commentary/{id}/{osis}/{chapter}        → entries for a chapter (?verse= narrows)
-GET /dictionary/{id}/entries?prefix=&limit=  → headword list (autocomplete)
-GET /dictionary/{id}/entry/{headword}        → entry body
-GET /books                                   → General Book works
-GET /book/{id}                               → hierarchical TOC + Document CIR bodies
-GET /xref/{osis}/{chapter}/{verse}           → cross-references (+ target preview text)
-GET /search?q=&works=&lang=&limit=&offset=   → FTS5 across selected works; snippets + refs
+GET /api/v1/meta
+GET /api/v1/works
+GET /api/v1/works/{id}/books
+GET /api/v1/works/{id}/passage/{osis}/{chapter}?verses=16|1-19
+GET /api/v1/commentary/{id}/{osis}/{chapter}?verse=
+GET /api/v1/dictionary/{id}/entries?prefix=&limit=
+GET /api/v1/dictionary/{id}/entry/{headword}
+GET /api/v1/books
+GET /api/v1/book/{id}
+GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=
+GET /api/v1/search?q=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=
 ```
 
 - **Caching:** API responses use `ETag` plus
@@ -84,47 +89,51 @@ GET /search?q=&works=&lang=&limit=&offset=   → FTS5 across selected works; sni
   response or response shape across a deployment, while unchanged responses can still complete as
   `304 Not Modified`. Fingerprinted SPA assets, rather than API JSON, carry the long immutable TTL.
 - **No auth / no CSRF surface** — reading is fully public; there are no writes.
-- **Search:** FTS5 `MATCH` with `bm25()` ranking and `snippet()`/`highlight()` for context. Scope by
-  `works` and `lang`. Guard with `limit` caps + a query-length cap.
+- **Search:** provider-based FTS5 `MATCH` across Bible/commentary/dictionary/books with true counts,
+  stable pagination, `bm25()` relevance or canonical/source ordering, highlighted snippets, and
+  type/work/testament/book/language filters. Query/list/limit/offset values are capped.
 - **Pydantic** response models mirror the CIR node types; FastAPI's OpenAPI doc is the contract the
   frontend's `data/api.ts` types track.
 
 ## 5. Concurrency / ≥100 sessions
 
-Read-only SQLite, **WAL** mode, opened `mode=ro&immutable=1`, one connection per worker (or a tiny
-pool). Gunicorn with **N = 4–8 Uvicorn workers** on the 4-vCPU VM. No server-side write contention
-exists. Cloudflare serves the large fingerprinted bundles, while the lean read-only API revalidates
-responses and remains comfortably beyond 100 concurrent.
+The API opens SQLite with URI `mode=ro` and creates one short-lived connection per request. The
+offline importer checkpoints/removes WAL state before publication; production performs no writes.
+Gunicorn runs multiple Uvicorn workers on the VM. Pytest exercises simultaneous fixture-DB requests;
+`scripts/load-smoke.py` is the repeatable 100-client local/VM check with explicit error-rate and p95
+criteria. Record measured results before treating a particular host/runtime as capacity evidence.
 
 ## 6. Importer CLI (`bibleimport`)
-
-Adapter protocol (`probe` / `analyze` / `parse`) with one adapter per source format:
 
 ```
 apps/importer/
   cli.py                 # bibleimport <cmd> …
-  pipeline.py            # detect → parse → validate → build FTS → write sqlite → report
+  pipeline.py            # explicit parse → validate → build FTS → write sqlite → report
   canonical.py           # CIR types + builders
   validation.py          # versification alignment, missing/dup/out-of-range refs, encoding
-  formats/{osis,usfm,vpl,thml,sword}.py
+  formats/{usfx,sword_bible,study,genbook}.py
 ```
 
-- `osis.py`, `usfm.py` — Bibles. `study.py` — Matthew Henry + Easton's from official SWORD
-  `mod2imp -s` exports (plus CCEL ThML compatibility) and TSK-derived TSV. `genbook.py` converts
-  slash-keyed General Book `mod2imp` exports to the shared Document CIR. `vpl.py` — plain
-  verse-per-line fallback for the BG file if needed. SWORD binaries are never parsed directly.
-- **Validation** aligns EN↔BG by canonical ref and emits a diff report; publication of a misaligned
-  work is blocked with an actionable message.
-- **Untrusted-file safety:** size/entropy limits; XML parsed with DTD/external-entity/network
-  disabled; no shell interpolation; SHA-256 checksum + one audit line per import.
-- **Output:** a single `content.sqlite`, versioned by checksum, plus a diagnostics report.
+Each adapter exposes a direct `load_*` function used by the explicit CLI/pipeline build sequence;
+there is no runtime probe/analyze/plugin protocol. `usfx.py` imports WEB. `sword_bible.py`,
+`study.py`, and `genbook.py` consume official `mod2imp` exports (plus study ThML compatibility and
+TSK-derived TSV). SWORD binaries are never parsed directly.
+
+- **Validation:** expected alignment deltas live in a Bible specification and are tied to reviewed
+  source/base checksums. Expected differences are warnings; undeclared or disappearing differences
+  are errors before the append transaction. New sources start with an empty allow-list.
+- **Untrusted-file safety:** compressed/expanded byte ceilings, ZIP entry and compression-ratio
+  bounds, safe XML (no DTD/external entities/network), bounded allowed markup, and no shell
+  interpolation.
+- **Audit/output:** each import emits a structured checksum/count/result audit line.
+  `content.sqlite` plus an atomically written diagnostics JSON report are the build artifacts.
 
 ## 7. Layout
 
 ```
 apps/api/app/
   main.py            # FastAPI app, static SPA mount, routers, cache headers
-  db.py              # read-only sqlite connection mgmt (WAL, mode=ro, per-worker)
+  db.py              # read-only sqlite connection mgmt (mode=ro, per request) + schema guard
   routers/           # health, works, passages, commentary, dictionary, xref, search
   models.py          # Pydantic CIR + response models
   settings.py        # env config (DB path, workers, cache max-age)
@@ -134,7 +143,9 @@ apps/api/app/
 ## 8. Testing (pytest)
 
 - Endpoint tests against a small fixture `content.sqlite` (works/passage/commentary/dictionary/xref/search).
-- Importer tests with tiny OSIS/USFM/ThML fixtures, **including a deliberate versification-mismatch**
-  case that must be reported and block publication.
-- A read-only concurrency test issuing many parallel reads.
+- Importer tests with tiny USFX/SWORD IMP/ThML/TSV fixtures, including expected and unexpected
+  versification deltas, checksum binding, archive limits, and proof that a blocked append leaves the
+  existing DB unchanged.
+- A deterministic read-only concurrency integration test plus the separate 100-client
+  `scripts/load-smoke.py` command.
 - `scripts/check.sh` runs ruff + pytest for the backend.

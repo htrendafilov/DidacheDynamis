@@ -66,3 +66,9 @@ export function parseBibleHash(hash: string): BibleDeepLink | null {
   if (!Number.isInteger(chapter) || chapter < 1) return null;
   return { workId, osis, chapter };
 }
+
+export function bibleDeepLinkExists(link: BibleDeepLink, books: Book[]): boolean {
+  const book = books.find((candidate) => candidate.osis === link.osis);
+  return Boolean(book && link.chapter <= book.chapter_count);
+}
+import type { Book } from "../data/api";

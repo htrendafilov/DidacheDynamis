@@ -67,12 +67,37 @@ test("search finds a verse and opens it in the reader", async ({ page }) => {
   await expect(page.locator(".reader").getByText(/shepherd/i).first()).toBeVisible();
 });
 
-test("a verse number opens the cross-reference popover", async ({ page }) => {
+test("a cross-reference opens its destination in the same Bible pane", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("God so loved the world")).toBeVisible();
   await page.locator(".reader").getByRole("button", { name: "Verse 16", exact: true }).click();
-  await expect(page.locator(".verse-tools")).toBeVisible();
-  await expect(page.locator(".verse-tools").getByText("Cross-references")).toBeVisible();
+  const tools = page.locator(".verse-tools");
+  await expect(tools).toBeVisible();
+  await expect(tools.getByText("Cross-references")).toBeVisible();
+  await tools.getByRole("button", { name: /Romans 5:8/ }).click();
+
+  const pane = page.locator(".bible-pane");
+  await expect(pane.getByRole("combobox", { name: "Bible version" })).toHaveValue("web");
+  await expect(pane.getByRole("combobox", { name: "Book" })).toHaveValue("Rom");
+  await expect(pane.getByRole("combobox", { name: "Chapter" })).toHaveValue("5");
+  await expect(pane.getByText(/But God commends his own love toward us/i)).toBeVisible();
+});
+
+test("opens a validated Bible deep link", async ({ page }) => {
+  await page.goto("/#/b/web/Matt/2");
+  const pane = page.locator(".bible-pane");
+  await expect(pane.getByRole("combobox", { name: "Bible version" })).toHaveValue("web");
+  await expect(pane.getByRole("combobox", { name: "Book" })).toHaveValue("Matt");
+  await expect(pane.getByRole("combobox", { name: "Chapter" })).toHaveValue("2");
+  await expect(pane.getByText(/Jesus was born in Bethlehem/i)).toBeVisible();
+});
+
+test("rejects a Bible deep link to a missing chapter", async ({ page }) => {
+  await page.goto("/#/b/web/John/999");
+  await expect(page.getByRole("alert")).toContainText(
+    "This Bible link does not point to an available book and chapter.",
+  );
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("opens the 1689 Confession through the General Books pane", async ({ page }) => {
@@ -96,7 +121,8 @@ test("opens the 1689 Confession through the General Books pane", async ({ page }
 });
 
 test("mobile book contents closes after choosing a section", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  // Exercises the former 641–720px dead zone as well as the single-pane breakpoint.
+  await page.setViewportSize({ width: 680, height: 844 });
   await page.goto("/");
   await page.getByRole("combobox", { name: "Source" }).selectOption("book");
   const toc = page.getByRole("navigation", { name: "Table of contents" });

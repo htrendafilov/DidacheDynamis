@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { bibleHash, bookHash, parseBibleHash, parseBookHash } from "./deeplink";
+import {
+  bibleDeepLinkExists,
+  bibleHash,
+  bookHash,
+  parseBibleHash,
+  parseBookHash,
+} from "./deeplink";
 
 describe("book deep links", () => {
   it("round-trips a work id and dotted section id", () => {
@@ -48,5 +54,18 @@ describe("bible deep links", () => {
     expect(parseBibleHash("#/b/web/John/0")).toBeNull(); // chapter < 1
     expect(parseBibleHash("#/b/web/John/x")).toBeNull(); // non-numeric chapter
     expect(parseBibleHash("#/b//John/3")).toBeNull(); // empty work
+  });
+
+  it("validates the book and chapter against work metadata", () => {
+    const books = [{ osis: "John", name: "John", order: 43, chapter_count: 21 }];
+    expect(
+      bibleDeepLinkExists({ workId: "web", osis: "John", chapter: 21 }, books),
+    ).toBe(true);
+    expect(
+      bibleDeepLinkExists({ workId: "web", osis: "John", chapter: 22 }, books),
+    ).toBe(false);
+    expect(
+      bibleDeepLinkExists({ workId: "web", osis: "NotABook", chapter: 1 }, books),
+    ).toBe(false);
   });
 });

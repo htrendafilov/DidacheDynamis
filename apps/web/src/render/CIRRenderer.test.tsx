@@ -39,6 +39,14 @@ describe("CIRRenderer", () => {
     expect(container.querySelector(".vnum")).toHaveTextContent("16");
   });
 
+  it("exposes the bold words-of-Christ mode to the stylesheet", () => {
+    const { container } = render(
+      <CIRRenderer verses={johnVerse} headings={[]} layout="per-line" wordsOfChrist="bold" />,
+    );
+    expect(container.querySelector(".reader")).toHaveAttribute("data-woc", "bold");
+    expect(container.querySelector(".woj")).toHaveTextContent("For God so loved the world");
+  });
+
   it("renders poetry lines with indent levels", () => {
     const { container } = render(
       <CIRRenderer verses={psalmVerse} headings={[]} layout="per-line" wordsOfChrist="off" />,

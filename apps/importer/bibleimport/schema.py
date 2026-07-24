@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import sqlite3
 
+# Increment this whenever an API-visible schema change is made. The API keeps a matching
+# CONTENT_SCHEMA_VERSION constant and refuses to serve an incompatible database.
+SCHEMA_VERSION = 1
+
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
@@ -129,3 +133,4 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 def create_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

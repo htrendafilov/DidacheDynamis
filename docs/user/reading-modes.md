@@ -6,7 +6,9 @@ Customizing typography and presentation improves readability during scripture st
 
 ## Text Layout Options
 
-Open the **Reading Settings** menu from the top navigation bar to configure layout preferences:
+Open **Settings** from the top navigation bar to configure layout preferences. The interface defaults
+to Bulgarian and can be changed to English from the Language selector; this does not change the
+language of the installed content.
 
 ### 1. Verse-per-Line vs. Flowing Prose
 - **Verse-per-Line**: Displays each verse on a new line with prominent verse numbers. Ideal for line-by-line verse analysis and study.
@@ -23,3 +25,11 @@ For General Books, choose **Pages** or **Scrolling** in Settings. Pages shows on
 a time with Previous/Next controls; Scrolling renders every readable section in one vertical stream.
 The choice is global for all General Book panes. Bible chapters continue to use the verse layout
 setting above.
+
+### 4. Theme and Font Size
+
+- Choose the **Light** or **Dark** theme.
+- Use the **Font size** slider to scale reading text throughout the app.
+
+Settings persist in this browser. If a newer frontend build is published while the page is open, the
+app shows a non-disruptive update notice; choose **Reload** when it is safe to refresh.

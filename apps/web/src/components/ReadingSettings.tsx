@@ -42,7 +42,7 @@ function Segmented<T extends string>({
 }
 
 export function ReadingSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
 
@@ -53,7 +53,11 @@ export function ReadingSettings() {
         <select
           aria-label={t("topbar.language")}
           value={settings.uiLang}
-          onChange={(e) => setSettings({ uiLang: e.target.value as UiLang })}
+          onChange={(e) => {
+            const uiLang = e.target.value as UiLang;
+            setSettings({ uiLang });
+            void i18n.changeLanguage(uiLang);
+          }}
         >
           <option value="en">English</option>
           <option value="bg">Български</option>

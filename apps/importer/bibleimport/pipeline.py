@@ -14,6 +14,19 @@ from .formats import genbook, study, sword_bible, usfx
 from .schema import create_schema
 from .validation import Diagnostics, align_versification, validate
 
+VerseRef = tuple[str, int, int]
+
+
+@dataclass(frozen=True)
+class AlignmentExpectation:
+    """Reviewed differences between an appended Bible and its base translation."""
+
+    base_work_id: str | None = None
+    base_checksum: str | None = None
+    source_checksum: str | None = None
+    missing_in_other: frozenset[VerseRef] = frozenset()
+    missing_in_base: frozenset[VerseRef] = frozenset()
+
 
 @dataclass
 class BibleSpec:
@@ -27,6 +40,7 @@ class BibleSpec:
     source_url: str | None = None
     source_version: str | None = None
     direction: str = "ltr"
+    expected_alignment: AlignmentExpectation | None = None
 
 
 @dataclass
@@ -42,7 +56,7 @@ class BookSpec:
     direction: str = "ltr"
 
 
-def _sha256(path: Path) -> str:
+def source_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -54,7 +68,7 @@ def _combined_sha256(paths: list[Path]) -> str:
     h = hashlib.sha256()
     for path in paths:
         h.update(path.name.encode())
-        h.update(bytes.fromhex(_sha256(path)))
+        h.update(bytes.fromhex(source_sha256(path)))
     return h.hexdigest()
 
 
@@ -143,7 +157,7 @@ def build_bible(
         id=spec.work_id, type="bible", language=spec.language, title=spec.title,
         abbrev=spec.abbrev, direction=spec.direction, versification=spec.versification,
         license=spec.license, attribution=spec.attribution, source_url=spec.source_url,
-        source_version=spec.source_version, checksum=_sha256(source),
+        source_version=spec.source_version, checksum=source_sha256(source),
     )
 
     out_db.parent.mkdir(parents=True, exist_ok=True)
@@ -227,7 +241,7 @@ def append_study_content(
         ),
         source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=Easton",
         source_version="CrossWire Easton" if sword_dictionary else "CCEL ThML",
-        checksum=_sha256(dictionary_path),
+        checksum=source_sha256(dictionary_path),
     )
     tsk = WorkMeta(
         id="tsk",
@@ -244,7 +258,7 @@ def append_study_content(
         ),
         source_url="https://github.com/CrossReferences-org/bible-cross-references",
         source_version="KJV mapping",
-        checksum=_sha256(xref_path),
+        checksum=source_sha256(xref_path),
     )
 
     conn = sqlite3.connect(out_db)
@@ -359,6 +373,7 @@ def append_bible(
     diag = validate(books, verses, headings)
     if not diag.ok:
         return diag
+    source_checksum = source_sha256(source)
     meta = WorkMeta(
         id=spec.work_id,
         type="bible",
@@ -371,15 +386,32 @@ def append_bible(
         attribution=spec.attribution,
         source_url=spec.source_url,
         source_version=spec.source_version,
-        checksum=_sha256(source),
+        checksum=source_checksum,
     )
     conn = sqlite3.connect(out_db)
     try:
         conn.execute("PRAGMA foreign_keys = ON")
-        base_work = conn.execute(
-            "SELECT id FROM works WHERE type='bible' ORDER BY id LIMIT 1"
-        ).fetchone()
+        expected = spec.expected_alignment or AlignmentExpectation()
+        if expected.base_work_id:
+            base_work = conn.execute(
+                "SELECT id,checksum FROM works WHERE type='bible' AND id=?",
+                (expected.base_work_id,),
+            ).fetchone()
+        else:
+            base_work = conn.execute(
+                "SELECT id,checksum FROM works WHERE type='bible' ORDER BY rowid LIMIT 1"
+            ).fetchone()
+        if expected.source_checksum and source_checksum != expected.source_checksum:
+            diag.errors.append(
+                "source checksum does not match the reviewed alignment expectation: "
+                f"expected {expected.source_checksum}, got {source_checksum}"
+            )
         if base_work:
+            if expected.base_checksum and base_work[1] != expected.base_checksum:
+                diag.errors.append(
+                    "base Bible checksum does not match the reviewed alignment expectation: "
+                    f"expected {expected.base_checksum}, got {base_work[1]}"
+                )
             base_keys = {
                 (row[0], row[1], row[2])
                 for row in conn.execute(
@@ -389,14 +421,58 @@ def append_bible(
             }
             other_keys = {(verse.osis, verse.chapter, verse.verse) for verse in verses}
             alignment = align_versification(base_keys, other_keys)
-            for side, refs in alignment.items():
+            actual = {side: set(refs) for side, refs in alignment.items()}
+            allowed = {
+                "missing_in_other": set(expected.missing_in_other),
+                "missing_in_base": set(expected.missing_in_base),
+            }
+            unexpected = {
+                side: sorted(actual[side] - allowed[side])
+                for side in ("missing_in_other", "missing_in_base")
+            }
+            no_longer_present = {
+                side: sorted(allowed[side] - actual[side])
+                for side in ("missing_in_other", "missing_in_base")
+            }
+            diag.alignment = {
+                "base_work_id": base_work[0],
+                "base_checksum": base_work[1],
+                "source_checksum": source_checksum,
+                "actual": alignment,
+                "expected": {
+                    side: sorted(refs)
+                    for side, refs in allowed.items()
+                },
+                "unexpected": unexpected,
+                "expected_but_absent": no_longer_present,
+            }
+            for side in ("missing_in_other", "missing_in_base"):
+                refs = sorted(actual[side] & allowed[side])
                 if refs:
                     preview = ", ".join(
                         f"{osis}.{chapter}.{verse}" for osis, chapter, verse in refs[:8]
                     )
                     diag.warnings.append(
-                        f"versification {side}: {len(refs)} refs ({preview})"
+                        f"expected versification {side}: {len(refs)} refs ({preview})"
                     )
+            for side in ("missing_in_other", "missing_in_base"):
+                if unexpected[side]:
+                    diag.errors.append(
+                        f"unexpected versification {side}: {len(unexpected[side])} refs"
+                    )
+                if no_longer_present[side]:
+                    diag.errors.append(
+                        f"reviewed versification {side} changed: "
+                        f"{len(no_longer_present[side])} expected refs are now absent"
+                    )
+        elif expected.base_work_id:
+            diag.errors.append(
+                f"reviewed base Bible {expected.base_work_id!r} is not present"
+            )
+
+        # Alignment and checksum validation must finish before the write transaction begins.
+        if not diag.ok:
+            return diag
         conn.execute("BEGIN")
         _write_work(conn, meta, books, verses, headings)
         conn.commit()
@@ -439,7 +515,7 @@ def append_book(
         attribution=spec.attribution,
         source_url=spec.source_url,
         source_version=spec.source_version,
-        checksum=_sha256(source),
+        checksum=source_sha256(source),
     )
     conn = sqlite3.connect(out_db)
     try:

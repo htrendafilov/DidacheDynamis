@@ -1,14 +1,13 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **proposed**  
-Last reviewed: 2026-07-23 (revised after a code-grounded review: added §5.4 schema prerequisites,
-batched the importer changes into one rebuild, locked the grouped `/search` contract from M7.1, and
-re-sequenced M7.1/M7.2 so canonical ordering ships with the schema change it needs)
+Status: **M7.1 and M7.2 delivered; M7.3/M7.4 and M8 proposed**  
+Last reviewed: 2026-07-24
 
-This document proposes a complete search redesign for the Bible Reader. It replaces the temporary
-search overlay with a persistent search workspace, exposes the already-imported commentary,
-dictionary, and General Book indexes, makes every result reachable, and defines the extension point
-for future Strong's-number search.
+This document records the delivered unified search foundation and proposes its remaining workspace,
+history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and General Book
+indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament filters, and
+relevance/canonical ordering. Search is still a temporary overlay; the persistent workspace,
+granular book picker, history, and refine field remain M7.3/M7.4.
 
 See also:
 
@@ -19,12 +18,9 @@ See also:
 
 ## 1. Why search needs a redesign
 
-The current UI sends separate requests for Bible verses and General Book sections. The primary
-endpoint searches only `bible_fts`; the importer also builds `commentary_fts` and `dictionary_fts`,
-but no public query path uses them. Both current searches return at most 20 hits by default, expose no
-total count, and always use FTS5 relevance order. The UI consequently looks as though it has returned
-all results even when hundreds remain. For example, a relevance search for `earth` can stop after 20
-hits without ever showing Genesis 1:1.
+The original UI sent separate Bible/General Book requests, capped apparent results at 20, and did not
+query commentary/dictionary FTS. M7.1/M7.2 fixed that correctness foundation. The remaining redesign
+is about a persistent workflow, finer scopes, history, refinement, and future lexical search.
 
 The redesign must provide:
 
@@ -127,8 +123,8 @@ offer to restrict the search to Bible and commentary.
 
 ### 4.4 Language
 
-Expose language when multiple content languages are installed. It becomes particularly useful after
-a Bulgarian Bible with cleared distribution rights is imported.
+The API accepts `languages=`, but the UI deliberately does not expose it while every installed content
+work is English. Add the control only after licensed Bulgarian/multilingual content is installed.
 
 ## 5. Results experience
 
@@ -198,6 +194,9 @@ text.
 
 ### 5.4 Schema prerequisites for ordering, pagination, and weighting
 
+**Delivered in M7.1/M7.2.** The details below explain why that release required one importer/schema
+revision and full content rebuild; they are no longer outstanding prerequisites.
+
 Canonical ordering and stable pagination are **not** a pure API/UI change — they require importer and
 schema work, because the current FTS tables cannot support them as built:
 
@@ -256,6 +255,9 @@ GET /api/v1/search
     &offset=0
 ```
 
+`refine=` in this example is **aspirational M7.4** and is not accepted by the shipped endpoint.
+The other shown filter/order/pagination parameters are implemented.
+
 Comma-separated values match the current `works` convention. Validate every enum/identifier and cap
 query, refinement, list, limit, and offset sizes. All SQL values remain parameterized; the FTS query
 builder continues quoting normalized tokens rather than accepting arbitrary FTS syntax.
@@ -293,16 +295,9 @@ Each hit is a discriminated union with common fields (`kind`, `work_id`, `title`
 typed locator for a verse, commentary entry, headword, or section. Initial All queries can return a
 small per-group preview; loading more requests one `types=` value and paginates that group.
 
-**Adopt this grouped shape from M7.1, not M7.2.** The current `/search` returns a flat
-`{query, limit, offset, hits[]}`. Rather than first bolting `total`/`has_more` onto that flat shape in
-M7.1 and then replacing it with `groups[]` in M7.2 — migrating the TypeScript contract and every test
-twice — M7.1 should emit the **final grouped envelope with a single `bible` group**. Additional
-providers (commentary, dictionary, books) then appear as new entries in `groups[]` in M7.2 with no
-breaking change to the client. Keep the field set stable from the first release.
-
-The current `/search/books` endpoint can remain temporarily for compatibility, then be removed after
-the web client and tests use the unified endpoint. The flat `/search` response shape is replaced by the
-grouped envelope above as of M7.1; update `apps/web/src/data/api.ts` and `SearchPanel` in that step.
+M7.1 shipped the grouped envelope with a Bible group; M7.2 added commentary, dictionary, and books
+without breaking the TypeScript contract. The old flat response and separate `/search/books` client
+path are no longer the application contract.
 
 ## 8. Backend search providers
 
@@ -452,7 +447,10 @@ Requires a `content.sqlite` rebuild (batched schema changes, §5.4/§8). Shipped
 ### M7.3 — Search Workspace UI
 
 - Replace the overlay with the resizable desktop workspace and mobile full-screen view.
-- Add group tabs/counts, filter sheet, chips, ordering, result navigation, and retained scroll.
+- Reuse the shipped group tabs/counts, filters, ordering, and result navigation inside a filter
+  sheet/chip workflow with retained search scroll.
+- When a Bible result opens, scroll to and temporarily mark the exact verse (currently the chapter
+  opens without an exact-verse marker).
 - Keep Search open while desktop results are read.
 
 ### M7.4 — History and refinement

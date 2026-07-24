@@ -10,7 +10,7 @@ The reader supports 1 to 3 side-by-side resizable panes, allowing deep parallel 
 ## Managing Panes
 
 ### Adding & Removing Panes
-- **Adding a pane**: Click **+ New pane** in the top bar. Repeat to open up to three panes.
+- **Adding a pane**: Click **+ Add pane** in the top bar. Repeat to open up to three panes.
 - **Closing a Pane**: Click the **X** button on the right side of any pane header to remove that specific column.
 
 ### Changing Content Types

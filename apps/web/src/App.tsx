@@ -7,21 +7,27 @@ import { ReadingSettings } from "./components/ReadingSettings";
 import { SearchPanel } from "./components/SearchPanel";
 import { TopBar } from "./components/TopBar";
 import { UpdateNotice } from "./components/UpdateNotice";
+import { api } from "./data/api";
 import { useWorks } from "./data/hooks";
 import i18n from "./i18n";
 import { bookName } from "./i18n/bookNames";
 import { PaneHost } from "./panes/PaneHost";
-import { bookHash, parseBibleHash, parseBookHash } from "./state/deeplink";
+import { MOBILE_MEDIA_QUERY } from "./responsive";
+import {
+  bibleDeepLinkExists,
+  bookHash,
+  parseBibleHash,
+  parseBookHash,
+} from "./state/deeplink";
 import { useStore, type Pane } from "./state/store";
 import { installDropboxAutoSync, useDropboxSync } from "./sync/dropboxState";
 
 function useIsNarrow(): boolean {
-  const query = "(max-width: 720px)";
   const [narrow, setNarrow] = useState(
-    () => typeof window !== "undefined" && window.matchMedia(query).matches,
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE_MEDIA_QUERY).matches,
   );
   useEffect(() => {
-    const mq = window.matchMedia(query);
+    const mq = window.matchMedia(MOBILE_MEDIA_QUERY);
     const onChange = () => setNarrow(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -35,6 +41,7 @@ export default function App() {
   const settings = useStore((s) => s.settings);
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [deepLinkError, setDeepLinkError] = useState(false);
   const [activeMobile, setActiveMobile] = useState(0);
   const initializeDropbox = useDropboxSync((state) => state.initialize);
   const openBookSection = useStore((s) => s.openBookSection);
@@ -56,26 +63,56 @@ export default function App() {
   // (#/book/<work>/<section>) and Bible passages (#/b/<work>/<osis>/<chapter>, used by embed.js).
   useEffect(() => {
     if (!works) return;
+    let active = true;
+    let requestId = 0;
     const bookIds = new Set(works.filter((w) => w.type === "book").map((w) => w.id));
     const bibleIds = new Set(works.filter((w) => w.type === "bible").map((w) => w.id));
-    const apply = () => {
+    const rejectBibleLink = () => {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+      setDeepLinkError(true);
+    };
+    const apply = async () => {
+      const currentRequest = ++requestId;
       const hash = window.location.hash;
       const book = parseBookHash(hash);
       if (book && bookIds.has(book.workId)) {
+        setDeepLinkError(false);
         openBookSection(book.workId, book.sectionId);
         return;
       }
+      if (!hash.startsWith("#/b/")) return;
       const bible = parseBibleHash(hash);
-      if (bible && bibleIds.has(bible.workId)) {
+      if (!bible || !bibleIds.has(bible.workId)) {
+        rejectBibleLink();
+        return;
+      }
+      try {
+        const books = await api.books(bible.workId);
+        if (!active || currentRequest !== requestId || window.location.hash !== hash) return;
+        if (!bibleDeepLinkExists(bible, books)) {
+          rejectBibleLink();
+          return;
+        }
+        setDeepLinkError(false);
         openPassage(bible.workId, bible.osis, bible.chapter);
+      } catch {
+        // Keep the hash so a transient network failure can recover on reload.
       }
     };
+    const onHashChange = () => void apply();
     if (!didInitDeepLink.current) {
       didInitDeepLink.current = true;
-      apply();
+      void apply();
     }
-    window.addEventListener("hashchange", apply);
-    return () => window.removeEventListener("hashchange", apply);
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      active = false;
+      window.removeEventListener("hashchange", onHashChange);
+    };
   }, [works, openBookSection, openPassage]);
 
   // Mirror the first book pane's current section into the URL hash for sharing. replaceState keeps
@@ -141,6 +178,14 @@ export default function App() {
         }}
       />
       <UpdateNotice />
+      {deepLinkError && (
+        <aside className="link-error-notice" role="alert">
+          <span>{t("link.invalidBible")}</span>
+          <button type="button" onClick={() => setDeepLinkError(false)}>
+            {t("common.dismiss")}
+          </button>
+        </aside>
+      )}
 
       {showSettings && (
         <div className="overlay-panel">

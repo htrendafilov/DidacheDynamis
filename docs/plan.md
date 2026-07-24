@@ -30,7 +30,8 @@ docs/
 │   ├── search-and-lookup.md       # Passage navigation, FTS search syntax & cross-references
 │   ├── personal-notes.md         # TipTap rich text, verse anchoring, backup & PDF export
 │   ├── dropbox-sync.md           # Dropbox App Folder setup, PKCE OAuth & conflict resolution
-│   └── general-books.md          # General Books reader, 1689 Confession & TOC navigation
+│   ├── general-books.md          # General Books reader, 1689 Confession & TOC navigation
+│   └── embedding-scripture.md    # External embed.js scripture pop-ups and Bible links
 ├── developer/                    # Developer Documentation (Contributor Guide)
 │   ├── index.md                  # Developer overview & quickstart setup
 │   ├── architecture-overview.md  # Monorepo architecture & Canonical Intermediate Representation (CIR)
@@ -75,7 +76,8 @@ Target Audience: End-users reading scripture, taking notes, or using cross-refer
 
 * **`docs/user/search-and-lookup.md` — Search, Navigation & Cross-References**
   * Book/chapter navigation and current limitations around verse/direct links.
-  * Full-Text Search (FTS) behavior and current lack of UI scope filters.
+  * Unified Full-Text Search behavior: content-type tabs/counts, work/testament filters, ordering,
+    and complete 50-result pagination.
   * TSK cross-references popovers and dictionary term lookups.
 
 * **`docs/user/personal-notes.md` — Rich-Text Notes & Storage**
@@ -92,7 +94,10 @@ Target Audience: End-users reading scripture, taking notes, or using cross-refer
 
 * **`docs/user/general-books.md` — General Books & Confessions**
   * Navigating non-scriptural historical documents (e.g. 1689 Baptist Confession).
-  * Table of Contents (TOC), reading modes, and clearly marked deep-link follow-up.
+  * Table of Contents (TOC), reading modes, shipped section deep links, and scripture pop-ups.
+
+* **`docs/user/embedding-scripture.md` — Embedding Scripture Pop-ups**
+  * Marked OSIS references, `embed.js`, cross-origin API requirements, and Bible chapter links.
 
 ---
 
@@ -125,7 +130,7 @@ Target Audience: Software engineers, open-source contributors, and codebase main
   * Tech stack: Python `argparse` CLI (`bibleimport`) and dataclass-based canonical records.
   * Format adapters: USFX (`usfx.py`), SWORD Bibles (`sword_bible.py`), SWORD GenBooks (`genbook.py`), and Dictionaries/Commentaries (`study.py`).
   * Content transformation pipeline: source parsing → CIR normalization → schema validation → SQLite + FTS5 indexing.
-  * Strict versification alignment rules (mismatch reporting without silent renumbering).
+  * Checksum-bound expected versification deltas; unexpected differences block before write.
 
 * **`docs/developer/building-and-testing.md` — Build & Test Suite**
   * Single check entrypoint: [`scripts/check.sh`](../scripts/check.sh) (Ruff check, Pytest, ESLint,
@@ -191,8 +196,8 @@ During the repository review, three essential domain areas were identified that 
   * Local-first privacy boundaries: notes and Dropbox tokens bypass `apps/api`; ordinary content/search
     requests still reach the read-only API.
   * Content-Security-Policy (CSP) design: strict script/frame src boundaries, Dropbox endpoint scoping.
-  * Untrusted input handling in `apps/importer`: implemented XML/markup and size controls, plus
-    explicitly documented remaining USFX/entropy hardening work.
+  * Untrusted input handling in `apps/importer`: safe XML/markup parsing, compressed/expanded byte
+    limits, ZIP entry/ratio controls, and no shell interpolation.
 
 * **`docs/extra/troubleshooting-faq.md` — Troubleshooting & FAQ**
   * Current user issues around local storage, Dropbox re-authentication, and browser caching.
