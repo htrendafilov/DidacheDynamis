@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, type Passage } from "../data/api";
@@ -14,6 +22,75 @@ const MAX_PREVIEW_CHARS = 320;
 // Psalm 119 is 176 verses, and this fires on hover. Six verses usually exceed the character budget
 // above; when they do not, previewText marks the preview as truncated instead.
 const CHAPTER_PREVIEW_VERSES = 6;
+const POPOVER_EDGE_GAP = 8;
+
+type Rect = Pick<DOMRect, "top" | "right" | "bottom" | "left" | "width" | "height">;
+
+export interface PopoverPosition {
+  top: number;
+  left: number;
+  maxWidth: number;
+  maxHeight: number;
+  placement: "above" | "below";
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+/** Fit a popover against a visible boundary, preferring below and flipping above when needed. */
+export function calculatePopoverPosition(
+  trigger: Rect,
+  boundary: Rect,
+  popover: Rect,
+): PopoverPosition {
+  const maxWidth = Math.max(1, boundary.right - boundary.left);
+  const effectiveWidth = Math.min(popover.width, maxWidth);
+  const left = clamp(
+    trigger.left,
+    boundary.left,
+    Math.max(boundary.left, boundary.right - effectiveWidth),
+  );
+  const below = Math.max(0, boundary.bottom - trigger.bottom);
+  const above = Math.max(0, trigger.top - boundary.top);
+  const placement =
+    popover.height <= below || (popover.height > above && below >= above) ? "below" : "above";
+  const availableHeight = placement === "below" ? below : above;
+  const maxHeight = Math.max(1, availableHeight);
+  const effectiveHeight = Math.min(popover.height, maxHeight);
+  const top = placement === "below" ? trigger.bottom : trigger.top - effectiveHeight;
+
+  return { top, left, maxWidth, maxHeight, placement };
+}
+
+function visibleBoundary(trigger: HTMLElement): Rect {
+  const visualViewport = window.visualViewport;
+  const viewportLeft = visualViewport?.offsetLeft ?? 0;
+  const viewportTop = visualViewport?.offsetTop ?? 0;
+  const viewportRight = viewportLeft + (visualViewport?.width ?? window.innerWidth);
+  const viewportBottom = viewportTop + (visualViewport?.height ?? window.innerHeight);
+  const paneBody = trigger.closest<HTMLElement>(".pane-body");
+  const pane = paneBody?.getBoundingClientRect();
+  const clippedLeft = Math.max(viewportLeft, pane?.left ?? viewportLeft);
+  const clippedTop = Math.max(viewportTop, pane?.top ?? viewportTop);
+  const clippedRight = Math.min(viewportRight, pane?.right ?? viewportRight);
+  const clippedBottom = Math.min(viewportBottom, pane?.bottom ?? viewportBottom);
+  const horizontalGap = clippedRight - clippedLeft > POPOVER_EDGE_GAP * 2 ? POPOVER_EDGE_GAP : 0;
+  const verticalGap = clippedBottom - clippedTop > POPOVER_EDGE_GAP * 2 ? POPOVER_EDGE_GAP : 0;
+  const left = clippedLeft + horizontalGap;
+  const top = clippedTop + verticalGap;
+  const right = clippedRight - horizontalGap;
+  const bottom = clippedBottom - verticalGap;
+
+  return {
+    top,
+    right,
+    bottom,
+    left,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
 
 export interface ParsedScriptureRef {
   osis: string;
@@ -69,6 +146,8 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
   const [data, setData] = useState<Passage | null>(null);
   const [error, setError] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLSpanElement>(null);
   const popoverId = useId();
 
   useEffect(() => {
@@ -88,6 +167,78 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
       alive = false;
     };
   }, [open, parsed, data, error]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    const popover = popoverRef.current;
+    if (!trigger || !popover) return;
+    let frame = 0;
+
+    const position = () => {
+      frame = 0;
+      const triggerRect = trigger.getBoundingClientRect();
+      const boundary = visibleBoundary(trigger);
+      // jsdom and other non-layout renderers report zero-sized client rects. Keep the popover
+      // available to accessibility/tests there; real browsers always provide trigger geometry.
+      if (triggerRect.width === 0 && triggerRect.height === 0) {
+        popover.style.visibility = "visible";
+        return;
+      }
+      const triggerVisible =
+        triggerRect.right > boundary.left &&
+        triggerRect.left < boundary.right &&
+        triggerRect.bottom > boundary.top &&
+        triggerRect.top < boundary.bottom;
+      if (!triggerVisible) {
+        popover.style.visibility = "hidden";
+        return;
+      }
+
+      // Apply the full boundary first so width-dependent wrapping is reflected in the measured
+      // height, then choose the side and constrain the final height to the available space.
+      popover.style.maxWidth = `${boundary.width}px`;
+      popover.style.maxHeight = `${boundary.height}px`;
+      const placement = calculatePopoverPosition(
+        triggerRect,
+        boundary,
+        popover.getBoundingClientRect(),
+      );
+      popover.style.top = `${placement.top}px`;
+      popover.style.left = `${placement.left}px`;
+      popover.style.maxWidth = `${placement.maxWidth}px`;
+      popover.style.maxHeight = `${placement.maxHeight}px`;
+      popover.style.visibility = "visible";
+      popover.dataset.placement = placement.placement;
+    };
+    const schedule = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(position);
+    };
+
+    position();
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(schedule);
+    observer?.observe(trigger);
+    observer?.observe(popover);
+    const paneBody = trigger.closest<HTMLElement>(".pane-body");
+    if (paneBody) observer?.observe(paneBody);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
+      observer?.disconnect();
+    };
+  }, [open, data, error, i18n.language]);
 
   // A ref we could not parse (or an unknown book) is shown as plain text — never a dead control.
   if (!parsed) return <>{children}</>;
@@ -118,6 +269,7 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
       }}
     >
       <button
+        ref={triggerRef}
         type="button"
         className="scripture-ref"
         aria-expanded={open}
@@ -128,7 +280,14 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
         {children}
       </button>
       {open && (
-        <span id={popoverId} role="group" aria-label={label} className="scripture-ref-popover">
+        <span
+          id={popoverId}
+          ref={popoverRef}
+          role="group"
+          aria-label={label}
+          className="scripture-ref-popover"
+          style={{ visibility: "hidden" }}
+        >
           <span className="scripture-ref-popover-title">{label}</span>
           {error && <span className="muted">{t("scriptureRef.error")}</span>}
           {!error && !data && <span className="muted">{t("reader.loading")}</span>}

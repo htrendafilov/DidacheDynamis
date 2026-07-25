@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "../i18n";
 import { useStore } from "../state/store";
-import { ScriptureRef, parseScriptureRef } from "./ScriptureRef";
+import {
+  ScriptureRef,
+  calculatePopoverPosition,
+  parseScriptureRef,
+} from "./ScriptureRef";
 
 const passage = vi.fn();
 vi.mock("../data/api", () => ({ api: { passage: (...args: unknown[]) => passage(...args) } }));
@@ -41,6 +45,63 @@ describe("parseScriptureRef", () => {
   });
 });
 
+describe("calculatePopoverPosition", () => {
+  const boundary = {
+    top: 8,
+    right: 492,
+    bottom: 392,
+    left: 108,
+    width: 384,
+    height: 384,
+  };
+
+  it("shifts a preview left at the pane's right edge", () => {
+    const position = calculatePopoverPosition(
+      { top: 80, right: 490, bottom: 100, left: 460, width: 30, height: 20 },
+      boundary,
+      { top: 0, right: 220, bottom: 100, left: 0, width: 220, height: 100 },
+    );
+
+    expect(position).toMatchObject({ left: 272, top: 100, placement: "below" });
+    expect(position.left + 220).toBeLessThanOrEqual(boundary.right);
+  });
+
+  it("flips a preview above a citation near the pane footer", () => {
+    const position = calculatePopoverPosition(
+      { top: 360, right: 300, bottom: 380, left: 270, width: 30, height: 20 },
+      boundary,
+      { top: 0, right: 220, bottom: 120, left: 0, width: 220, height: 120 },
+    );
+
+    expect(position).toMatchObject({ top: 240, placement: "above" });
+    expect(position.top).toBeGreaterThanOrEqual(boundary.top);
+  });
+
+  it("constrains both dimensions in a narrow, short viewport", () => {
+    const narrow = {
+      top: 8,
+      right: 312,
+      bottom: 312,
+      left: 8,
+      width: 304,
+      height: 304,
+    };
+    const position = calculatePopoverPosition(
+      { top: 145, right: 305, bottom: 165, left: 285, width: 20, height: 20 },
+      narrow,
+      { top: 0, right: 352, bottom: 500, left: 0, width: 352, height: 500 },
+    );
+
+    expect(position).toMatchObject({
+      left: 8,
+      top: 165,
+      maxWidth: 304,
+      maxHeight: 147,
+      placement: "below",
+    });
+  });
+});
+
 describe("ScriptureRef pop-up", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -72,6 +133,81 @@ describe("ScriptureRef pop-up", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open in Bible pane" }));
     const biblePane = useStore.getState().panes.find((p) => p.type === "bible");
     expect(biblePane).toMatchObject({ osis: "John", chapter: 3 });
+  });
+
+  it("applies pane-aware coordinates near the right edge and footer", async () => {
+    passage.mockResolvedValue({
+      work_id: "web",
+      osis: "John",
+      chapter: 3,
+      verses: [{ verse: 16, lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: "Preview." }] }] }],
+      headings: [],
+    });
+    const geometry = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("pane-body")) {
+          return {
+            top: 0,
+            right: 500,
+            bottom: 400,
+            left: 100,
+            width: 400,
+            height: 400,
+          } as DOMRect;
+        }
+        if (this.classList.contains("scripture-ref")) {
+          return {
+            top: 360,
+            right: 490,
+            bottom: 380,
+            left: 460,
+            width: 30,
+            height: 20,
+          } as DOMRect;
+        }
+        if (this.classList.contains("scripture-ref-popover")) {
+          return {
+            top: 0,
+            right: 220,
+            bottom: 120,
+            left: 0,
+            width: 220,
+            height: 120,
+          } as DOMRect;
+        }
+        return {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          width: 0,
+          height: 0,
+        } as DOMRect;
+      });
+
+    try {
+      render(
+        <div className="pane-body">
+          <ScriptureRef refValue="John.3.16">John 3:16</ScriptureRef>
+        </div>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "John 3:16" }));
+      const popover = await screen.findByRole("group", { name: "John 3:16" });
+
+      await waitFor(() => {
+        expect(popover).toHaveStyle({
+          visibility: "visible",
+          top: "240px",
+          left: "272px",
+          maxWidth: "384px",
+          maxHeight: "352px",
+        });
+      });
+      expect(popover).toHaveAttribute("data-placement", "above");
+    } finally {
+      geometry.mockRestore();
+    }
   });
 
   it("previews a chapter-only ref from a bounded verse window and labels it without :1", async () => {
