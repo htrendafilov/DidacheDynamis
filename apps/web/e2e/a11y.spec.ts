@@ -40,6 +40,37 @@ test("settings + search panels have no serious accessibility violations", async 
   await page.getByRole("button", { name: "Settings" }).click();
   expect(await seriousViolations(page)).toEqual([]);
   await page.getByRole("button", { name: "Search" }).click();
+  const query = page.getByRole("searchbox", { name: "Search query" });
+  await query.fill("earth");
+  await query.press("Enter");
+  await expect(page.getByRole("tab", { name: /All/ })).toBeVisible();
+
+  const allTab = page.getByRole("tab", { name: /All/ });
+  const bibleTab = page.getByRole("tab", { name: /Bible/ });
+  await allTab.focus();
+  await expect(allTab).toBeFocused();
+  await allTab.press("ArrowRight");
+  await expect(bibleTab).toBeFocused();
+
+  const separator = page.getByRole("separator", { name: "Resize search" });
+  const initialWidth = await separator.getAttribute("aria-valuenow");
+  await separator.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(separator).not.toHaveAttribute("aria-valuenow", initialWidth ?? "");
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test("mobile populated search and filter dialog have no serious accessibility violations", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  const query = page.getByRole("searchbox", { name: "Search query" });
+  await query.fill("earth");
+  await query.press("Enter");
+  await page.getByRole("button", { name: /Filters/ }).click();
+  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
   expect(await seriousViolations(page)).toEqual([]);
 });
 

@@ -36,7 +36,9 @@ graph TD
 2. **Read-Only SQLite**: The API opens `data/content.sqlite` through SQLite's URI `mode=ro`, with one
    short-lived connection per request.
 3. **Local-First State**: Notes and verse anchors live in IndexedDB. Pane layout and reading settings
-   are persisted separately in `localStorage`. Dropbox sync remains browser-to-Dropbox.
+   are persisted separately in `localStorage`; recent/pinned search history uses its own versioned
+   `bible-search-v1` record. Dropbox sync remains browser-to-Dropbox and does not include search
+   history.
 
 ---
 

@@ -106,6 +106,36 @@ test("mobile search presents filters in a bottom sheet", async ({ page }) => {
   await expect(sheet).not.toBeVisible();
 });
 
+test("mobile Back to results restores the retained search workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  const input = page.getByRole("searchbox", { name: "Search query" });
+  await input.fill("earth");
+  await input.press("Enter");
+  await page.getByRole("tab", { name: /Bible/ }).click();
+
+  const results = page.locator(".search-results .result");
+  await expect(results.first()).toBeVisible();
+  await results.last().scrollIntoViewIfNeeded();
+  const searchPanel = page.locator(".search-panel");
+  const retainedScroll = await searchPanel.evaluate((element) => element.scrollTop);
+  await results.last().click();
+
+  const back = page.getByRole("button", { name: "Back to results" });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(input).toHaveValue("earth");
+  await expect(page.getByRole("tab", { name: /Bible/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect
+    .poll(() => searchPanel.evaluate((element) => element.scrollTop))
+    .toBe(retainedScroll);
+  await expect(results.last()).toBeFocused();
+});
+
 test("search refinement runs server-side and history restores it after reload", async ({
   page,
 }) => {

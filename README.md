@@ -78,8 +78,10 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
   matching, and per-type result navigation. ✅
 - **M7.3** — Search Workspace: a resizable docked drawer (desktop) / full-screen (mobile) that stays
   open while reading results, survives collapse, and flashes the exact verse a Bible result opens. ✅
-- **M7 (rest) planned** — granular book-picker, mobile filter sheet + chips, server-side refinement,
-  and local search history (M7.4).
+- **M7.4** — granular book picker, mobile filter sheet + chips, server-side refinement, and local
+  recent/pinned search history with complete scope restoration. ✅
+- **M7.5** — keyboard/focus behavior, screen-reader search announcements, mobile Back to results,
+  EN/BG string parity, full provider/filter/pagination tests, and current search/privacy docs. ✅
 - **M8 planned** — licensed Strong's lexical data, word-level annotations, and structured
   Strong-number/lemma search through the M7 search-provider architecture.
 - **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference

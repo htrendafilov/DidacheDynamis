@@ -41,6 +41,8 @@ export default function App() {
   const settings = useStore((s) => s.settings);
   const [showSearch, setShowSearch] = useState(false);
   const [searchEverOpened, setSearchEverOpened] = useState(false);
+  const [searchReturnAvailable, setSearchReturnAvailable] = useState(false);
+  const [restoreSearchResultFocus, setRestoreSearchResultFocus] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [deepLinkError, setDeepLinkError] = useState(false);
   const [activeMobile, setActiveMobile] = useState(0);
@@ -50,6 +52,7 @@ export default function App() {
   const setSettings = useStore((s) => s.setSettings);
   const works = useWorks();
   const didInitDeepLink = useRef(false);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const isNarrow = useIsNarrow();
 
   useEffect(() => {
@@ -170,9 +173,15 @@ export default function App() {
   return (
     <div className="app">
       <TopBar
+        searchButtonRef={searchButtonRef}
+        searchReturnAvailable={isNarrow && searchReturnAvailable && !showSearch}
         onToggleSearch={() => {
           setShowSearch((v) => {
-            if (!v) setSearchEverOpened(true);
+            if (!v) {
+              setSearchEverOpened(true);
+              setRestoreSearchResultFocus(isNarrow && searchReturnAvailable);
+              setSearchReturnAvailable(false);
+            }
             return !v;
           });
           setShowSettings(false);
@@ -260,8 +269,13 @@ export default function App() {
             onNavigate={(type) => {
               const destination = useStore.getState().panes.findIndex((pane) => pane.type === type);
               if (destination >= 0) setActiveMobile(destination);
+              if (isNarrow) setSearchReturnAvailable(true);
             }}
-            onClose={() => setShowSearch(false)}
+            onClose={() => {
+              setShowSearch(false);
+              requestAnimationFrame(() => searchButtonRef.current?.focus());
+            }}
+            restoreResultFocus={restoreSearchResultFocus}
           />
         )}
       </div>

@@ -12,6 +12,8 @@ Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible stu
 - **Dropbox Cloud Sync**: Optional direct browser-to-Dropbox App Folder synchronization with PKCE security.
 - **Reading Customizations**: Verse-per-line vs. flowing prose, Words of Christ styling (off, bold, red), and paged vs. scrolling reader modes.
 - **Bilingual Interface**: Full support for English and Bulgarian UI text.
+- **Unified Search Workspace**: Search Bible, commentary, dictionary, and books with source,
+  testament, and book filters, refinement, ordering, history, and complete paginated results.
 - **Source Information**: Every content pane ends with an Info control for edition, license,
   attribution, publisher/source, and (where applicable) the Bible book list.
 - **Local Notes**: The Bible API has no accounts or notes tables; personal notes stay in the browser
@@ -30,7 +32,7 @@ Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible stu
 
 - [Pane Management](pane-management.md) — Multi-pane layouts & mobile tabs
 - [Reading Modes](reading-modes.md) — Verse-per-line, flowing prose, and red-letter text
-- [Search & Lookup](search-and-lookup.md) — Passage navigation & cross-references
+- [Search & Lookup](search-and-lookup.md) — Unified search, history, passage navigation & cross-references
 - [Personal Notes](personal-notes.md) — Rich text, verse anchoring & PDF export
 - [Dropbox Sync](dropbox-sync.md) — App Folder sync and explicit note conflict copies
 - [General Books](general-books.md) — Reading historic confessions & documents

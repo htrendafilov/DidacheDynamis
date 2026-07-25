@@ -23,16 +23,28 @@ Dictionary, and Books. You can:
 
 - select one or more installed sources;
 - limit Bible/commentary results to the Old or New Testament;
+- select one or more individual Bible books;
 - order by relevance or canonical/source order; and
 - load results in stable 50-result pages until all matches are reachable.
+
+After the first search, **Refine these results** adds more required words and searches the complete
+server-side result set, not only the page already loaded. Active source, testament, book, and
+refinement filters appear as removable chips. **Clear all** removes those filters without deleting the
+main query. On a phone, the same controls are in the **Filters** bottom sheet.
+
+Search history is stored in this browser. Open **Search history** to rerun a recent search with its
+filters, refinement, sort order, and selected result type restored. Searches can be pinned, deleted
+individually, or cleared together. History is not synchronized through Dropbox.
 
 Clicking a result opens the appropriate pane and source. On the desktop the workspace **stays open** so
 you can open several results in a row; opening a **Bible result scrolls to and briefly highlights the
 exact verse**. Collapsing the workspace and reopening it keeps your query, filters, and results. On a
-phone, opening a result closes the full-screen search to reveal the pane.
+phone, opening a result closes the full-screen search to reveal the pane; the top bar then offers
+**Back to results**, restoring the retained query, selected tab, loaded pages, scroll position, and
+last result focus.
 
-Selecting individual Bible books, quoted-phrase syntax, search history, and refinement within a result
-set remain planned (M7.4).
+Search terms are tokenized as required words. Quoted-phrase and advanced FTS operator syntax are not
+currently supported.
 
 ## Cross-References & Dictionary Lookups
 

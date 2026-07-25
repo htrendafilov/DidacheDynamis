@@ -1,6 +1,6 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.4 delivered; M7.5 and M8 proposed**
+Status: **M7.1–M7.5 delivered; M8 proposed**
 Last reviewed: 2026-07-25
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
@@ -8,7 +8,9 @@ filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose comment
 General Book indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament
 filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace.
 M7.4 adds granular book filters, a mobile filter sheet, filter/refinement chips, local recent/pinned
-history, and server-side refinement with full state restoration.
+history, and server-side refinement with full state restoration. M7.5 completes keyboard/focus
+behavior, live announcements, mobile Back to results, cross-provider test coverage, translation
+parity, and documentation.
 
 See also:
 
@@ -474,17 +476,21 @@ Shipped:
 - React/API/Playwright coverage for filtering, refinement, history persistence/restoration, chips, and
   the mobile flow.
 
-### M7.5 — Accessibility, tests, and documentation
+### M7.5 — Accessibility, tests, and documentation — DELIVERED 2026-07-25
 
-- Keyboard navigation and visible focus for the workspace, tabs, filters, and results.
-- Screen-reader announcements for counts, loading, errors, and appended pages.
-- **EN/BG translations for all new UI strings** (`i18n/en.json` + `bg.json`): filters, group tabs,
-  history, refine, chips, and count strings such as "1–50 of N". The app is bilingual; untranslated
-  search UI is a regression.
-- API tests for every filter/order/provider and pagination stability.
-- React tests for history, refinement, scope chips, navigation, and state restoration.
-- Playwright desktop/mobile flows, including Back to results.
-- Update user, developer, privacy, and API documentation.
+Shipped:
+
+- Roving keyboard tabs; pointer/keyboard drawer resizing; visible focus; a focus-managed mobile
+  filter dialog; and retained result focus when returning from a mobile reader pane.
+- Polite screen-reader announcements for loading, totals, appended pages, and failures, with visible
+  recoverable error feedback.
+- Explicit mobile **Back to results**, preserving the mounted query, filters, selected tab, loaded
+  pages, scroll position, and last result focus.
+- EN/BG parity coverage for every `search.*` UI string.
+- API coverage across every provider for work/language/canonical filters, both order modes, stable
+  pagination, multi-type previews, and input caps; React and Playwright coverage for the M7.4/M7.5
+  interactions and populated accessibility states.
+- Updated user, frontend, API, and privacy documentation.
 
 ### M8 — Strong's
 

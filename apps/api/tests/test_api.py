@@ -330,6 +330,195 @@ def test_search_testament_and_book_filters(client):
     assert [h["ref"] for h in only_john["hits"]] == ["John.3.16"]
 
 
+def test_search_commentary_testament_and_book_filters(client):
+    nt = _group(
+        client.get(
+            "/api/v1/search",
+            params={"q": "the", "types": "commentary", "canon": "nt"},
+        ).json(),
+        "commentary",
+    )
+    assert [(h["osis"], h["chapter"]) for h in nt["hits"]] == [("John", 3)]
+    psalms = _group(
+        client.get(
+            "/api/v1/search",
+            params={"q": "the", "types": "commentary", "books": "Ps"},
+        ).json(),
+        "commentary",
+    )
+    assert [(h["osis"], h["chapter"]) for h in psalms["hits"]] == [("Ps", 23)]
+
+
+@pytest.mark.parametrize("type_", ["bible", "commentary", "dictionary", "book"])
+def test_search_language_and_work_filters_cover_every_provider(client, type_):
+    query = "a" if type_ == "dictionary" else "the"
+    english = _group(
+        client.get(
+            "/api/v1/search",
+            params={"q": query, "types": type_, "languages": "en"},
+        ).json(),
+        type_,
+    )
+    bulgarian = _group(
+        client.get(
+            "/api/v1/search",
+            params={"q": query, "types": type_, "languages": "bg"},
+        ).json(),
+        type_,
+    )
+    assert english["total"] > 0
+    assert bulgarian["total"] == 0
+
+    work_id = {
+        "bible": "web",
+        "commentary": "mhc",
+        "dictionary": "easton",
+        "book": "baptist1689",
+    }[type_]
+    excluded_work_id = {
+        "bible": "mhc",
+        "commentary": "web",
+        "dictionary": "web",
+        "book": "web",
+    }[type_]
+    matching = _group(
+        client.get(
+            "/api/v1/search",
+            params={"q": query, "types": type_, "works": work_id, "languages": "en"},
+        ).json(),
+        type_,
+    )
+    excluded = _group(
+        client.get(
+            "/api/v1/search",
+            params={
+                "q": query,
+                "types": type_,
+                "works": excluded_work_id,
+                "languages": "en",
+            },
+        ).json(),
+        type_,
+    )
+    assert matching["total"] == english["total"]
+    assert excluded["total"] == 0
+
+
+@pytest.mark.parametrize(
+    ("type_", "query", "locators"),
+    [
+        ("bible", "the", ["Ps.23.1", "John.3.16"]),
+        ("commentary", "the", [("Ps", 23, 1), ("John", 3, 16)]),
+        ("dictionary", "a", ["Grace", "Shepherd"]),
+        (
+            "book",
+            "the",
+            [
+                "chapter-1-scripture.1",
+                "chapter-1-scripture.2",
+                "chapter-2-god",
+            ],
+        ),
+    ],
+)
+@pytest.mark.parametrize("sort", ["canonical", "relevance"])
+def test_search_provider_pagination_is_stable(client, type_, query, locators, sort):
+    def locator(hit):
+        if type_ == "bible":
+            return hit["ref"]
+        if type_ == "commentary":
+            return hit["osis"], hit["chapter"], hit["entry_id"]
+        if type_ == "dictionary":
+            return hit["headword"]
+        return hit["section_id"]
+
+    full = _group(
+        client.get(
+            "/api/v1/search",
+            params={"q": query, "types": type_, "sort": sort, "limit": 100},
+        ).json(),
+        type_,
+    )
+    expected = [locator(hit) for hit in full["hits"]]
+    assert len(expected) == len(locators)
+    if sort == "canonical":
+        if type_ == "commentary":
+            assert [(h["osis"], h["chapter"], h["verse_start"]) for h in full["hits"]] == locators
+        else:
+            assert expected == locators
+
+    paged = []
+    for offset in range(full["total"]):
+        group = _group(
+            client.get(
+                "/api/v1/search",
+                params={
+                    "q": query,
+                    "types": type_,
+                    "sort": sort,
+                    "limit": 1,
+                    "offset": offset,
+                },
+            ).json(),
+            type_,
+        )
+        assert group["offset"] == offset
+        assert group["limit"] == 1
+        assert group["total"] == full["total"]
+        assert group["has_more"] is (offset + 1 < full["total"])
+        paged.extend(locator(hit) for hit in group["hits"])
+    assert paged == expected
+    assert len(set(paged)) == len(paged)
+
+
+def test_search_canonical_filters_do_not_hide_dictionary_or_books(client):
+    for type_ in ("dictionary", "book"):
+        query = "a" if type_ == "dictionary" else "the"
+        unfiltered = _group(
+            client.get("/api/v1/search", params={"q": query, "types": type_}).json(),
+            type_,
+        )
+        filtered = _group(
+            client.get(
+                "/api/v1/search",
+                params={"q": query, "types": type_, "canon": "nt", "books": "John"},
+            ).json(),
+            type_,
+        )
+        assert filtered["total"] == unfiltered["total"]
+
+
+def test_search_multi_type_selection_keeps_order_and_group_metadata(client):
+    res = client.get(
+        "/api/v1/search",
+        params={"q": "the", "types": "book,bible,book"},
+    ).json()
+    assert [group["type"] for group in res["groups"]] == ["book", "bible"]
+    assert res["total"] == sum(group["total"] for group in res["groups"])
+    for group in res["groups"]:
+        assert group["offset"] == 0
+        assert group["limit"] == 5
+        assert group["has_more"] is (len(group["hits"]) < group["total"])
+
+
+@pytest.mark.parametrize(
+    ("param", "count", "detail"),
+    [
+        ("types", 5, "too many types values"),
+        ("works", 21, "too many works values"),
+        ("books", 67, "too many books values"),
+        ("languages", 11, "too many languages values"),
+    ],
+)
+def test_search_rejects_oversized_filter_lists(client, param, count, detail):
+    response = client.get(
+        "/api/v1/search",
+        params={"q": "the", param: ",".join(f"value{i}" for i in range(count))},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == detail
+
+
 def test_search_commentary(client):
     res = client.get("/api/v1/search", params={"q": "love", "types": "commentary"}).json()
     hit = _group(res, "commentary")["hits"][0]
