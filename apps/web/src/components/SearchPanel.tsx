@@ -10,6 +10,15 @@ import {
 } from "../data/api";
 import { useBooks, useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
+import {
+  loadSearchHistory,
+  rememberSearch,
+  removeSearch,
+  saveSearchHistory,
+  toggleSearchPinned,
+  type SearchHistoryEntry,
+  type SearchState,
+} from "../search/history";
 import { useStore } from "../state/store";
 
 const KIND_ORDER: SearchKind[] = ["bible", "commentary", "dictionary", "book"];
@@ -71,12 +80,15 @@ export function SearchPanel({
   }, [open]);
 
   const [q, setQ] = useState("");
+  const [refine, setRefine] = useState("");
   const [sort, setSort] = useState<SearchSort>("relevance");
   const [canon, setCanon] = useState<"" | "ot" | "nt">("");
   const [workFilter, setWorkFilter] = useState<Set<string>>(new Set());
   const [bookFilter, setBookFilter] = useState<Set<string>>(new Set());
   const [bookQuery, setBookQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState(loadSearchHistory);
   const [selected, setSelected] = useState<Selected>("all");
   const [groups, setGroups] = useState<Partial<Record<SearchKind, GroupState>>>({});
   const [searched, setSearched] = useState(false);
@@ -106,6 +118,7 @@ export function SearchPanel({
   function buildOpts(
     over: {
       sort?: SearchSort;
+      refine?: string;
       canon?: "" | "ot" | "nt";
       works?: Set<string>;
       books?: Set<string>;
@@ -117,6 +130,7 @@ export function SearchPanel({
     const effBooks = over.books ?? bookFilter;
     return {
       sort: over.sort ?? sort,
+      refine: (over.refine ?? refine).trim() || undefined,
       canon: (over.canon ?? canon) || undefined,
       works: effWorks.size ? [...effWorks].join(",") : undefined,
       books: effBooks.size ? [...effBooks].join(",") : undefined,
@@ -125,8 +139,11 @@ export function SearchPanel({
     };
   }
 
-  async function execute(selection: Selected, o: ReturnType<typeof buildOpts>) {
-    const query = q.trim();
+  async function execute(
+    query: string,
+    selection: Selected,
+    o: ReturnType<typeof buildOpts>,
+  ) {
     if (!query) return;
     if (selection === "all") {
       const res = await api.search(query, o);
@@ -142,50 +159,160 @@ export function SearchPanel({
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
-    if (!q.trim()) return;
+    const query = q.trim();
+    if (!query) return;
     setSelected("all");
-    await execute("all", buildOpts());
+    const opts = buildOpts();
+    await execute(query, "all", opts);
     setSearched(true);
+    setHistoryOpen(false);
+    remember(snapshot({ query, selected: "all" }));
   }
 
   function selectTab(next: Selected) {
     setSelected(next);
-    if (searched) void execute(next, buildOpts());
+    if (searched) {
+      void execute(q.trim(), next, buildOpts()).then(() =>
+        remember(snapshot({ selected: next })),
+      );
+    }
   }
 
-  function applyFilter(o: ReturnType<typeof buildOpts>) {
-    if (searched) void execute(selected, o);
+  function snapshot(
+    over: {
+      query?: string;
+      refine?: string;
+      sort?: SearchSort;
+      canon?: "" | "ot" | "nt";
+      works?: Set<string>;
+      books?: Set<string>;
+      selected?: Selected;
+    } = {},
+  ): SearchState {
+    return {
+      query: over.query ?? q,
+      refine: over.refine ?? refine,
+      sort: over.sort ?? sort,
+      canon: over.canon ?? canon,
+      works: [...(over.works ?? workFilter)],
+      books: [...(over.books ?? bookFilter)],
+      selected: over.selected ?? selected,
+    };
+  }
+
+  function remember(state: SearchState) {
+    setHistory((previous) => {
+      const next = rememberSearch(previous, state);
+      saveSearchHistory(next);
+      return next;
+    });
+  }
+
+  function updateHistory(change: (entries: SearchHistoryEntry[]) => SearchHistoryEntry[]) {
+    setHistory((previous) => {
+      const next = change(previous);
+      saveSearchHistory(next);
+      return next;
+    });
+  }
+
+  function applyFilter(
+    o: ReturnType<typeof buildOpts>,
+    state: SearchState,
+  ) {
+    if (searched) {
+      void execute(state.query.trim(), state.selected, o).then(() => remember(state));
+    }
   }
 
   function applyCanon(value: "" | "ot" | "nt") {
     setCanon(value);
-    applyFilter(buildOpts({ canon: value }));
+    applyFilter(buildOpts({ canon: value }), snapshot({ canon: value }));
   }
 
   function applyWorks(next: Set<string>) {
     setWorkFilter(next);
-    applyFilter(buildOpts({ works: next }));
+    applyFilter(buildOpts({ works: next }), snapshot({ works: next }));
   }
 
   function applyBooks(next: Set<string>) {
     setBookFilter(next);
-    applyFilter(buildOpts({ books: next }));
+    applyFilter(buildOpts({ books: next }), snapshot({ books: next }));
+  }
+
+  function applyRefinement(value: string) {
+    setRefine(value);
+    applyFilter(buildOpts({ refine: value }), snapshot({ refine: value }));
+  }
+
+  function runRefinement(event: React.FormEvent) {
+    event.preventDefault();
+    applyRefinement(refine.trim());
   }
 
   function clearFilters() {
     const emptyWorks = new Set<string>();
     const emptyBooks = new Set<string>();
     setCanon("");
+    setRefine("");
     setWorkFilter(emptyWorks);
     setBookFilter(emptyBooks);
-    applyFilter(buildOpts({ canon: "", works: emptyWorks, books: emptyBooks }));
+    applyFilter(
+      buildOpts({ refine: "", canon: "", works: emptyWorks, books: emptyBooks }),
+      snapshot({ refine: "", canon: "", works: emptyWorks, books: emptyBooks }),
+    );
+  }
+
+  function clearSearch() {
+    setQ("");
+    setRefine("");
+    setSort("relevance");
+    setCanon("");
+    setWorkFilter(new Set());
+    setBookFilter(new Set());
+    setBookQuery("");
+    setSelected("all");
+    setGroups({});
+    setSearched(false);
+    setFiltersOpen(false);
+    inputRef.current?.focus();
+  }
+
+  async function restoreHistory(entry: SearchHistoryEntry) {
+    const works = new Set(entry.works);
+    const restoredBooks = new Set(entry.books);
+    setQ(entry.query);
+    setRefine(entry.refine);
+    setSort(entry.sort);
+    setCanon(entry.canon);
+    setWorkFilter(works);
+    setBookFilter(restoredBooks);
+    setSelected(entry.selected);
+    setGroups({});
+    await execute(
+      entry.query,
+      entry.selected,
+      buildOpts({
+        refine: entry.refine,
+        sort: entry.sort,
+        canon: entry.canon,
+        works,
+        books: restoredBooks,
+      }),
+    );
+    setSearched(true);
+    setHistoryOpen(false);
+    remember(entry);
   }
 
   async function loadMore(kind: SearchKind) {
     const current = groups[kind];
     if (!current) return;
     setLoadingMore(true);
-    const res = await api.search(q.trim(), buildOpts({ types: kind, offset: current.hits.length }));
+    const res = await api.search(
+      q.trim(),
+      buildOpts({ types: kind, offset: current.hits.length }),
+    );
     const g = res.groups[0];
     if (g) {
       setGroups((prev) => ({
@@ -264,7 +391,89 @@ export function SearchPanel({
         .toLocaleLowerCase(i18n.language)
         .includes(normalizedBookQuery),
     ) ?? [];
-  const activeFilterCount = (canon ? 1 : 0) + workFilter.size + bookFilter.size;
+  const activeFilterCount =
+    (refine.trim() ? 1 : 0) + (canon ? 1 : 0) + workFilter.size + bookFilter.size;
+  const pinnedHistory = history.filter((entry) => entry.pinned);
+  const recentHistory = history.filter((entry) => !entry.pinned);
+  const historyVisible = historyOpen || (!q.trim() && history.length > 0);
+
+  function historyDetails(entry: SearchHistoryEntry) {
+    const details: string[] = [
+      t(
+        entry.sort === "relevance"
+          ? "search.sortRelevance"
+          : "search.sortCanonical",
+      ),
+    ];
+    if (entry.selected !== "all") details.push(t(`source.${entry.selected}`));
+    if (entry.canon) {
+      details.push(t(entry.canon === "ot" ? "search.testOt" : "search.testNt"));
+    }
+    details.push(
+      ...entry.works.map(
+        (workId) => works?.find((work) => work.id === workId)?.abbrev ?? workId,
+      ),
+    );
+    details.push(
+      ...entry.books.map((osis) => {
+        const fallback = books?.find((book) => book.osis === osis)?.name ?? osis;
+        return bookName(osis, i18n.language, fallback);
+      }),
+    );
+    return details.join(" · ");
+  }
+
+  function historyList(entries: SearchHistoryEntry[], title: string) {
+    if (entries.length === 0) return null;
+    return (
+      <section>
+        <h4>{title}</h4>
+        <ul>
+          {entries.map((entry) => (
+            <li key={entry.id}>
+              <button
+                type="button"
+                className="search-history-rerun"
+                onClick={() => void restoreHistory(entry)}
+                aria-label={t("search.rerunSearch", { query: entry.query })}
+              >
+                <strong>{entry.query}</strong>
+                {entry.refine && (
+                  <span>{t("search.refineWith", { query: entry.refine })}</span>
+                )}
+                <small>{historyDetails(entry)}</small>
+              </button>
+              <button
+                type="button"
+                aria-label={t(
+                  entry.pinned ? "search.unpinSearch" : "search.pinSearch",
+                  { query: entry.query },
+                )}
+                title={t(entry.pinned ? "search.unpin" : "search.pin")}
+                onClick={() =>
+                  updateHistory((previous) =>
+                    toggleSearchPinned(previous, entry.id),
+                  )
+                }
+              >
+                <span aria-hidden>{entry.pinned ? "★" : "☆"}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={t("search.deleteSearch", { query: entry.query })}
+                title={t("search.delete")}
+                onClick={() =>
+                  updateHistory((previous) => removeSearch(previous, entry.id))
+                }
+              >
+                <span aria-hidden>×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   function filterControls() {
     return (
@@ -303,7 +512,10 @@ export function SearchPanel({
                 aria-pressed={sort === value}
                 onClick={() => {
                   setSort(value);
-                  applyFilter(buildOpts({ sort: value }));
+                  applyFilter(
+                    buildOpts({ sort: value }),
+                    snapshot({ sort: value }),
+                  );
                 }}
               >
                 {t(
@@ -405,7 +617,67 @@ export function SearchPanel({
           onChange={(e) => setQ(e.target.value)}
         />
         <button type="submit">{t("topbar.search")}</button>
+        {searched && (
+          <button
+            type="button"
+            aria-label={t("search.clearSearch")}
+            title={t("search.clearSearch")}
+            onClick={clearSearch}
+          >
+            <span aria-hidden>⌫</span>
+          </button>
+        )}
+        <button
+          type="button"
+          aria-expanded={historyVisible}
+          aria-label={t("search.history")}
+          title={t("search.history")}
+          onClick={() => setHistoryOpen((value) => !value)}
+        >
+          <span aria-hidden>◷</span>
+        </button>
       </form>
+
+      {historyVisible && (
+        <section className="search-history" aria-label={t("search.history")}>
+          <header>
+            <h3>{t("search.history")}</h3>
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHistory([]);
+                  saveSearchHistory([]);
+                  setHistoryOpen(false);
+                }}
+              >
+                {t("search.clearHistory")}
+              </button>
+            )}
+          </header>
+          {history.length === 0 ? (
+            <p className="muted">{t("search.noHistory")}</p>
+          ) : (
+            <>
+              {historyList(pinnedHistory, t("search.pinned"))}
+              {historyList(recentHistory, t("search.recent"))}
+            </>
+          )}
+        </section>
+      )}
+
+      {searched && (
+        <form className="search-refine-form" onSubmit={runRefinement}>
+          <input
+            type="search"
+            value={refine}
+            aria-label={t("search.refine")}
+            placeholder={t("search.refinePlaceholder")}
+            onChange={(event) => setRefine(event.target.value)}
+          />
+          <button type="submit">{t("search.applyRefine")}</button>
+        </form>
+      )}
 
       {searched && mode === "docked" && (
         <div className="search-filters">{filterControls()}</div>
@@ -426,6 +698,18 @@ export function SearchPanel({
 
       {searched && activeFilterCount > 0 && (
         <div className="search-filter-chips" aria-label={t("search.activeFilters")}>
+          {refine.trim() && (
+            <button
+              type="button"
+              onClick={() => applyRefinement("")}
+              aria-label={t("search.removeFilter", {
+                filter: t("search.refineWith", { query: refine.trim() }),
+              })}
+            >
+              {t("search.refineWith", { query: refine.trim() })}{" "}
+              <span aria-hidden>×</span>
+            </button>
+          )}
           {canon && (
             <button
               type="button"

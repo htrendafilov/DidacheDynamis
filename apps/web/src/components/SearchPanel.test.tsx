@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SearchHit } from "../data/api";
 import i18n from "../i18n";
+import { rememberSearch, saveSearchHistory } from "../search/history";
 import { useStore } from "../state/store";
 import { SearchPanel } from "./SearchPanel";
 
@@ -80,6 +81,7 @@ const allRes = () => ({
 describe("SearchPanel", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    localStorage.clear();
     search.mockReset();
     useStore.setState({
       panes: [{ id: "a", type: "bible", workId: "web", osis: "John", chapter: 3 }],
@@ -192,6 +194,89 @@ describe("SearchPanel", () => {
         "earth",
         expect.objectContaining({ books: undefined }),
       ),
+    );
+  });
+
+  it("refines the complete result set on the server and exposes a removable chip", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
+    await screen.findByRole("tab", { name: "All 5" });
+
+    const refine = screen.getByPlaceholderText("Refine these results…");
+    fireEvent.change(refine, { target: { value: "created" } });
+    fireEvent.submit(refine.closest("form")!);
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ refine: "created" }),
+      ),
+    );
+
+    const chip = screen.getByRole("button", {
+      name: "Remove filter Refine: created",
+    });
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ refine: undefined }),
+      ),
+    );
+  });
+
+  it("restores query, refinement, filters, ordering, and group from history", async () => {
+    saveSearchHistory(
+      rememberSearch(
+        [],
+        {
+          query: "earth",
+          refine: "created",
+          sort: "canonical",
+          canon: "nt",
+          works: ["web"],
+          books: ["Gen"],
+          selected: "bible",
+        },
+        10,
+      ),
+    );
+    search.mockResolvedValue({
+      query: "earth",
+      refine: "created",
+      sort: "canonical",
+      total: 1,
+      groups: [group("bible", [gen])],
+    });
+
+    render(<SearchPanel mode="docked" onClose={() => {}} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Run search earth again" }),
+    );
+
+    await waitFor(() =>
+      expect(search).toHaveBeenCalledWith("earth", {
+        sort: "canonical",
+        refine: "created",
+        canon: "nt",
+        works: "web",
+        books: "Gen",
+        types: "bible",
+        offset: 0,
+      }),
+    );
+    expect(screen.getByPlaceholderText("Search the text…")).toHaveValue("earth");
+    expect(screen.getByPlaceholderText("Refine these results…")).toHaveValue(
+      "created",
+    );
+    expect(screen.getByRole("button", { name: "New Testament" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("checkbox", { name: "Genesis" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /WEB/ })).toBeChecked();
+    expect(screen.getByRole("tab", { name: "Bible 1" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
   });
 

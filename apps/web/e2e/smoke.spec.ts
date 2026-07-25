@@ -106,6 +106,38 @@ test("mobile search presents filters in a bottom sheet", async ({ page }) => {
   await expect(sheet).not.toBeVisible();
 });
 
+test("search refinement runs server-side and history restores it after reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  const input = page.getByPlaceholder("Search the text…");
+  await input.fill("earth");
+  await input.press("Enter");
+
+  const refine = page.getByPlaceholder("Refine these results…");
+  await refine.fill("created");
+  await refine.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Remove filter Refine: created" }),
+  ).toBeVisible();
+  await expect(page.locator(".search-results").getByText(/Genesis 1:1/).first()).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Search" }).click();
+  await page
+    .getByRole("button", { name: "Run search earth again" })
+    .first()
+    .click();
+  await expect(page.getByPlaceholder("Search the text…")).toHaveValue("earth");
+  await expect(page.getByPlaceholder("Refine these results…")).toHaveValue(
+    "created",
+  );
+  await expect(
+    page.getByRole("button", { name: "Remove filter Refine: created" }),
+  ).toBeVisible();
+});
+
 test("a cross-reference opens its destination in the same Bible pane", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("God so loved the world")).toBeVisible();
