@@ -375,6 +375,12 @@ def test_search_language_and_work_filters_cover_every_provider(client, type_):
         "dictionary": "easton",
         "book": "baptist1689",
     }[type_]
+    excluded_work_id = {
+        "bible": "mhc",
+        "commentary": "web",
+        "dictionary": "web",
+        "book": "web",
+    }[type_]
     matching = _group(
         client.get(
             "/api/v1/search",
@@ -385,9 +391,12 @@ def test_search_language_and_work_filters_cover_every_provider(client, type_):
     excluded = _group(
         client.get(
             "/api/v1/search",
-            params={"q": query, "types": type_, "works": "web", "languages": "en"}
-            if type_ != "bible"
-            else {"q": query, "types": type_, "works": "mhc", "languages": "en"},
+            params={
+                "q": query,
+                "types": type_,
+                "works": excluded_work_id,
+                "languages": "en",
+            },
         ).json(),
         type_,
     )

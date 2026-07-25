@@ -46,9 +46,11 @@ test("settings + search panels have no serious accessibility violations", async 
   await expect(page.getByRole("tab", { name: /All/ })).toBeVisible();
 
   const allTab = page.getByRole("tab", { name: /All/ });
+  const bibleTab = page.getByRole("tab", { name: /Bible/ });
   await allTab.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: /Bible/ })).toBeFocused();
+  await expect(allTab).toBeFocused();
+  await allTab.press("ArrowRight");
+  await expect(bibleTab).toBeFocused();
 
   const separator = page.getByRole("separator", { name: "Resize search" });
   const initialWidth = await separator.getAttribute("aria-valuenow");

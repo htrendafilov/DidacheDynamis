@@ -47,7 +47,10 @@ function Snippet({ html }: { html: string }) {
   parts.forEach((part, i) => {
     if (part === "<b>") bold = true;
     else if (part === "</b>") bold = false;
-    else if (part) nodes.push(bold ? <b key={i}>{part}</b> : <Fragment key={i}>{part}</Fragment>);
+    else if (part)
+      nodes.push(
+        bold ? <b key={i}>{part}</b> : <Fragment key={i}>{part}</Fragment>,
+      );
   });
   return <>{nodes}</>;
 }
@@ -104,8 +107,11 @@ export function SearchPanel({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState(loadSearchHistory);
   const [selected, setSelected] = useState<Selected>("all");
-  const [groups, setGroups] = useState<Partial<Record<SearchKind, GroupState>>>({});
+  const [groups, setGroups] = useState<Partial<Record<SearchKind, GroupState>>>(
+    {},
+  );
   const [searched, setSearched] = useState(false);
+  const [tabsInitialized, setTabsInitialized] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
@@ -130,25 +136,33 @@ export function SearchPanel({
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
-      const focusable = [...dialog.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), input:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
-      )].filter(
+      const focusable = [
+        ...dialog.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter(
         (element) =>
-          element.tagName === "SUMMARY" || !element.closest("details:not([open])"),
+          element.tagName === "SUMMARY" ||
+          !element.closest("details:not([open])"),
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      const active = document.activeElement;
+      if (!dialog.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && active === last) {
         event.preventDefault();
         first.focus();
       }
     };
-    window.addEventListener("keydown", handleKeys);
-    return () => window.removeEventListener("keydown", handleKeys);
+    // Capture before the drawer's own modal trap and before the browser advances focus.
+    window.addEventListener("keydown", handleKeys, true);
+    return () => window.removeEventListener("keydown", handleKeys, true);
   }, [filtersOpen]);
 
   const merge = (group: SearchGroup): GroupState => ({
@@ -201,13 +215,19 @@ export function SearchPanel({
         const map: Partial<Record<SearchKind, GroupState>> = {};
         res.groups.forEach((g) => (map[g.type] = merge(g)));
         setGroups(map);
+        setTabsInitialized(true);
         setAnnouncement(t("search.resultsLoaded", { total: res.total }));
       } else {
-        const res = await api.search(query, { ...o, types: selection, offset: o.offset ?? 0 });
+        const res = await api.search(query, {
+          ...o,
+          types: selection,
+          offset: o.offset ?? 0,
+        });
         if (currentRequest !== requestId.current) return false;
         const g = res.groups[0];
         if (g) {
           setGroups((prev) => ({ ...prev, [selection]: merge(g) }));
+          setTabsInitialized(true);
           setAnnouncement(t("search.resultsLoaded", { total: g.total }));
         }
       }
@@ -228,6 +248,7 @@ export function SearchPanel({
     if (!query) return;
     setSelected("all");
     setSearched(true);
+    setTabsInitialized(false);
     setGroups({});
     const opts = buildOpts();
     if (await execute(query, "all", opts)) {
@@ -275,7 +296,9 @@ export function SearchPanel({
     });
   }
 
-  function updateHistory(change: (entries: SearchHistoryEntry[]) => SearchHistoryEntry[]) {
+  function updateHistory(
+    change: (entries: SearchHistoryEntry[]) => SearchHistoryEntry[],
+  ) {
     setHistory((previous) => {
       const next = change(previous);
       saveSearchHistory(next);
@@ -283,10 +306,7 @@ export function SearchPanel({
     });
   }
 
-  function applyFilter(
-    o: ReturnType<typeof buildOpts>,
-    state: SearchState,
-  ) {
+  function applyFilter(o: ReturnType<typeof buildOpts>, state: SearchState) {
     if (searched) {
       setGroups({});
       void execute(state.query.trim(), state.selected, o).then((ok) => {
@@ -328,7 +348,12 @@ export function SearchPanel({
     setWorkFilter(emptyWorks);
     setBookFilter(emptyBooks);
     applyFilter(
-      buildOpts({ refine: "", canon: "", works: emptyWorks, books: emptyBooks }),
+      buildOpts({
+        refine: "",
+        canon: "",
+        works: emptyWorks,
+        books: emptyBooks,
+      }),
       snapshot({ refine: "", canon: "", works: emptyWorks, books: emptyBooks }),
     );
   }
@@ -345,6 +370,7 @@ export function SearchPanel({
     setSelected("all");
     setGroups({});
     setSearched(false);
+    setTabsInitialized(false);
     setLoading(false);
     setLoadingMore(false);
     setError(false);
@@ -363,6 +389,7 @@ export function SearchPanel({
     setWorkFilter(works);
     setBookFilter(restoredBooks);
     setSelected(entry.selected);
+    setTabsInitialized(false);
     setGroups({});
     const ok = await execute(
       entry.query,
@@ -399,7 +426,11 @@ export function SearchPanel({
       if (g) {
         setGroups((prev) => ({
           ...prev,
-          [kind]: { total: g.total, hits: [...current.hits, ...g.hits], hasMore: g.has_more },
+          [kind]: {
+            total: g.total,
+            hits: [...current.hits, ...g.hits],
+            hasMore: g.has_more,
+          },
         }));
         setAnnouncement(
           t("search.resultsAppended", {
@@ -418,7 +449,10 @@ export function SearchPanel({
     }
   }
 
-  const grandTotal = KIND_ORDER.reduce((sum, k) => sum + (groups[k]?.total ?? 0), 0);
+  const grandTotal = KIND_ORDER.reduce(
+    (sum, k) => sum + (groups[k]?.total ?? 0),
+    0,
+  );
   const nothingFound = searched && !error && grandTotal === 0;
 
   function label(hit: SearchHit): string {
@@ -433,9 +467,12 @@ export function SearchPanel({
 
   function openHit(hit: SearchHit, button: HTMLButtonElement) {
     lastResultButtonRef.current = button;
-    if (hit.kind === "bible") openPassage(hit.work_id, hit.osis, hit.chapter, hit.verse);
-    else if (hit.kind === "commentary") openCommentary(hit.work_id, hit.osis, hit.chapter);
-    else if (hit.kind === "dictionary") openDictionary(hit.work_id, hit.headword);
+    if (hit.kind === "bible")
+      openPassage(hit.work_id, hit.osis, hit.chapter, hit.verse);
+    else if (hit.kind === "commentary")
+      openCommentary(hit.work_id, hit.osis, hit.chapter);
+    else if (hit.kind === "dictionary")
+      openDictionary(hit.work_id, hit.headword);
     else openBookSection(hit.work_id, hit.section_id);
     // Zustand actions are synchronous, so the destination pane exists before the shell selects it.
     onNavigate?.(hit.kind);
@@ -450,7 +487,9 @@ export function SearchPanel({
     return (
       <ul className="search-results">
         {hits.map((hit) => (
-          <li key={`${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`}>
+          <li
+            key={`${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`}
+          >
             <button
               type="button"
               className={kind === "bible" ? "result" : "result result-book"}
@@ -459,7 +498,8 @@ export function SearchPanel({
               <span aria-hidden="true">{KIND_ICON[kind]}</span>{" "}
               <span className="result-ref">{label(hit)}</span>{" "}
               <span className="result-version">
-                {works?.find((w) => w.id === hit.work_id)?.abbrev ?? hit.work_id.toUpperCase()}
+                {works?.find((w) => w.id === hit.work_id)?.abbrev ??
+                  hit.work_id.toUpperCase()}
               </span>{" "}
               <span className="result-snippet">
                 <Snippet html={hit.snippet} />
@@ -472,8 +512,12 @@ export function SearchPanel({
   }
 
   const visibleKinds = KIND_ORDER.filter(
-    (kind) => (groups[kind]?.total ?? 0) > 0 || (selected === kind && groups[kind] !== undefined),
+    (kind) => (groups[kind]?.total ?? 0) > 0 || selected === kind,
   );
+  const showTabs =
+    searched &&
+    tabsInitialized &&
+    (selected === "all" || visibleKinds.length > 0);
   const selectedWorks = works?.filter((work) => workFilter.has(work.id)) ?? [];
   const selectedBooks =
     books
@@ -490,7 +534,10 @@ export function SearchPanel({
         .includes(normalizedBookQuery),
     ) ?? [];
   const activeFilterCount =
-    (refine.trim() ? 1 : 0) + (canon ? 1 : 0) + workFilter.size + bookFilter.size;
+    (refine.trim() ? 1 : 0) +
+    (canon ? 1 : 0) +
+    workFilter.size +
+    bookFilter.size;
   const pinnedHistory = history.filter((entry) => entry.pinned);
   const recentHistory = history.filter((entry) => !entry.pinned);
   const historyVisible = historyOpen || (!q.trim() && history.length > 0);
@@ -500,19 +547,38 @@ export function SearchPanel({
     requestAnimationFrame(() => filterButtonRef.current?.focus());
   }
 
-  function onTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, current: Selected) {
-    const tabs: Selected[] = ["all", ...visibleKinds];
+  function onTabKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    const target = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "button[data-search-tab]",
+    );
+    if (!target || !event.currentTarget.contains(target)) return;
+    const current = target.dataset.searchTab as Selected;
+    // Derive the roving order from the currently mounted tabs. During an
+    // in-flight request, React state can already describe the next result set
+    // while the previous tab DOM is still committed.
+    const tabs = [
+      ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+        "button[data-search-tab]",
+      ),
+    ].map((tab) => tab.dataset.searchTab as Selected);
     const index = tabs.indexOf(current);
+    if (index < 0) return;
     let nextIndex = index;
     if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
-    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "ArrowLeft")
+      nextIndex = (index - 1 + tabs.length) % tabs.length;
     else if (event.key === "Home") nextIndex = 0;
     else if (event.key === "End") nextIndex = tabs.length - 1;
     else return;
     event.preventDefault();
     const next = tabs[nextIndex];
+    const nextTab = tabRefs.current.get(next);
+    if (!nextTab?.isConnected) return;
     selectTab(next);
-    requestAnimationFrame(() => tabRefs.current.get(next)?.focus());
+    requestAnimationFrame(() => {
+      const tab = tabRefs.current.get(next);
+      if (tab?.isConnected) tab.focus();
+    });
   }
 
   function historyDetails(entry: SearchHistoryEntry) {
@@ -534,7 +600,8 @@ export function SearchPanel({
     );
     details.push(
       ...entry.books.map((osis) => {
-        const fallback = books?.find((book) => book.osis === osis)?.name ?? osis;
+        const fallback =
+          books?.find((book) => book.osis === osis)?.name ?? osis;
         return bookName(osis, i18n.language, fallback);
       }),
     );
@@ -597,8 +664,14 @@ export function SearchPanel({
     return (
       <div className="search-filter-controls">
         <div className="search-filter-section">
-          <span className="search-filter-label">{t("search.testamentLabel")}</span>
-          <div className="search-sort" role="group" aria-label={t("search.testamentLabel")}>
+          <span className="search-filter-label">
+            {t("search.testamentLabel")}
+          </span>
+          <div
+            className="search-sort"
+            role="group"
+            aria-label={t("search.testamentLabel")}
+          >
             {(["", "ot", "nt"] as const).map((value) => (
               <button
                 key={value || "all"}
@@ -621,7 +694,11 @@ export function SearchPanel({
 
         <div className="search-filter-section">
           <span className="search-filter-label">{t("search.sortLabel")}</span>
-          <div className="search-sort" role="group" aria-label={t("search.sortLabel")}>
+          <div
+            className="search-sort"
+            role="group"
+            aria-label={t("search.sortLabel")}
+          >
             {(["relevance", "canonical"] as const).map((value) => (
               <button
                 key={value}
@@ -688,7 +765,11 @@ export function SearchPanel({
                 placeholder={t("search.findBook")}
                 onChange={(event) => setBookQuery(event.target.value)}
               />
-              <div className="search-book-list" role="group" aria-label={t("search.books")}>
+              <div
+                className="search-book-list"
+                role="group"
+                aria-label={t("search.books")}
+              >
                 {visibleBooks.map((book) => {
                   const label = bookName(book.osis, i18n.language, book.name);
                   return (
@@ -720,7 +801,12 @@ export function SearchPanel({
 
   return (
     <>
-      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {announcement}
       </div>
       <div
@@ -728,311 +814,328 @@ export function SearchPanel({
         aria-busy={loading || loadingMore}
       >
         <div className="search-workspace-header">
-        <h2>{t("search.workspace")}</h2>
-        <button type="button" onClick={onClose} aria-label={t("search.close")}>
-          ✕
-        </button>
-      </div>
-      <form onSubmit={run} className="search-form">
-        <input
-          ref={inputRef}
-          type="search"
-          value={q}
-          aria-label={t("search.query")}
-          placeholder={t("search.placeholder")}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <button type="submit">{t("topbar.search")}</button>
-        {searched && (
+          <h2>{t("search.workspace")}</h2>
           <button
             type="button"
-            aria-label={t("search.clearSearch")}
-            title={t("search.clearSearch")}
-            onClick={clearSearch}
+            onClick={onClose}
+            aria-label={t("search.close")}
           >
-            <span aria-hidden>⌫</span>
+            ✕
           </button>
-        )}
-        <button
-          type="button"
-          aria-expanded={historyVisible}
-          aria-label={t("search.history")}
-          title={t("search.history")}
-          onClick={() => setHistoryOpen((value) => !value)}
-        >
-          <span aria-hidden>◷</span>
-        </button>
-      </form>
+        </div>
+        <form onSubmit={run} className="search-form">
+          <input
+            ref={inputRef}
+            type="search"
+            value={q}
+            aria-label={t("search.query")}
+            placeholder={t("search.placeholder")}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <button type="submit">{t("topbar.search")}</button>
+          {searched && (
+            <button
+              type="button"
+              aria-label={t("search.clearSearch")}
+              title={t("search.clearSearch")}
+              onClick={clearSearch}
+            >
+              <span aria-hidden>⌫</span>
+            </button>
+          )}
+          <button
+            type="button"
+            aria-expanded={historyVisible}
+            aria-label={t("search.history")}
+            title={t("search.history")}
+            onClick={() => setHistoryOpen((value) => !value)}
+          >
+            <span aria-hidden>◷</span>
+          </button>
+        </form>
 
-      {historyVisible && (
-        <section className="search-history" aria-label={t("search.history")}>
-          <header>
-            <h3>{t("search.history")}</h3>
-            {history.length > 0 && (
+        {historyVisible && (
+          <section className="search-history" aria-label={t("search.history")}>
+            <header>
+              <h3>{t("search.history")}</h3>
+              {history.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistory([]);
+                    saveSearchHistory([]);
+                    setHistoryOpen(false);
+                  }}
+                >
+                  {t("search.clearHistory")}
+                </button>
+              )}
+            </header>
+            {history.length === 0 ? (
+              <p className="muted">{t("search.noHistory")}</p>
+            ) : (
+              <>
+                {historyList(pinnedHistory, t("search.pinned"))}
+                {historyList(recentHistory, t("search.recent"))}
+              </>
+            )}
+          </section>
+        )}
+
+        {searched && (
+          <form className="search-refine-form" onSubmit={runRefinement}>
+            <input
+              type="search"
+              value={refine}
+              aria-label={t("search.refine")}
+              placeholder={t("search.refinePlaceholder")}
+              onChange={(event) => setRefine(event.target.value)}
+            />
+            <button type="submit">{t("search.applyRefine")}</button>
+          </form>
+        )}
+
+        {searched && mode === "docked" && (
+          <div className="search-filters">{filterControls()}</div>
+        )}
+
+        {searched && mode === "fullscreen" && (
+          <div className="search-filter-toolbar">
+            <button
+              ref={filterButtonRef}
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-controls="search-filter-sheet"
+              onClick={() => setFiltersOpen(true)}
+            >
+              ☷ {t("search.filters")}
+              {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </button>
+          </div>
+        )}
+
+        {searched && activeFilterCount > 0 && (
+          <div
+            className="search-filter-chips"
+            aria-label={t("search.activeFilters")}
+          >
+            {refine.trim() && (
               <button
                 type="button"
-                onClick={() => {
-                  setHistory([]);
-                  saveSearchHistory([]);
-                  setHistoryOpen(false);
-                }}
+                onClick={() => applyRefinement("")}
+                aria-label={t("search.removeFilter", {
+                  filter: t("search.refineWith", { query: refine.trim() }),
+                })}
               >
-                {t("search.clearHistory")}
+                {t("search.refineWith", { query: refine.trim() })}{" "}
+                <span aria-hidden>×</span>
               </button>
             )}
-          </header>
-          {history.length === 0 ? (
-            <p className="muted">{t("search.noHistory")}</p>
-          ) : (
-            <>
-              {historyList(pinnedHistory, t("search.pinned"))}
-              {historyList(recentHistory, t("search.recent"))}
-            </>
-          )}
-        </section>
-      )}
-
-      {searched && (
-        <form className="search-refine-form" onSubmit={runRefinement}>
-          <input
-            type="search"
-            value={refine}
-            aria-label={t("search.refine")}
-            placeholder={t("search.refinePlaceholder")}
-            onChange={(event) => setRefine(event.target.value)}
-          />
-          <button type="submit">{t("search.applyRefine")}</button>
-        </form>
-      )}
-
-      {searched && mode === "docked" && (
-        <div className="search-filters">{filterControls()}</div>
-      )}
-
-      {searched && mode === "fullscreen" && (
-        <div className="search-filter-toolbar">
-          <button
-            ref={filterButtonRef}
-            type="button"
-            aria-expanded={filtersOpen}
-            aria-controls="search-filter-sheet"
-            onClick={() => setFiltersOpen(true)}
-          >
-            ☷ {t("search.filters")}
-            {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-          </button>
-        </div>
-      )}
-
-      {searched && activeFilterCount > 0 && (
-        <div className="search-filter-chips" aria-label={t("search.activeFilters")}>
-          {refine.trim() && (
-            <button
-              type="button"
-              onClick={() => applyRefinement("")}
-              aria-label={t("search.removeFilter", {
-                filter: t("search.refineWith", { query: refine.trim() }),
-              })}
-            >
-              {t("search.refineWith", { query: refine.trim() })}{" "}
-              <span aria-hidden>×</span>
-            </button>
-          )}
-          {canon && (
-            <button
-              type="button"
-              onClick={() => applyCanon("")}
-              aria-label={t("search.removeFilter", {
-                filter: t(canon === "ot" ? "search.testOt" : "search.testNt"),
-              })}
-            >
-              {t(canon === "ot" ? "search.testOt" : "search.testNt")} <span aria-hidden>×</span>
-            </button>
-          )}
-          {selectedWorks.map((work) => (
-            <button
-              type="button"
-              key={work.id}
-              onClick={() => {
-                const next = new Set(workFilter);
-                next.delete(work.id);
-                applyWorks(next);
-              }}
-              aria-label={t("search.removeFilter", { filter: work.abbrev })}
-            >
-              {work.abbrev} <span aria-hidden>×</span>
-            </button>
-          ))}
-          {selectedBooks.map((book) => (
-            <button
-              type="button"
-              key={book.osis}
-              onClick={() => {
-                const next = new Set(bookFilter);
-                next.delete(book.osis);
-                applyBooks(next);
-              }}
-              aria-label={t("search.removeFilter", { filter: book.label })}
-            >
-              {book.label} <span aria-hidden>×</span>
-            </button>
-          ))}
-          <button type="button" className="search-clear-filters" onClick={clearFilters}>
-            {t("search.clearFilters")}
-          </button>
-        </div>
-      )}
-
-      {searched && mode === "fullscreen" && filtersOpen && (
-        <>
-          <button
-            type="button"
-            className="search-filter-sheet-scrim"
-            tabIndex={-1}
-            aria-hidden="true"
-            onClick={closeFilters}
-          />
-          <section
-            id="search-filter-sheet"
-            ref={filterDialogRef}
-            className="search-filter-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t("search.filters")}
-          >
-            <header>
-              <h3>{t("search.filters")}</h3>
+            {canon && (
               <button
-                ref={filterCloseRef}
                 type="button"
-                aria-label={t("search.closeFilters")}
-                onClick={closeFilters}
+                onClick={() => applyCanon("")}
+                aria-label={t("search.removeFilter", {
+                  filter: t(canon === "ot" ? "search.testOt" : "search.testNt"),
+                })}
               >
-                ✕
+                {t(canon === "ot" ? "search.testOt" : "search.testNt")}{" "}
+                <span aria-hidden>×</span>
               </button>
-            </header>
-            {filterControls()}
-          </section>
-        </>
-      )}
-
-      {searched && visibleKinds.length > 0 && (
-        <nav className="search-tabs" role="tablist" aria-label={t("search.groups")}>
-          <button
-            id="search-tab-all"
-            ref={(element) => {
-              if (element) tabRefs.current.set("all", element);
-              else tabRefs.current.delete("all");
-            }}
-            type="button"
-            role="tab"
-            aria-selected={selected === "all"}
-            aria-controls="search-results-panel"
-            tabIndex={selected === "all" ? 0 : -1}
-            className={selected === "all" ? "active" : ""}
-            onClick={() => selectTab("all")}
-            onKeyDown={(event) => onTabKeyDown(event, "all")}
-          >
-            {t("search.all")} {grandTotal}
-          </button>
-          {visibleKinds.map((kind) => (
+            )}
+            {selectedWorks.map((work) => (
+              <button
+                type="button"
+                key={work.id}
+                onClick={() => {
+                  const next = new Set(workFilter);
+                  next.delete(work.id);
+                  applyWorks(next);
+                }}
+                aria-label={t("search.removeFilter", { filter: work.abbrev })}
+              >
+                {work.abbrev} <span aria-hidden>×</span>
+              </button>
+            ))}
+            {selectedBooks.map((book) => (
+              <button
+                type="button"
+                key={book.osis}
+                onClick={() => {
+                  const next = new Set(bookFilter);
+                  next.delete(book.osis);
+                  applyBooks(next);
+                }}
+                aria-label={t("search.removeFilter", { filter: book.label })}
+              >
+                {book.label} <span aria-hidden>×</span>
+              </button>
+            ))}
             <button
-              key={kind}
-              id={`search-tab-${kind}`}
+              type="button"
+              className="search-clear-filters"
+              onClick={clearFilters}
+            >
+              {t("search.clearFilters")}
+            </button>
+          </div>
+        )}
+
+        {searched && mode === "fullscreen" && filtersOpen && (
+          <>
+            <button
+              type="button"
+              className="search-filter-sheet-scrim"
+              tabIndex={-1}
+              aria-hidden="true"
+              onClick={closeFilters}
+            />
+            <section
+              id="search-filter-sheet"
+              ref={filterDialogRef}
+              className="search-filter-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("search.filters")}
+            >
+              <header>
+                <h3>{t("search.filters")}</h3>
+                <button
+                  ref={filterCloseRef}
+                  type="button"
+                  aria-label={t("search.closeFilters")}
+                  onClick={closeFilters}
+                >
+                  ✕
+                </button>
+              </header>
+              {filterControls()}
+            </section>
+          </>
+        )}
+
+        {showTabs && (
+          <nav
+            className="search-tabs"
+            role="tablist"
+            aria-label={t("search.groups")}
+            onKeyDownCapture={onTabKeyDown}
+          >
+            <button
+              id="search-tab-all"
               ref={(element) => {
-                if (element) tabRefs.current.set(kind, element);
-                else tabRefs.current.delete(kind);
+                if (element) tabRefs.current.set("all", element);
+                else tabRefs.current.delete("all");
               }}
               type="button"
+              data-search-tab="all"
               role="tab"
-              aria-selected={selected === kind}
+              aria-selected={selected === "all"}
               aria-controls="search-results-panel"
-              tabIndex={selected === kind ? 0 : -1}
-              className={selected === kind ? "active" : ""}
-              onClick={() => selectTab(kind)}
-              onKeyDown={(event) => onTabKeyDown(event, kind)}
+              tabIndex={selected === "all" ? 0 : -1}
+              className={selected === "all" ? "active" : ""}
+              onClick={() => selectTab("all")}
             >
-              {t(`source.${kind}`)} {groups[kind]?.total ?? 0}
+              {t("search.all")} {grandTotal}
             </button>
-          ))}
-        </nav>
-      )}
+            {visibleKinds.map((kind) => (
+              <button
+                key={kind}
+                id={`search-tab-${kind}`}
+                ref={(element) => {
+                  if (element) tabRefs.current.set(kind, element);
+                  else tabRefs.current.delete(kind);
+                }}
+                type="button"
+                data-search-tab={kind}
+                role="tab"
+                aria-selected={selected === kind}
+                aria-controls="search-results-panel"
+                tabIndex={selected === kind ? 0 : -1}
+                className={selected === kind ? "active" : ""}
+                onClick={() => selectTab(kind)}
+              >
+                {t(`source.${kind}`)} {groups[kind]?.total ?? 0}
+              </button>
+            ))}
+          </nav>
+        )}
 
-      {error && (
-        <p className="search-error" role="alert">
-          {t("search.error")}
-        </p>
-      )}
-      {loading && <p className="muted">{t("search.loading")}</p>}
+        {error && (
+          <p className="search-error" role="alert">
+            {t("search.error")}
+          </p>
+        )}
+        {loading && <p className="muted">{t("search.loading")}</p>}
 
         {searched && !loading && (
-        <div
-          id="search-results-panel"
-          role={visibleKinds.length > 0 ? "tabpanel" : undefined}
-          aria-labelledby={
-            visibleKinds.length > 0 ? `search-tab-${selected}` : undefined
-          }
-          tabIndex={visibleKinds.length > 0 ? 0 : undefined}
-        >
-          {nothingFound && <p className="muted">{t("search.noResults")}</p>}
+          <div
+            id="search-results-panel"
+            role={showTabs ? "tabpanel" : undefined}
+            aria-labelledby={showTabs ? `search-tab-${selected}` : undefined}
+            tabIndex={showTabs ? 0 : undefined}
+          >
+            {nothingFound && <p className="muted">{t("search.noResults")}</p>}
 
-          {selected === "all" &&
-            visibleKinds.map((kind) => {
-              const group = groups[kind];
-              if (!group || group.hits.length === 0) return null;
-              return (
-                <section key={kind}>
-                  <div className="search-group-header">
-                    <h3 className="search-group">{t(`source.${kind}`)}</h3>
-                    <span className="search-count">{group.total}</span>
-                    {group.total > group.hits.length && (
+            {selected === "all" &&
+              visibleKinds.map((kind) => {
+                const group = groups[kind];
+                if (!group || group.hits.length === 0) return null;
+                return (
+                  <section key={kind}>
+                    <div className="search-group-header">
+                      <h3 className="search-group">{t(`source.${kind}`)}</h3>
+                      <span className="search-count">{group.total}</span>
+                      {group.total > group.hits.length && (
+                        <button
+                          type="button"
+                          className="search-see-all"
+                          onClick={() => selectTab(kind)}
+                        >
+                          {t("search.seeAll", { total: group.total })}
+                        </button>
+                      )}
+                    </div>
+                    {resultList(group.hits, kind)}
+                  </section>
+                );
+              })}
+
+            {selected !== "all" &&
+              groups[selected] &&
+              (() => {
+                const group = groups[selected]!;
+                return (
+                  <section>
+                    <div className="search-group-header">
+                      <h3 className="search-group">
+                        {t(`source.${selected}`)}
+                      </h3>
+                      <span className="search-count">
+                        {t("search.countRange", {
+                          from: 1,
+                          to: group.hits.length,
+                          total: group.total,
+                        })}
+                      </span>
+                    </div>
+                    {resultList(group.hits, selected)}
+                    {group.hasMore && (
                       <button
                         type="button"
-                        className="search-see-all"
-                        onClick={() => selectTab(kind)}
+                        className="search-load-more"
+                        disabled={loadingMore}
+                        onClick={() => loadMore(selected)}
                       >
-                        {t("search.seeAll", { total: group.total })}
+                        {loadingMore
+                          ? t("reader.loading")
+                          : t("search.loadMore", { count: PAGE })}
                       </button>
                     )}
-                  </div>
-                  {resultList(group.hits, kind)}
-                </section>
-              );
-            })}
-
-          {selected !== "all" &&
-            groups[selected] &&
-            (() => {
-              const group = groups[selected]!;
-              return (
-                <section>
-                  <div className="search-group-header">
-                    <h3 className="search-group">{t(`source.${selected}`)}</h3>
-                    <span className="search-count">
-                      {t("search.countRange", {
-                        from: 1,
-                        to: group.hits.length,
-                        total: group.total,
-                      })}
-                    </span>
-                  </div>
-                  {resultList(group.hits, selected)}
-                  {group.hasMore && (
-                    <button
-                      type="button"
-                      className="search-load-more"
-                      disabled={loadingMore}
-                      onClick={() => loadMore(selected)}
-                    >
-                      {loadingMore
-                        ? t("reader.loading")
-                        : t("search.loadMore", { count: PAGE })}
-                    </button>
-                  )}
-                </section>
-              );
-            })()}
-        </div>
+                  </section>
+                );
+              })()}
+          </div>
         )}
       </div>
     </>

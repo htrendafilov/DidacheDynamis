@@ -319,6 +319,9 @@ describe("SearchPanel", () => {
     expect(dialog).toBeInTheDocument();
     const closeFilters = screen.getByRole("button", { name: "Close filters" });
     expect(closeFilters).toHaveFocus();
+    screen.getByRole("searchbox", { name: "Search query" }).focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(closeFilters).toHaveFocus();
     const lastVisibleControl = screen.getByText("Bible books").closest("summary")!;
     lastVisibleControl.focus();
     fireEvent.keyDown(window, { key: "Tab" });
@@ -352,6 +355,33 @@ describe("SearchPanel", () => {
       "aria-labelledby",
       "search-tab-bible",
     );
+  });
+
+  it("keeps the All tab focused when a keyboard-selected query returns no groups", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
+    const bibleTab = await screen.findByRole("tab", { name: "Bible 2" });
+    fireEvent.click(bibleTab);
+    await waitFor(() => expect(search).toHaveBeenCalledTimes(2));
+
+    search.mockResolvedValueOnce({
+      query: "earth",
+      sort: "relevance",
+      total: 0,
+      groups: [
+        group("bible", []),
+        group("commentary", []),
+        group("dictionary", []),
+        group("book", []),
+      ],
+    });
+    bibleTab.focus();
+    fireEvent.keyDown(bibleTab, { key: "ArrowLeft" });
+
+    const allTab = screen.getByRole("tab", { name: /All/ });
+    await waitFor(() => expect(allTab).toHaveFocus());
+    expect(allTab).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(allTab).toHaveAccessibleName("All 0"));
   });
 
   it("restores focus to the last opened result when returning on mobile", async () => {
