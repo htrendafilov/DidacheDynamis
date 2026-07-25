@@ -2,6 +2,11 @@ name: deploy
 
 # Deliberately manual: the image rebuilds content.sqlite from the committed sources and deploys the
 # optional GHCR/Compose path using VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR secrets.
+#
+# Those four secrets are NOT configured today, so the "Deploy to VM" step cannot run. Production
+# currently uses the native systemd + gunicorn path in plan/deployment/live-runbook.md, not Docker.
+# The image build/push below is useful on its own, so it still runs; the preflight before the SSH
+# step explains the failure instead of letting ssh-action report a bare "missing server host".
 on:
   workflow_dispatch:
 
@@ -41,6 +46,39 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
             ${{ env.IMAGE }}:latest
+
+      # The `secrets` context is not available in a step-level `if:`, so this is a scripted
+      # preflight rather than a condition. It reports every missing name at once.
+      - name: Check VM deploy secrets
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+        run: |
+          missing=""
+          for name in VM_HOST VM_USER SSH_DEPLOY_KEY DEPLOY_DIR; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Container deploy is not configured::Missing secrets:$missing"
+            {
+              echo "### Container deploy is not configured"
+              echo
+              echo "The image **was** built and pushed to GHCR — only the VM step is blocked."
+              echo
+              echo "Missing repository secrets:\`$missing\`"
+              echo
+              echo "This workflow is the *future* hands-off Docker path. Production runs the native"
+              echo "systemd + gunicorn service behind the Cloudflare Tunnel, which this workflow does"
+              echo "not touch. Release it with the procedure in"
+              echo "\`plan/deployment/live-runbook.md\` → \"Update the app or content\"."
+              echo
+              echo "To enable this path instead, install Docker on the VM, create a deploy user + key,"
+              echo "then set the four secrets above."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       # Deploy to the VM over SSH. The VM only pulls from GHCR.
       - name: Deploy to VM
