@@ -127,12 +127,20 @@ class Meta(BaseModel):
     works: int
 
 
+class DictionaryDocumentRef(BaseModel):
+    work_id: str
+    entry_key: str  # source module key (auditable; enables a future disambiguation lookup)
+    headword: str  # resolved display headword the current entry API can load
+
+
 class DocumentRun(BaseModel):
     t: str
     emphasis: bool = False
     strong: bool = False
     superscript: bool = False
     ref: str | None = None  # canonical scripture target (e.g. "John.3.16" or "John.3.1-19")
+    # Internal dictionary target; mutually exclusive with ref (import-validated).
+    dictionary_ref: DictionaryDocumentRef | None = None
 
 
 class DocumentBlock(BaseModel):

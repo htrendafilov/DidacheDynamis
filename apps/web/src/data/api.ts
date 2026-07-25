@@ -122,12 +122,19 @@ export interface DocumentBlock {
   runs?: DocumentRun[];
 }
 
+export interface DictionaryDocumentRef {
+  work_id: string;
+  entry_key: string; // source module key (auditable; future disambiguation lookup)
+  headword: string; // resolved display headword the entry API can load
+}
+
 export interface DocumentRun {
   t: string;
   emphasis?: boolean;
   strong?: boolean;
   superscript?: boolean;
   ref?: string; // canonical scripture target, e.g. "John.3.16" or "John.3.1-19"
+  dictionary_ref?: DictionaryDocumentRef; // mutually exclusive with ref
 }
 
 export interface Document {

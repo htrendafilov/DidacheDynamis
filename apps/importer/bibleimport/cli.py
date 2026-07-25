@@ -13,6 +13,7 @@ import json
 import sys
 from pathlib import Path
 
+from .formats.sword_dictionary import EXPECTED_EASTON_ENTRIES
 from .pipeline import (
     AlignmentExpectation,
     BibleSpec,
@@ -21,6 +22,7 @@ from .pipeline import (
     append_book,
     append_study_content,
     build_bible,
+    easton_source_version,
     source_sha256,
 )
 from .schema import SCHEMA_VERSION
@@ -30,7 +32,7 @@ SOURCE_FILES = {
     "web": "engwebp_usfx.zip",
     "kjv": "KJV.imp.gz",
     "mhc": "MHC.imp.gz",
-    "easton": "Easton.imp.gz",
+    "easton": "Easton.raw.imp.gz",
     "tsk": "crossreferences_kjv.tsv",
     "baptist1689": "BaptistConfession1689.imp.gz",
 }
@@ -227,12 +229,31 @@ def _cmd_build(args) -> int:
     return code
 
 
+def _easton_audit(source: str | Path, stats: dict, easton_diag: dict) -> dict:
+    statistics: dict = {"dictionary_entries": stats["dictionary_entries"]}
+    if "bible_refs" in easton_diag:
+        statistics["bible_refs"] = easton_diag["bible_refs"]
+        statistics["easton_refs"] = easton_diag["easton_refs"]
+    audit = _audit_record(
+        "easton",
+        source,
+        result="ok",
+        statistics=statistics,
+        source_version=easton_source_version(easton_diag),
+    )
+    # Full per-reference detail (corrections raw+derived, unreconciled, ambiguous, missing)
+    # belongs to the JSON diagnostics artifact, not the concise stdout audit line.
+    audit["reference_diagnostics"] = easton_diag
+    return audit
+
+
 def _cmd_add_study(args) -> int:
-    stats = append_study_content(
+    stats, easton_diag = append_study_content(
         args.out,
         commentary_sources=args.mhc_source,
         dictionary_source=args.easton_source,
         xref_source=args.xref_source,
+        expected_dictionary_entries=EXPECTED_EASTON_ENTRIES,
     )
     print(" ".join(f"{key}={value}" for key, value in stats.items()))
     imports = []
@@ -248,13 +269,7 @@ def _cmd_add_study(args) -> int:
         )
     imports.extend(
         [
-            _audit_record(
-                "easton",
-                args.easton_source,
-                result="ok",
-                statistics={"dictionary_entries": stats["dictionary_entries"]},
-                source_version="CrossWire Easton",
-            ),
+            _easton_audit(args.easton_source, stats, easton_diag),
             _audit_record(
                 "tsk",
                 args.xref_source,
@@ -366,11 +381,12 @@ def _cmd_build_all(args) -> int:
         return code
 
     print("==> study library (Matthew Henry, Easton's, TSK)")
-    stats = append_study_content(
+    stats, easton_diag = append_study_content(
         out,
         commentary_sources=[src / SOURCE_FILES["mhc"]],
         dictionary_source=src / SOURCE_FILES["easton"],
         xref_source=src / SOURCE_FILES["tsk"],
+        expected_dictionary_entries=EXPECTED_EASTON_ENTRIES,
     )
     print(" ".join(f"{key}={value}" for key, value in stats.items()))
     study_imports = [
@@ -381,13 +397,7 @@ def _cmd_build_all(args) -> int:
             statistics={"commentary_entries": stats["commentary_entries"]},
             source_version="CrossWire MHC 2.2",
         ),
-        _audit_record(
-            "easton",
-            src / SOURCE_FILES["easton"],
-            result="ok",
-            statistics={"dictionary_entries": stats["dictionary_entries"]},
-            source_version="CrossWire Easton",
-        ),
+        _easton_audit(src / SOURCE_FILES["easton"], stats, easton_diag),
         _audit_record(
             "tsk",
             src / SOURCE_FILES["tsk"],
@@ -480,7 +490,9 @@ def main(argv: list[str] | None = None) -> int:
         "--mhc-source", action="append", required=True, help="CrossWire IMP(.gz) or CCEL ThML"
     )
     s.add_argument(
-        "--easton-source", required=True, help="CrossWire IMP(.gz) or CCEL ThML"
+        "--easton-source",
+        required=True,
+        help="CrossWire IMP(.gz): raw TEI mod2imp export, legacy stripped IMP, or CCEL ThML",
     )
     s.add_argument("--xref-source", required=True, help="TSK-derived crossreferences_kjv.tsv")
     s.add_argument("--report", help="diagnostics JSON (default: <out>.diagnostics.json)")

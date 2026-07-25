@@ -105,24 +105,28 @@ export function useDictionaryHeadwords(workId: string, prefix: string): Dictiona
   return words;
 }
 
-export function useDictionaryEntry(workId: string, headword: string | null): DictionaryEntry | null {
-  const [entry, setEntry] = useState<DictionaryEntry | null>(null);
+export function useDictionaryEntry(workId: string, headword: string | null) {
+  const [state, setState] = useState<{
+    loading: boolean;
+    error: boolean;
+    data: DictionaryEntry | null;
+  }>({ loading: false, error: false, data: null });
   useEffect(() => {
     if (!headword) {
-      setEntry(null);
+      setState({ loading: false, error: false, data: null });
       return;
     }
     let alive = true;
-    setEntry(null);
+    setState({ loading: true, error: false, data: null });
     api
       .dictionaryEntry(workId, headword)
-      .then((data) => alive && setEntry(data))
-      .catch(() => alive && setEntry(null));
+      .then((data) => alive && setState({ loading: false, error: false, data }))
+      .catch(() => alive && setState({ loading: false, error: true, data: null }));
     return () => {
       alive = false;
     };
   }, [workId, headword]);
-  return entry;
+  return state;
 }
 
 export function useGeneralBook(workId: string) {

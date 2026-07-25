@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, type Passage } from "../data/api";
@@ -10,15 +10,25 @@ import { useStore } from "../state/store";
 // reader's own chosen translation.
 const PREVIEW_WORK = "web";
 const MAX_PREVIEW_CHARS = 320;
+// A chapter-only ref previews its opening verses rather than downloading the whole chapter —
+// Psalm 119 is 176 verses, and this fires on hover. Six verses usually exceed the character budget
+// above; when they do not, previewText marks the preview as truncated instead.
+const CHAPTER_PREVIEW_VERSES = 6;
 
 export interface ParsedScriptureRef {
   osis: string;
   chapter: number;
-  start: number;
-  end: number;
+  start: number | null; // null = chapter-only ref (e.g. "Num.12"); never pretend verse 1
+  end: number | null;
 }
 
 export function parseScriptureRef(value: string): ParsedScriptureRef | null {
+  const chapterOnly = /^([A-Za-z0-9]+)\.(\d+)$/.exec(value);
+  if (chapterOnly) {
+    const chapter = Number(chapterOnly[2]);
+    if (chapter < 1) return null;
+    return { osis: chapterOnly[1], chapter, start: null, end: null };
+  }
   const match = /^([A-Za-z0-9]+)\.(\d+)\.(\d+)(?:-(\d+))?$/.exec(value);
   if (!match) return null;
   const chapter = Number(match[2]);
@@ -28,7 +38,7 @@ export function parseScriptureRef(value: string): ParsedScriptureRef | null {
   return { osis: match[1], chapter, start, end };
 }
 
-function previewText(passage: Passage): string {
+function previewText(passage: Passage, windowed: boolean): string {
   const verses = passage.verses.map((verse) => {
     const text = verse.lines
       .map((line) => line.runs.map((run) => run.t).join(""))
@@ -38,14 +48,20 @@ function previewText(passage: Passage): string {
     return `${verse.verse} ${text}`;
   });
   const joined = verses.join(" ").trim();
-  return joined.length > MAX_PREVIEW_CHARS
-    ? `${joined.slice(0, MAX_PREVIEW_CHARS).trimEnd()}…`
-    : joined;
+  if (joined.length > MAX_PREVIEW_CHARS) {
+    return `${joined.slice(0, MAX_PREVIEW_CHARS).trimEnd()}…`;
+  }
+  // A full window came back, so the chapter continues past what was fetched. (A chapter of
+  // exactly CHAPTER_PREVIEW_VERSES verses gets a harmless trailing ellipsis; the alternative
+  // is fetching the whole chapter just to learn where it ends.)
+  return windowed && passage.verses.length >= CHAPTER_PREVIEW_VERSES ? `${joined} …` : joined;
 }
 
 export function ScriptureRef({ refValue, children }: { refValue: string; children: ReactNode }) {
   const { t, i18n } = useTranslation();
-  const parsed = parseScriptureRef(refValue);
+  // Memoized on the ref string: a fresh object each render would re-fire the fetch effect on
+  // every re-render that happens while a preview is still in flight.
+  const parsed = useMemo(() => parseScriptureRef(refValue), [refValue]);
   const goToRef = useStore((state) => state.goToRef);
   const hasBiblePane = useStore((state) => state.panes.some((pane) => pane.type === "bible"));
   const biblePaneId = useStore((state) => state.panes.find((pane) => pane.type === "bible")?.id);
@@ -59,7 +75,11 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
     if (!open || !parsed || data || error) return;
     let alive = true;
     const range =
-      parsed.start === parsed.end ? `${parsed.start}` : `${parsed.start}-${parsed.end}`;
+      parsed.start === null
+        ? `1-${CHAPTER_PREVIEW_VERSES}`
+        : parsed.start === parsed.end
+          ? `${parsed.start}`
+          : `${parsed.start}-${parsed.end}`;
     api
       .passage(PREVIEW_WORK, parsed.osis, parsed.chapter, range)
       .then((passage) => alive && setData(passage))
@@ -72,9 +92,12 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
   // A ref we could not parse (or an unknown book) is shown as plain text — never a dead control.
   if (!parsed) return <>{children}</>;
 
-  const label = `${bookName(parsed.osis, i18n.language, parsed.osis)} ${parsed.chapter}:${parsed.start}${
-    parsed.end !== parsed.start ? `-${parsed.end}` : ""
-  }`;
+  const label =
+    parsed.start === null
+      ? `${bookName(parsed.osis, i18n.language, parsed.osis)} ${parsed.chapter}`
+      : `${bookName(parsed.osis, i18n.language, parsed.osis)} ${parsed.chapter}:${parsed.start}${
+          parsed.end !== parsed.start ? `-${parsed.end}` : ""
+        }`;
 
   return (
     <span
@@ -109,7 +132,9 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
           <span className="scripture-ref-popover-title">{label}</span>
           {error && <span className="muted">{t("scriptureRef.error")}</span>}
           {!error && !data && <span className="muted">{t("reader.loading")}</span>}
-          {data && <span className="scripture-ref-text">{previewText(data)}</span>}
+          {data && (
+            <span className="scripture-ref-text">{previewText(data, parsed.start === null)}</span>
+          )}
           {data && hasBiblePane && (
             <button
               type="button"

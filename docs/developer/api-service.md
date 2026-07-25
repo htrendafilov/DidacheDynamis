@@ -47,3 +47,8 @@ rejects content requests clearly instead of allowing a later missing-column SQL 
 FastAPI's generated OpenAPI schema is the runtime contract. When changing response models in
 `apps/api/app/models.py`, update the matching interfaces and fetch functions in
 `apps/web/src/data/api.ts`.
+
+Document bodies (`Document.blocks[].runs[]`) carry inline markup: `emphasis`/`strong`/`superscript`
+flags, a `ref` field with a canonical scripture target (`John.3.16`, `John.3.1-19`, or chapter-only
+`Num.12`), and a mutually exclusive `dictionary_ref` object
+(`{work_id, entry_key, headword}`) for internal dictionary links.

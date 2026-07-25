@@ -10,6 +10,7 @@ import { useStore, type Pane } from "../state/store";
 export function DictionaryPane({ pane }: { pane: Pane }) {
   const { t } = useTranslation();
   const changePaneType = useStore((state) => state.changePaneType);
+  const updatePane = useStore((state) => state.updatePane);
   const [prefix, setPrefix] = useState("");
   const [headword, setHeadword] = useState<string | null>(null);
   const words = useDictionaryHeadwords(pane.workId, prefix);
@@ -66,11 +67,19 @@ export function DictionaryPane({ pane }: { pane: Pane }) {
         </nav>
         <div className="pane-body dictionary-entry">
           {!headword && <p className="muted">{t("dictionary.choose")}</p>}
-          {headword && !entry && <p className="muted">{t("reader.loading")}</p>}
-          {entry && (
+          {headword && entry.loading && <p className="muted">{t("reader.loading")}</p>}
+          {headword && entry.error && <p className="muted">{t("dictionary.notFound")}</p>}
+          {entry.data && (
             <article>
-              <h3>{entry.headword}</h3>
-              <DocumentRenderer document={entry.body} />
+              <h3>{entry.data.headword}</h3>
+              <DocumentRenderer
+                document={entry.data.body}
+                onDictionaryNavigate={(target) => {
+                  setHeadword(target.headword);
+                  setPrefix(target.headword.slice(0, 2));
+                  updatePane(pane.id, { headword: target.headword });
+                }}
+              />
             </article>
           )}
         </div>

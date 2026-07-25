@@ -20,7 +20,7 @@ Each pane operates independently. Click the selector in the top-left of a pane h
 |---|---|
 | **Bible** | Scripture text (WEB, KJV) with verse numbers and cross-references |
 | **Commentary** | Verse-by-verse commentary (Matthew Henry) synced to active scripture |
-| **Dictionary** | Biblical dictionary lookup tool (Easton's Bible Dictionary) |
+| **Dictionary** | Biblical dictionary lookup tool (Easton's Bible Dictionary) with clickable scripture citations and internal headword links |
 | **Notes** | Personal rich-text notes editor (TipTap) saved locally |
 | **General Books** | Imported historic documents; currently the 1689 Baptist Confession |
 

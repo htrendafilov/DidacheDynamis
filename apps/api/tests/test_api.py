@@ -1,6 +1,9 @@
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
 
 from app.db import CONTENT_SCHEMA_VERSION, database_status
 from app.main import (
@@ -10,6 +13,39 @@ from app.main import (
     STATIC_FILE_CACHE_CONTROL,
     static_cache_control,
 )
+from app.models import DocumentRun
+
+IMPORTER_FIXTURES = Path(__file__).parents[2] / "importer" / "tests" / "fixtures"
+
+
+@pytest.fixture()
+def raw_client(tmp_path, monkeypatch):
+    """Client whose DB holds the raw TEI Easton fixture (structured references)."""
+    from bibleimport.pipeline import BibleSpec, append_study_content, build_bible
+    from fastapi.testclient import TestClient
+
+    from app import settings
+    from app.main import app
+
+    src = tmp_path / "mini_usfx.xml"
+    from conftest import MINI_USFX
+
+    src.write_text(MINI_USFX, encoding="utf-8")
+    out = tmp_path / "content.sqlite"
+    spec = BibleSpec(
+        work_id="web", title="World English Bible", abbrev="WEB", language="en",
+        versification="kjv", license="Public Domain", attribution="WEB is public domain.",
+    )
+    assert build_bible(src, spec, out, fmt="usfx").ok
+    append_study_content(
+        out,
+        [IMPORTER_FIXTURES / "mini_commentary.xml"],
+        IMPORTER_FIXTURES / "mini_easton_raw.imp",
+        IMPORTER_FIXTURES / "mini_xrefs.tsv",
+    )
+    monkeypatch.setattr(settings, "CONTENT_DB_PATH", out)
+    with TestClient(app) as c:
+        yield c
 
 
 def test_security_headers(client):
@@ -365,3 +401,42 @@ def test_cross_references_include_normalized_target_and_preview(client):
     assert rom["votes"] == 2
     assert rom["target_osis"] == "Rom"
     assert rom["preview"] is None  # the tiny fixture has no Romans text
+
+
+def test_document_run_contract_carries_dictionary_ref():
+    run = DocumentRun(
+        t="MOSES",
+        dictionary_ref={"work_id": "easton", "entry_key": "MOSES", "headword": "Moses"},
+    )
+    dumped = run.model_dump()
+    assert dumped["dictionary_ref"] == {
+        "work_id": "easton",
+        "entry_key": "MOSES",
+        "headword": "Moses",
+    }
+    assert dumped["ref"] is None
+    # Chapter-only scripture targets are valid response data.
+    assert DocumentRun(t="Num. 12", ref="Num.12").model_dump()["ref"] == "Num.12"
+
+
+def test_dictionary_entries_are_distinct(raw_client):
+    words = raw_client.get("/api/v1/dictionary/easton/entries", params={"prefix": ""}).json()
+    headwords = [word["headword"] for word in words]
+    assert len(headwords) == len(set(headwords))  # Gamma (duplicate headword) listed once
+    assert headwords.count("Gamma") == 1
+
+
+def test_dictionary_entry_passes_structured_runs_through(raw_client):
+    entry = raw_client.get("/api/v1/dictionary/easton/entry/A").json()
+    runs = [run for block in entry["body"]["blocks"] for run in block.get("runs", [])]
+    scripture = next(run for run in runs if run["t"] == "Rev. 1:8")
+    assert scripture["ref"] == "Rev.1.8" and scripture["dictionary_ref"] is None
+    chapter_only = next(run for run in runs if run["t"] == "Num. 12")
+    assert chapter_only["ref"] == "Num.12"
+    internal = next(run for run in runs if run["t"] == "BETA")
+    assert internal["dictionary_ref"] == {
+        "work_id": "easton",
+        "entry_key": "BETA",
+        "headword": "Beta",
+    }
+    assert internal["ref"] is None

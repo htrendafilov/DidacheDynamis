@@ -25,8 +25,17 @@ describe("parseScriptureRef", () => {
     expect(parseScriptureRef("2Tim.3.16")).toMatchObject({ osis: "2Tim", start: 16 });
   });
 
+  it("parses chapter-only refs without fabricating a verse", () => {
+    expect(parseScriptureRef("Num.12")).toEqual({
+      osis: "Num",
+      chapter: 12,
+      start: null,
+      end: null,
+    });
+  });
+
   it("rejects malformed or empty refs", () => {
-    for (const bad of ["", "garbage", "John.3", "John.0.1", "John.3.5-3"]) {
+    for (const bad of ["", "garbage", "John.0", "John.0.1", "John.3.5-3"]) {
       expect(parseScriptureRef(bad)).toBeNull();
     }
   });
@@ -63,6 +72,62 @@ describe("ScriptureRef pop-up", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open in Bible pane" }));
     const biblePane = useStore.getState().panes.find((p) => p.type === "bible");
     expect(biblePane).toMatchObject({ osis: "John", chapter: 3 });
+  });
+
+  it("previews a chapter-only ref from a bounded verse window and labels it without :1", async () => {
+    passage.mockResolvedValue({
+      work_id: "web",
+      osis: "Num",
+      chapter: 12,
+      verses: [{ verse: 1, lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: "And Miriam and Aaron spake against Moses." }] }] }],
+      headings: [],
+    });
+
+    render(<ScriptureRef refValue="Num.12">Num. 12</ScriptureRef>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Num. 12" }));
+    // Never the whole chapter: Psalm 119 would be 176 verses behind a hover.
+    expect(passage).toHaveBeenCalledWith("web", "Num", 12, "1-6");
+    expect(await screen.findByText(/And Miriam and Aaron spake/)).toBeInTheDocument();
+    expect(screen.getByText("Numbers 12")).toBeInTheDocument();
+  });
+
+  it("marks a chapter preview as truncated when the window came back full", async () => {
+    passage.mockResolvedValue({
+      work_id: "web",
+      osis: "Num",
+      chapter: 12,
+      verses: Array.from({ length: 6 }, (_unused, index) => ({
+        verse: index + 1,
+        lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: `Verse ${index + 1}.` }] }],
+      })),
+      headings: [],
+    });
+
+    render(<ScriptureRef refValue="Num.12">Num. 12</ScriptureRef>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Num. 12" }));
+    expect(await screen.findByText(/Verse 6\.\s…$/)).toBeInTheDocument();
+  });
+
+  it("does not refetch a preview while the first request is still in flight", async () => {
+    let resolve: ((value: unknown) => void) | undefined;
+    passage.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+
+    const { rerender } = render(<ScriptureRef refValue="John.3.16">ref</ScriptureRef>);
+    fireEvent.click(screen.getByRole("button", { name: "ref" }));
+    // Re-render while loading: an unmemoized parseScriptureRef would hand the effect a new
+    // object identity each time and issue a duplicate request.
+    rerender(<ScriptureRef refValue="John.3.16">ref</ScriptureRef>);
+    rerender(<ScriptureRef refValue="John.3.16">ref</ScriptureRef>);
+    expect(passage).toHaveBeenCalledTimes(1);
+
+    resolve?.({ work_id: "web", osis: "John", chapter: 3, verses: [], headings: [] });
+    await waitFor(() => expect(passage).toHaveBeenCalledTimes(1));
   });
 
   it("closes on Escape", async () => {

@@ -1,8 +1,11 @@
 # Plan: deep links, scripture pop-ups, and external embeds
 
 **Status:** partially delivered. Bible-chapter and General Book section hashes, structured in-app
-pop-ups, external `embed.js`, and API CORS are shipped. Exact-verse/commentary/dictionary links and
-multi-pane workspace serialization are explicitly deferred until after the remaining M7/M8 work.
+pop-ups for commentary/General Books/dictionary, internal Easton headword links, external `embed.js`,
+and API CORS are shipped. Easton reference details live in
+[`easton_dictionary_references.md`](easton_dictionary_references.md). Exact-verse/commentary/dictionary
+deep links and multi-pane workspace serialization are explicitly deferred until after the remaining
+M7/M8 work.
 Three related features that build on each other: (1) shareable deep links, (2) in-app scripture
 reference pop-ups, (3) the same pop-ups embeddable on external sites (e.g. a blog).
 
@@ -28,16 +31,20 @@ on hover/focus/tap show a pop-up with the Bible text, plus — if the passage is
 preview and a link to **open it in the current Bible pane**.
 
 - **Reference resolution (two layers):**
-  1. **Structured (preferred): DONE.** `<reference osisRef>` tags are preserved as a `ref` run
+  1. **Structured (preferred): DONE for commentary/General Books.** `<reference osisRef>` tags are preserved as a `ref` run
      (`{t, …, ref}`) through both study (`_sword_osis_document`, for Matthew Henry OSIS) and General
      Books (`genbook.py`, for the 1689 proof texts — 1150 refs). `books.normalize_osis_ref` validates
      the book and collapses cross-chapter ranges to the start verse; the Pydantic + TS models carry
      `ref`; `DocumentRenderer` renders it as `<ScriptureRef>`. (Verified end-to-end: 0 scripture
      osisRefs in the 1689 failed to normalize.)
+     Easton is also DONE: the raw export's 24,092 `Bible:` refs are label- and context-validated
+     (including 355 chapter-only targets) and its 687 `Easton:` refs resolve by exact entry key
+     into `dictionary_ref` runs; see
+     [`easton_dictionary_references.md`](easton_dictionary_references.md).
   2. **Fallback linkifier (remaining):** a client-side scripture-reference regex over rendered text for
-     sources without structured refs. Handles common English/Bulgarian citation formats + book-name
-     aliases (reuse the importer's `_BOOK_ALIASES` idea on the client). Not yet built — the shipped
-     works all carry structured refs, so this is only needed for future plain-text sources.
+     genuinely plain-text future sources. Handles common English/Bulgarian citation formats +
+     book-name aliases. It is not the Easton solution: Easton's structured raw source should be
+     normalized once at the importer boundary.
 - **Pop-up component: DONE.** `components/ScriptureRef.tsx` fetches the passage (verse-range API, from
   the public-domain `web` Bible) and shows a preview + "Open in Bible pane". Long passages truncate.
 - **API: DONE.** `/works/{id}/passage/{osis}/{chapter}` accepts `?verses=16` or `?verses=1-19`.
@@ -52,7 +59,10 @@ work on the user's blog.
   `/embed.js`. It scans for marked spans (`<span data-bible-ref="John.3.16">…</span>`), attaches the
   hover/focus/tap pop-up (fetching passage text from our API), and adds a Bible deep link
   (`/#/b/<work>/<osis>/<chapter>`) to open the passage in the app. It targets whatever origin served
-  it (overridable via `data-api` / `data-app` / `data-work`). The **auto-linkify** fallback (option b)
+  it (overridable via `data-api` / `data-app` / `data-work`). Its reference grammar deliberately
+  matches the in-app parser, chapter-only targets (`Num.12`) included, so a reference copied out of
+  the reader works verbatim in `data-bible-ref`; a chapter-only pop-up previews a bounded opening
+  window rather than the whole chapter. The **auto-linkify** fallback (option b)
   is not built — the marked-span form is explicit and unambiguous; add it only if wanted.
 - **CORS: DONE.** `Access-Control-Allow-Origin: *` is set on `/api/v1` responses only (not the SPA
   HTML). A literal `*` (never an echoed Origin) stays cacheable at the Cloudflare edge with no `Vary`;

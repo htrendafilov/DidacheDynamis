@@ -39,4 +39,14 @@ set remain planned (M7.4).
 - **Cross-References**: Click a verse number to open its TSK-derived references with inline WEB/KJV
   previews; click a result to navigate there.
 - **Easton's Dictionary**: Open a Dictionary pane, filter the headword list, and select an entry.
+  Bible citations inside an entry open the standard passage pop-up, and references to other
+  headwords open that entry in the same pane.
   Automatic lookup from highlighted Bible words is not implemented.
+
+### Known limitation: repeated headwords
+
+Easton's source module defines two separate entries under each of **Kadesh** and **Salmon**. The
+headword list shows each name once, and opening it always shows the **first** of the two
+definitions; the second is currently unreachable from the reader. Full-text search indexes both, so
+a search result whose snippet comes from the second definition still opens the first entry. Nothing
+is lost from the database — picking between same-name entries is planned work, not a data problem.

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .books import BY_OSIS
 from .canonical import BookMeta, HeadingRow, VerseRow, WorkMeta
-from .formats import genbook, study, sword_bible, usfx
+from .formats import genbook, study, sword_bible, sword_dictionary, usfx
 from .schema import create_schema
 from .validation import Diagnostics, align_versification, validate
 
@@ -177,13 +177,37 @@ def build_bible(
     return diag
 
 
+# Single source of truth for the Easton work's recorded source_version, keyed by the format the
+# dictionary adapter reports. Both the stored WorkMeta and the CLI audit line read it from here.
+_EASTON_SOURCE_VERSIONS = {
+    "raw-tei": "CrossWire Easton 2.0.1 (raw TEI mod2imp)",
+    "stripped": "CrossWire Easton",
+    "thml": "CCEL ThML",
+}
+
+
+def easton_source_version(easton_diag: dict) -> str:
+    """Recorded source_version for the Easton diagnostics; unknown formats fail loudly."""
+    try:
+        return _EASTON_SOURCE_VERSIONS[easton_diag["format"]]
+    except KeyError as exc:
+        raise ValueError(f"unknown Easton source format: {easton_diag.get('format')!r}") from exc
+
+
 def append_study_content(
     out_db: str | Path,
     commentary_sources: list[str | Path],
     dictionary_source: str | Path,
     xref_source: str | Path,
-) -> dict[str, int]:
-    """Append the fixed M3 public-domain study library to an existing Bible DB."""
+    *,
+    expected_dictionary_entries: int | None = None,
+) -> tuple[dict[str, int], dict]:
+    """Append the fixed M3 public-domain study library to an existing Bible DB.
+
+    Returns (row-count stats, easton reference diagnostics). The diagnostics dict carries
+    the raw-TEI reference classification (or just {"format": ...} for legacy sources) and
+    is meant for the build's JSON diagnostics artifact.
+    """
     out_db = Path(out_db)
     commentary_paths = [Path(path) for path in commentary_sources]
     dictionary_path = Path(dictionary_source)
@@ -194,17 +218,20 @@ def append_study_content(
         raise ValueError("at least one commentary source is required")
 
     sword_commentary = all(path.name.endswith((".imp", ".imp.gz")) for path in commentary_paths)
-    sword_dictionary = dictionary_path.name.endswith((".imp", ".imp.gz"))
+    sword_dict = dictionary_path.name.endswith((".imp", ".imp.gz"))
     commentary = (
         study.load_sword_commentary(commentary_paths)
         if sword_commentary
         else study.load_commentary(commentary_paths)
     )
-    dictionary = (
-        study.load_sword_dictionary(dictionary_path)
-        if sword_dictionary
-        else study.load_dictionary(dictionary_path)
-    )
+    if sword_dict:
+        dictionary, easton_diag = sword_dictionary.load_dictionary_imp(
+            dictionary_path,
+            expected_entries=expected_dictionary_entries,
+        )
+    else:
+        dictionary = study.load_dictionary(dictionary_path)
+        easton_diag = {"format": "thml", "entries": len(dictionary)}
     xrefs = study.load_xrefs(xref_path)
     if not commentary or not dictionary or not xrefs:
         raise ValueError("a study source parsed to zero entries")
@@ -240,7 +267,7 @@ def append_study_content(
             "Public-domain CrossWire SWORD module."
         ),
         source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=Easton",
-        source_version="CrossWire Easton" if sword_dictionary else "CCEL ThML",
+        source_version=easton_source_version(easton_diag),
         checksum=source_sha256(dictionary_path),
     )
     tsk = WorkMeta(
@@ -353,7 +380,7 @@ def append_study_content(
         "commentary_entries": len(commentary),
         "dictionary_entries": len(dictionary),
         "xrefs": len(xrefs),
-    }
+    }, easton_diag
 
 
 def append_bible(

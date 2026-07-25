@@ -6,21 +6,27 @@ text, with a link to open the chapter in the reader.
 
 ## Quick start
 
-Mark each reference with `data-bible-ref` (a canonical OSIS target — book code, chapter, verse), then
-include the script once near the end of the page:
+Mark each reference with `data-bible-ref` (a canonical OSIS target — book code, chapter, and
+optionally verse), then include the script once near the end of the page:
 
 ```html
 <p>
   As it is written in <span data-bible-ref="John.3.16">John 3:16</span>, and again in
-  <span data-bible-ref="Rom.5.8">Romans 5:8</span>.
+  <span data-bible-ref="Rom.5.8">Romans 5:8</span>, and throughout
+  <span data-bible-ref="Num.12">Numbers 12</span>.
 </p>
 
 <script src="https://bible.trendafilovi.net/embed.js" defer></script>
 ```
 
 - The span's own text is what readers see and what titles the pop-up — write it however you like.
-- `data-bible-ref` uses OSIS book codes and dotted numbers: `John.3.16`, a range `John.3.1-19`, or a
-  numbered book `1Cor.13.4-7`. Unrecognized values are left as plain text.
+- `data-bible-ref` uses OSIS book codes and dotted numbers: `John.3.16`, a range `John.3.1-19`, a
+  numbered book `1Cor.13.4-7`, or a whole chapter `Num.12`. Unrecognized values are left as plain
+  text. This is the same reference grammar the reader itself uses, so a target copied out of a
+  dictionary entry or commentary works here verbatim.
+- A **whole-chapter** reference previews the opening verses rather than the entire chapter (Psalm 119
+  is 176 verses); the preview ends with `…` when there is more, and the pop-up's link opens the full
+  chapter.
 - The passage preview comes from the public-domain **World English Bible**. To use another installed
   Bible for one reference, add `data-bible-work="kjv"`; to change the default for the whole page, put
   `data-work="kjv"` on the `<script>` tag.

@@ -58,6 +58,11 @@ To rebuild or update scripture databases without corrupting running worker threa
 1. Build new DB to a temporary file on the **same filesystem**: `data/content.new.sqlite`.
 2. Atomically rename: `mv -f data/content.new.sqlite data/content.sqlite`.
 3. Restart systemd unit: `sudo systemctl restart bible-app`.
+4. Deploy the SPA if the release ships frontend changes.
+
+A content rebuild ships new row data (`body_json`/`nodes_json`) only — there is no schema or
+`user_version` change — but the work checksums and content version change, so the API restart in
+step 3 is required for the new content-version/ETags to take effect.
 
 ---
 

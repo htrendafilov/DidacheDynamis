@@ -26,8 +26,11 @@ def entries(
     if exists is None:
         raise HTTPException(status_code=404, detail="dictionary work not found")
     normalized = prefix.casefold().strip()
+    # DISTINCT collapses the two genuine duplicate headwords (Kadesh, Salmon) so the
+    # pane's key={headword} list cannot collide. Entry lookup stays first-row-served
+    # (ORDER BY rowid LIMIT 1) until a future disambiguation feature.
     rows = conn.execute(
-        "SELECT headword FROM dictionary_entries "
+        "SELECT DISTINCT headword, sort_key FROM dictionary_entries "
         "WHERE work_id=? AND sort_key>=? AND sort_key<? ORDER BY sort_key LIMIT ?",
         (work_id, normalized, normalized + "\U0010ffff", limit),
     ).fetchall()

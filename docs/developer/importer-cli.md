@@ -32,12 +32,19 @@ bibleimport build --format usfx --source bible.xml --out data/content.sqlite \
 bibleimport add-kjv --source data/sources/KJV.imp.gz --out data/content.sqlite
 bibleimport add-study --out data/content.sqlite \
   --mhc-source data/sources/MHC.imp.gz \
-  --easton-source data/sources/Easton.imp.gz \
+  --easton-source data/sources/Easton.raw.imp.gz \
   --xref-source data/sources/crossreferences_kjv.tsv
 bibleimport add-book --source book.imp.gz --out data/content.sqlite \
   --work-id example-book --title "Example Book" --abbrev EXB --language en \
   --license "Recorded terms" --attribution "Required attribution"
 ```
+
+The `--easton-source` accepts three shapes: the raw TEI `mod2imp` export (active; its structured
+`Bible:`/`Easton:` references become scripture and internal-dictionary links), the legacy stripped
+IMP, and CCEL ThML. Raw-input reference classification (linked / chapter-only / deterministically
+corrected / unsupported / unreconciled / ambiguous / missing) lands in the build's diagnostics JSON
+alongside the audit line, and the build fails on malformed XML, an entry-count regression from
+3,963, or any unclassified reference element.
 
 Run `bibleimport --help` and `bibleimport <command> --help` for the current argument contract. There
 are no standalone `info` or `validate-versification` commands.

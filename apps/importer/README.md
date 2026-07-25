@@ -40,8 +40,11 @@ pytest -q
 ```
 
 The study adapter imports a raw-OSIS SWORD `mod2imp` export for Matthew Henry (preserving headings,
-paragraphs, quotations, verse numbers, and emphasis), a stripped Easton's export, CCEL ThML, and
-TSK-derived TSV cross-references. The Bible adapters import WEB USFX and CrossWire KJV raw-OSIS IMP.
+paragraphs, quotations, verse numbers, and emphasis), the raw TEI Easton's export
+(`data/sources/Easton.raw.imp.gz`; structured Bible and internal dictionary references — see
+`plan/easton_dictionary_references.md`), the legacy stripped Easton's export and CCEL
+ThML as fallbacks, and TSK-derived TSV cross-references. The Bible
+adapters import WEB USFX and CrossWire KJV raw-OSIS IMP.
 The General Book adapter turns slash-keyed `mod2imp` exports into a hierarchical section tree while
 reusing the study Document CIR.
 The production sources and provenance are documented in

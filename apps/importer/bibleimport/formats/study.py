@@ -21,6 +21,7 @@ from ..canonical import CommentaryRow, DictionaryRow, XrefRow, norm_ws
 
 _MAX_XML_BYTES = 64 * 1024 * 1024
 _MAX_TSV_BYTES = 32 * 1024 * 1024
+_MAX_IMP_BYTES = 256 * 1024 * 1024
 _DOCTYPE = re.compile(rb"<!DOCTYPE\s+[^>]*>", re.IGNORECASE | re.DOTALL)
 _COMMENTARY_REF = re.compile(
     r"^Bible:(?P<book>[1-3]?[A-Za-z]+)\.(?P<chapter>\d+)"
@@ -86,8 +87,8 @@ def _imp_entries(path: str | Path):
     with opener(path, "rt", encoding="utf-8", errors="strict") as handle:
         for line in handle:
             total += len(line.encode("utf-8"))
-            if total > 256 * 1024 * 1024:
-                raise ValueError(f"expanded IMP exceeds 256 MiB limit: {path}")
+            if total > _MAX_IMP_BYTES:
+                raise ValueError(f"expanded IMP exceeds {_MAX_IMP_BYTES} byte limit: {path}")
             if line.startswith("$$$"):
                 if key is not None:
                     yield key, "".join(lines).strip()

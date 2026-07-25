@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The importer's full-source audit test reads data/sources (Git LFS objects).
+          lfs: true
 
       - uses: actions/setup-python@v5
         with:

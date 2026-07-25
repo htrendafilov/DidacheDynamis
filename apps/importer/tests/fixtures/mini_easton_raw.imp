@@ -1,0 +1,8 @@
+$$$A
+<entryFree n="A"> <title>A</title> <p>Alpha, the first letter of the Greek alphabet, as Omega is the last (<ref osisRef="Bible:Rev.1.8">Rev. 1:8</ref>,<ref osisRef="Bible:Gen.1.11">11</ref>; <ref osisRef="Bible:Gen.21.6">21:6</ref>; <ref osisRef="Bible:Gen.22.13">22:13</ref>). Also a whole chapter (<ref osisRef="Bible:Num.12">Num. 12</ref>), a <foreign>ruach</foreign> word, an internal <ref target="Easton:BETA">BETA</ref> link, a missing <ref target="Easton:NOPE">NOPE</ref>, an ambiguous <ref target="Easton:GAMMA">GAMMA</ref>, and an unsupported <ref osisRef="Bible:1Macc.1.57">1 Macc. 1:57</ref>.</p> </entryFree>
+$$$BETA
+<entryFree n="Beta"> <title>Beta</title> <p>Second entry citing a full chapter (<ref osisRef="Bible:Lev.8.1-Lev.8.36">Lev. 8</ref>) and a single-chapter book (<ref osisRef="Bible:Jude.1.1">Jude 1</ref>).</p> </entryFree>
+$$$GAMMA
+<entryFree n="Gamma"> <title>Gamma</title> <p>Third entry, first definition.</p> </entryFree>
+$$$GAMMA
+<entryFree n="Gamma"> <title>Gamma</title> <p>Third entry, second definition (<ref osisRef="Bible:Num.15.6">Lev. 42:6</ref>, <ref osisRef="Bible:Gen.1.17">17</ref>).</p> </entryFree>

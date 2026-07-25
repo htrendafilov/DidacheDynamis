@@ -8,7 +8,7 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 | `engwebp_usfx.zip` | World English Bible (Protestant) | Public domain | https://ebible.org/find/details.php?id=engwebp |
 | `KJV.imp.gz` | King James Version (1769), CrossWire 3.1 | CrossWire general public license; module distribution: GPL | https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV |
 | `MHC.imp.gz` | Matthew Henry's Complete Commentary | Public domain | CrossWire MHC 2.2 |
-| `Easton.imp.gz` | Easton's Bible Dictionary | Public domain | CrossWire Easton module |
+| `Easton.raw.imp.gz` | Easton's Bible Dictionary (raw structured export; active importer input) | Public domain | CrossWire Easton module |
 | `crossreferences_kjv.tsv` | TSK-derived cross-references | CC BY 4.0 | CrossReferences.org KJV mapping |
 | `BaptistConfession1689.imp.gz` | Baptist Confession of Faith of 1689 | Public domain | CrossWire BaptistConfession1689 1.0.2 |
 
@@ -31,7 +31,7 @@ bibleimport build-web --source data/sources/engwebp_usfx.zip --out data/content.
 bibleimport add-kjv --source data/sources/KJV.imp.gz --out data/content.sqlite
 bibleimport add-study --out data/content.sqlite \
   --mhc-source data/sources/MHC.imp.gz \
-  --easton-source data/sources/Easton.imp.gz \
+  --easton-source data/sources/Easton.raw.imp.gz \
   --xref-source data/sources/crossreferences_kjv.tsv
 ```
 
@@ -44,7 +44,7 @@ parsing SWORD binaries in this repository:
 ```bash
 SWORD_PATH=/path/to/unpacked/modules mod2imp KJV | gzip -9 > KJV.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp MHC | gzip -9 > MHC.imp.gz
-SWORD_PATH=/path/to/unpacked/modules mod2imp Easton -s | gzip -9 > Easton.imp.gz
+SWORD_PATH=/path/to/unpacked/modules mod2imp Easton | gzip -n -9 > Easton.raw.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
   | gzip -n -9 > BaptistConfession1689.imp.gz
 ```
@@ -60,7 +60,15 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
   - committed raw-OSIS export SHA-256: `3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0`
 - Easton module: https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=Easton
   - raw module SHA-256: `f6dd054554764e2e97d5d189a697eb26039054578a9ccf98ce668ab810341c6e`
-  - committed export SHA-256: `953dbd99c4c3fe29516bb7dbf19283fae43ce263acf29ae3be839c887815ca77`
+  - raw IMP SHA-256:
+    `9aaa5a3f7ecc7042bc1985f51f836f2464001bd7fd24713a7404179dfd7e70bb`
+  - committed deterministic raw gzip SHA-256:
+    `2b7d1d211c0ea532c47afce170edb7c31e8097f502e15ca343eca5e2aaa059c5`
+  - raw export validation: 3,963 valid `<entryFree>` documents, 24,092
+    `<ref osisRef="Bible:…">` references, and 687 `<ref target="Easton:…">` references.
+  - the raw export is the active input; its structured references ship as scripture links and
+    internal dictionary links ([`../../plan/easton_dictionary_references.md`](../../plan/easton_dictionary_references.md)).
+    The former stripped `mod2imp Easton -s` export was retired once the raw adapter shipped.
 - Cross-references: https://github.com/CrossReferences-org/bible-cross-references at source blob
   `47ed2af489e1212e057bc073e1844d382804aac2`, licensed CC BY 4.0.
   - committed TSV SHA-256: `0da9d809096e5b650f5c960e68000e580c9f4582beafe673ea1190e2e0105b9f`

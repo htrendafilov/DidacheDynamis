@@ -44,8 +44,10 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
   this verse" action. Commentary snippets/open-in-commentary actions are not shipped.
 - **Commentary pane** — Matthew Henry for the current ref; its embedded KJV quotation is visually
   separated from the commentary, while the pane follows any linked Bible by canonical reference.
-- **Dictionary pane** — prefix search box + headword list and entry view. Automatic/internal
-  dictionary links are not shipped.
+- **Dictionary pane** — prefix search box + headword list and entry view. Bible citations carry the
+  standard scripture pop-up (including chapter-only targets), and internal Easton links navigate to
+  the referenced entry in the same pane; details in
+  [`easton_dictionary_references.md`](../easton_dictionary_references.md).
 - **General Book pane** — selects an imported reference/theology book, displays its hierarchical TOC,
   and renders sections with the same Document CIR used by commentary and dictionary entries. The pane
   header orders source, book, then the show/hide-contents control. The global Settings panel chooses

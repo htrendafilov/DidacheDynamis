@@ -62,6 +62,8 @@
   "dictionary.search": "Търсене на дума…",
   "dictionary.headwords": "Думи в речника",
   "dictionary.choose": "Изберете дума, за да прочетете определението.",
+  "dictionary.notFound": "Този речников запис не можа да бъде зареден.",
+  "dictionary.openEntry": "Отвори речниковия запис {{headword}}",
   "book.select": "Книга",
   "book.contents": "Съдържание",
   "book.showContents": "Покажи съдържанието",

@@ -3,6 +3,7 @@
  *
  * Usage on an external page:
  *   <span data-bible-ref="John.3.16">John 3:16</span>
+ *   <span data-bible-ref="Num.12">Numbers 12</span>
  *   <script src="https://bible.trendafilovi.net/embed.js" defer></script>
  *
  * Dependency-free and self-contained. It marks up every [data-bible-ref], and on hover / focus / tap
@@ -22,15 +23,24 @@
   var API_BASE = (script && script.getAttribute("data-api")) || origin;
   var APP_BASE = (script && script.getAttribute("data-app")) || origin;
   var DEFAULT_WORK = (script && script.getAttribute("data-work")) || "web";
-  var REF = /^([A-Za-z0-9]+)\.(\d+)\.(\d+)(?:-(\d+))?$/;
+  // Same reference grammar the app itself accepts: Book.chapter.verse[-end], or Book.chapter for a
+  // whole-chapter citation. Keeping the two in step means a reference copied out of the reader
+  // works verbatim in data-bible-ref.
+  var REF = /^([A-Za-z0-9]+)\.(\d+)(?:\.(\d+)(?:-(\d+))?)?$/;
+  // A chapter-only citation previews the opening verses instead of pulling the whole chapter
+  // (Psalm 119 is 176 verses) — this fires on hover, on someone else's page.
+  var CHAPTER_PREVIEW_VERSES = 6;
 
   function parseRef(value) {
     var m = REF.exec(value || "");
     if (!m) return null;
     var chapter = +m[2];
+    if (chapter < 1) return null;
+    // start === null marks a chapter-only ref; never fabricate verse 1.
+    if (!m[3]) return { osis: m[1], chapter: chapter, start: null, end: null };
     var start = +m[3];
     var end = m[4] ? +m[4] : start;
-    if (chapter < 1 || start < 1 || end < start) return null;
+    if (start < 1 || end < start) return null;
     return { osis: m[1], chapter: chapter, start: start, end: end };
   }
 
@@ -61,7 +71,12 @@
   var cache = {};
 
   function ensurePopover() {
-    if (pop) return;
+    if (pop) {
+      // A host page that replaces document.body (SPA route change, htmx/turbo swap) detaches the
+      // pop-up; re-attach the existing node rather than leaving the widget permanently silent.
+      if (!pop.isConnected) document.body.appendChild(pop);
+      return;
+    }
     var style = document.createElement("style");
     style.textContent =
       ".bible-embed-ref{color:#1d4ed8;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}" +
@@ -118,12 +133,21 @@
     ensurePopover();
     cancelClose();
     position(el);
-    titleEl.textContent = (el.textContent || "").trim() || ref.osis + " " + ref.chapter + ":" + ref.start;
-    var range = ref.start === ref.end ? "" + ref.start : ref.start + "-" + ref.end;
+    var fallbackTitle = ref.osis + " " + ref.chapter + (ref.start === null ? "" : ":" + ref.start);
+    titleEl.textContent = (el.textContent || "").trim() || fallbackTitle;
+    var range =
+      ref.start === null
+        ? "1-" + CHAPTER_PREVIEW_VERSES
+        : ref.start === ref.end
+          ? "" + ref.start
+          : ref.start + "-" + ref.end;
     linkEl.href = APP_BASE.replace(/\/$/, "") + "/#/b/" + encodeURIComponent(work) + "/" + encodeURIComponent(ref.osis) + "/" + ref.chapter;
     pop.hidden = false;
 
     var key = work + "/" + ref.osis + "/" + ref.chapter + "/" + range;
+    // Claim the pop-up before any early return: a cached hit that left this stale let an
+    // older in-flight fetch write its text under the newer reference's title.
+    titleEl.dataset.key = key;
     if (cache[key] !== undefined) {
       bodyEl.textContent = cache[key];
       return;
@@ -138,6 +162,10 @@
       })
       .then(function (passage) {
         var text = passageText(passage);
+        // A full window came back, so the chapter continues past what was fetched.
+        if (ref.start === null && (passage.verses || []).length >= CHAPTER_PREVIEW_VERSES) {
+          text += " …";
+        }
         cache[key] = text;
         // Only update if this reference is still the one showing.
         if (!pop.hidden && titleEl.dataset.key === key) bodyEl.textContent = text;
@@ -145,7 +173,6 @@
       .catch(function () {
         if (!pop.hidden && titleEl.dataset.key === key) bodyEl.textContent = "Could not load this passage.";
       });
-    titleEl.dataset.key = key;
   }
 
   function attach(el) {

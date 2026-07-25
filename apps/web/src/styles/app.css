@@ -1250,10 +1250,22 @@ button.danger {
 .scripture-ref:focus-visible {
   text-decoration-style: solid;
 }
+/* Internal dictionary links navigate immediately instead of previewing on hover, so they carry
+   a different affordance: a solid underline that thickens rather than a dotted one that fills in. */
+.scripture-ref.dictionary-ref {
+  text-decoration: underline solid;
+  text-decoration-thickness: 1px;
+}
+.scripture-ref.dictionary-ref:hover,
+.scripture-ref.dictionary-ref:focus-visible {
+  text-decoration-thickness: 2px;
+}
 .scripture-ref-popover {
   position: absolute;
   z-index: 20;
-  top: 1.5em;
+  /* Flush against the trigger: a gap would close the pop-up (mouseleave) before the
+     pointer can travel from the citation to "Open in Bible pane". */
+  top: 100%;
   left: 0;
   display: flex;
   flex-direction: column;

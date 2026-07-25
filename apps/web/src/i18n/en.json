@@ -62,6 +62,8 @@
   "dictionary.search": "Find a word…",
   "dictionary.headwords": "Dictionary headwords",
   "dictionary.choose": "Choose a word to read its definition.",
+  "dictionary.notFound": "This dictionary entry could not be loaded.",
+  "dictionary.openEntry": "Open dictionary entry {{headword}}",
   "book.select": "Book",
   "book.contents": "Table of contents",
   "book.showContents": "Show contents",

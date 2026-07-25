@@ -89,13 +89,14 @@ def test_append_study_content_populates_all_tables(tmp_path):
     )
     diag = build_bible(FIXTURES / "mini_usfx.xml", spec, out)
     assert diag.ok
-    stats = append_study_content(
+    stats, easton_diag = append_study_content(
         out,
         [FIXTURES / "mini_commentary.xml"],
         FIXTURES / "mini_dictionary.xml",
         FIXTURES / "mini_xrefs.tsv",
     )
     assert stats == {"commentary_entries": 2, "dictionary_entries": 2, "xrefs": 5}
+    assert easton_diag["format"] == "thml"
 
     conn = sqlite3.connect(out)
     assert {row[0] for row in conn.execute("SELECT id FROM works")} == {
