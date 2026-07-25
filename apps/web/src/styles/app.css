@@ -180,7 +180,8 @@ input[type="search"] {
   touch-action: none;
   z-index: 1;
 }
-.search-drawer-handle:hover {
+.search-drawer-handle:hover,
+.search-drawer-handle:focus-visible {
   background: var(--accent);
 }
 .search-workspace-header {
@@ -584,6 +585,11 @@ input[type="search"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-alt);
+}
+.search-error {
+  margin: 0.65rem 0 0;
+  color: var(--danger, #b42318);
+  font-weight: 600;
 }
 .search-history > header {
   display: flex;

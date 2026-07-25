@@ -34,7 +34,9 @@ describe("SearchDrawer", () => {
     expect(drawer.className).toContain("docked");
     expect(drawer.className).toContain("open");
     expect(drawer.style.width).toBe("380px");
-    expect(screen.getByRole("separator", { name: "Resize search" })).toBeInTheDocument();
+    const separator = screen.getByRole("separator", { name: "Resize search" });
+    expect(separator).toHaveAttribute("tabindex", "0");
+    expect(separator).toHaveAttribute("aria-valuenow", "380");
   });
 
   it("is hidden (but still mounted) when closed", () => {
@@ -74,5 +76,19 @@ describe("SearchDrawer", () => {
     fireEvent.pointerUp(handle, { pointerId: 1 });
     fireEvent.pointerMove(handle, { pointerId: 1 }); // drag ended -> ignored
     expect(onWidthChange).toHaveBeenCalledOnce();
+  });
+
+  it("resizes from the keyboard", () => {
+    const { onWidthChange } = renderDrawer();
+    const handle = screen.getByRole("separator", { name: "Resize search" });
+
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(onWidthChange).toHaveBeenLastCalledWith(390);
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(onWidthChange).toHaveBeenLastCalledWith(370);
+    fireEvent.keyDown(handle, { key: "Home" });
+    expect(onWidthChange).toHaveBeenLastCalledWith(SEARCH_MIN_WIDTH);
+    fireEvent.keyDown(handle, { key: "End" });
+    expect(onWidthChange).toHaveBeenLastCalledWith(SEARCH_MAX_WIDTH);
   });
 });

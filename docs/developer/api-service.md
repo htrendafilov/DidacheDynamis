@@ -42,11 +42,29 @@ rejects content requests clearly instead of allowing a later missing-column SQL 
 | `GET /api/v1/books` | Installed General Book works |
 | `GET /api/v1/book/{work_id}` | General Book TOC tree and all section bodies |
 | `GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=` | Cross-references and previews |
-| `GET /api/v1/search?q=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=` | Unified FTS5 search across Bible/commentary/dictionary/General Book, grouped by type with `total`/`has_more`; filters (type, work, testament, book, language), `sort=relevance\|canonical`, 50/page |
+| `GET /api/v1/search?q=&refine=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=` | Unified FTS5 search across Bible/commentary/dictionary/General Book; grouped totals, typed hits, filters, ordering, and stable pagination |
 
 FastAPI's generated OpenAPI schema is the runtime contract. When changing response models in
 `apps/api/app/models.py`, update the matching interfaces and fetch functions in
 `apps/web/src/data/api.ts`.
+
+### Unified search contract
+
+`q` and optional `refine` are safely tokenized; all terms are combined with `AND` rather than
+accepting raw FTS syntax. `types`, `works`, `books`, and `languages` are comma-separated, size-capped
+filters. `canon=ot|nt` and `books=` affect Bible and reference-bound commentary; dictionary and
+General Book providers ignore canonical range filters. Work and language filters apply to every
+provider.
+
+A request for several types returns a five-hit preview per group. A single `types=` value uses the
+requested `limit` (1–100) and `offset` (up to 100,000). Every group includes `total`, `offset`,
+`limit`, `has_more`, and a typed locator: canonical verse, stable commentary entry, dictionary
+headword, or General Book section.
+
+`sort=relevance` uses provider-specific BM25 ranking with deterministic source-order tie-breakers.
+`sort=canonical` means canonical verse/reference order, alphabetical dictionary headword order, or
+General Book section order. Count and page queries share the same filters, so totals and pagination
+remain stable.
 
 Document bodies (`Document.blocks[].runs[]`) carry inline markup: `emphasis`/`strong`/`superscript`
 flags, a `ref` field with a canonical scripture target (`John.3.16`, `John.3.1-19`, or chapter-only

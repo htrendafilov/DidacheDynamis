@@ -67,11 +67,13 @@ Kept out of v1: Redux, a component/design-system framework, GraphQL.
   distinguish one-sided changes from true conflicts; if both browsers changed a note, the local note
   stays in place and the remote version becomes a clearly titled topic note for manual resolution.
   The Dropbox token lives only in `sessionStorage` and never reaches the Bible Reader API.
-- **Search (M7.1–M7.4)** — a persistent resizable desktop workspace / full-screen mobile view with
+- **Search (M7.1–M7.5)** — a persistent resizable desktop workspace / full-screen mobile view with
   grouped tabs and true counts for Bible, commentary, dictionary, and books; work, testament, and
   localized book filters; relevance/canonical ordering; stable 50-result pagination; server-side
   refinement; removable chips; and versioned local recent/pinned history that restores the complete
-  query scope. Clicking opens/reuses the appropriate pane and exact Bible result verse.
+  query scope. Clicking opens/reuses the appropriate pane and exact Bible result verse. Keyboard
+  tabs/resizing, live result announcements, focus-managed mobile filters, and Back to results keep
+  the workflow accessible without losing position.
 
 ## 5. CIR renderer
 

@@ -22,7 +22,7 @@ flowchart TD
         FastAPI --> SQLite
     end
 
-    UI -->|GET Read-Only Passages| FastAPI
+    UI -->|GET Read-Only Content & Search| FastAPI
     
     style NotesData fill:#2d5a27,stroke:#333,stroke-width:2px;
     style DropboxToken fill:#2d5a27,stroke:#333,stroke-width:2px;
@@ -35,6 +35,9 @@ flowchart TD
 2. **Local Browser Storage**: Notes and verse anchors live in IndexedDB. Pane layout and reading
    preferences live in `localStorage`. These browser stores are local to the site profile but are not
    application-level encrypted; anyone with access to the browser profile may be able to read them.
+   Recent and pinned search state (query, refinement, filters, order, and selected result type) is
+   also stored unencrypted in `localStorage` under `bible-search-v1`. It can be cleared from Search
+   history and is deliberately excluded from Dropbox note synchronization.
 3. **Direct Cloud Sync**: Dropbox synchronization uses OAuth 2.0 PKCE. Tokens and note contents travel directly between your browser and Dropbox servers. The `bible_app_bg` API server never sees or handles your Dropbox token.
 
 ## Application Security Measures
@@ -47,3 +50,11 @@ flowchart TD
   bound compressed and expanded bytes, reject excessive ZIP entry counts/compression ratios, and
   avoid shell interpolation. This applies even to owner-supplied content.
 - **Sanitized Rich-Text Rendering**: Personal notes rich-text content is sanitized before rendering to eliminate Cross-Site Scripting (XSS) risks.
+
+## Search privacy
+
+Search is not local-only. The browser sends `q`, `refine`, and selected filters to the same-origin
+read-only API as GET query parameters. Those URLs may appear in browser history and ordinary
+Cloudflare, proxy, or origin request logs according to their retention settings. The application
+does not create a server-side search-history database, but users should still avoid placing private
+information in search queries.

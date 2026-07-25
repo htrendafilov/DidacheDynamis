@@ -76,8 +76,8 @@ Target Audience: End-users reading scripture, taking notes, or using cross-refer
 
 * **`docs/user/search-and-lookup.md` — Search, Navigation & Cross-References**
   * Book/chapter navigation and current limitations around verse/direct links.
-  * Unified Full-Text Search behavior: content-type tabs/counts, work/testament filters, ordering,
-    and complete 50-result pagination.
+  * Unified Full-Text Search behavior: tabs/counts, source/testament/book filters, refinement,
+    recent/pinned history, ordering, complete pagination, and mobile Back to results.
   * TSK cross-references popovers and dictionary term lookups.
 
 * **`docs/user/personal-notes.md` — Rich-Text Notes & Storage**

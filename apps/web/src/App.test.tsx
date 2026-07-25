@@ -6,9 +6,15 @@ import { useStore } from "./state/store";
 import App from "./App";
 
 vi.mock("./components/TopBar", () => ({
-  TopBar: ({ onToggleSearch }: { onToggleSearch: () => void }) => (
+  TopBar: ({
+    onToggleSearch,
+    searchReturnAvailable,
+  }: {
+    onToggleSearch: () => void;
+    searchReturnAvailable?: boolean;
+  }) => (
     <button type="button" onClick={onToggleSearch}>
-      Open search
+      {searchReturnAvailable ? "Back to results" : "Open search"}
     </button>
   ),
 }));
@@ -85,5 +91,9 @@ describe("App mobile search navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open dictionary result" }));
 
     expect(screen.getByText("Active pane: dictionary")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to results" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to results" }));
+    expect(screen.getByRole("button", { name: "Open dictionary result" })).toBeInTheDocument();
   });
 });

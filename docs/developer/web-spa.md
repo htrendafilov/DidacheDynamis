@@ -9,6 +9,7 @@ icon library.
 ```mermaid
 flowchart TD
     App[App.tsx] --> TopBar[components/TopBar.tsx]
+    App --> SearchDrawer[SearchDrawer / SearchPanel]
     App --> PanelGroup[react-resizable-panels / mobile tabs]
     PanelGroup --> Host[panes/PaneHost.tsx]
     Host --> Bible[BiblePane]
@@ -21,12 +22,15 @@ flowchart TD
     App & Host & Bible & Commentary & Book --> Store[state/store.ts]
     Notes --> Dexie[data/notes.ts]
     Notes --> Dropbox[sync/*]
+    SearchDrawer --> SearchAPI[Unified /api/v1/search]
+    SearchDrawer --> SearchHistory[search/history.ts]
 ```
 
 ## Key modules
 
-- `src/App.tsx`: top-level panels, responsive mobile tab behavior, settings/search overlays,
-  Dropbox initialization, build-update notice, and validated hash deep links.
+- `src/App.tsx`: top-level panels, responsive mobile tab behavior, settings, the docked/full-screen
+  Search workspace and mobile Back-to-results state, Dropbox initialization, build-update notice,
+  and validated hash deep links.
 - `src/panes/PaneHost.tsx`: routes each persisted pane record to its pane component; lazy-loads Notes.
 - `src/render/CIRRenderer.tsx`: Bible verse CIR, verse layouts, poetry, headings, and words of Christ.
 - `src/render/DocumentRenderer.tsx`: shared study-document CIR for commentary, dictionary, and books.
@@ -34,6 +38,12 @@ flowchart TD
   `localStorage`.
 - `src/data/notes.ts`: Dexie schema and validated notes import/export in IndexedDB.
 - `src/sync/`: Dropbox OAuth PKCE, transport, three-way merge, and sync state.
+- `src/components/SearchDrawer.tsx`: persistent desktop drawer/full-screen mobile shell and
+  pointer/keyboard resizing.
+- `src/components/SearchPanel.tsx`: grouped results, filters, refinement, accessible tabs, live
+  announcements, result navigation, and retained result focus.
+- `src/search/history.ts`: versioned recent/pinned search history in `localStorage`
+  (`bible-search-v1`), independent of pane state and Dropbox note sync.
 - `src/i18n/en.json`, `src/i18n/bg.json`: interface strings; `src/i18n/bookNames.ts` localizes canonical
   book names from OSIS codes.
 - `src/styles/app.css`: application styles and responsive rules.
@@ -66,3 +76,11 @@ Every Vite build emits `/version.json`. `UpdateNotice` checks it at startup, on 
 tab regains focus. A changed build ID prompts the user to reload rather than interrupting a note edit.
 Missing old lazy chunks trigger one guarded reload. Hashed assets remain immutable while HTML,
 `version.json`, and `embed.js` revalidate.
+
+## Search workspace state and accessibility
+
+Current results stay in the mounted `SearchPanel`, so collapse/restore and mobile Back-to-results
+preserve loaded pages and scroll. Only recent/pinned history is persisted. Result tabs use roving
+focus with Left/Right/Home/End keys; the resize separator supports pointer and keyboard operation;
+the mobile filter sheet traps and restores focus. A polite live region announces loading, total
+counts, appended pages, and failures, while failures are also visible alerts.
