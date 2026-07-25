@@ -95,6 +95,7 @@ test("a preview near the pane corner stays fully visible", async ({ page }) => {
   expect(popoverBox).not.toBeNull();
   expect(bodyBox).not.toBeNull();
   if (!popoverBox || !bodyBox) return;
+  expect(popoverBox.width).toBeLessThanOrEqual(353);
   expect(popoverBox.x).toBeGreaterThanOrEqual(bodyBox.x + 7);
   expect(popoverBox.y).toBeGreaterThanOrEqual(bodyBox.y + 7);
   expect(popoverBox.x + popoverBox.width).toBeLessThanOrEqual(

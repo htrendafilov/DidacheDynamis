@@ -200,10 +200,12 @@ describe("ScriptureRef pop-up", () => {
           visibility: "visible",
           top: "240px",
           left: "272px",
-          maxWidth: "384px",
           maxHeight: "352px",
         });
       });
+      expect(
+        popover.style.getPropertyValue("--scripture-popover-boundary-width"),
+      ).toBe("384px");
       expect(popover).toHaveAttribute("data-placement", "above");
     } finally {
       geometry.mockRestore();

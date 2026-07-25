@@ -1272,7 +1272,12 @@ button.danger {
   gap: 0.4rem;
   box-sizing: border-box;
   width: max-content;
-  max-width: min(22rem, calc(100vw - 1rem));
+  /* Keep a readable card width while allowing JS to tighten the cap for a narrow split pane. */
+  max-width: min(
+    22rem,
+    calc(100vw - 1rem),
+    var(--scripture-popover-boundary-width, 100vw)
+  );
   max-height: calc(100vh - 1rem);
   padding: 0.6rem 0.7rem;
   overflow-y: auto;

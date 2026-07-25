@@ -197,7 +197,7 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
 
       // Apply the full boundary first so width-dependent wrapping is reflected in the measured
       // height, then choose the side and constrain the final height to the available space.
-      popover.style.maxWidth = `${boundary.width}px`;
+      popover.style.setProperty("--scripture-popover-boundary-width", `${boundary.width}px`);
       popover.style.maxHeight = `${boundary.height}px`;
       const placement = calculatePopoverPosition(
         triggerRect,
@@ -206,7 +206,6 @@ export function ScriptureRef({ refValue, children }: { refValue: string; childre
       );
       popover.style.top = `${placement.top}px`;
       popover.style.left = `${placement.left}px`;
-      popover.style.maxWidth = `${placement.maxWidth}px`;
       popover.style.maxHeight = `${placement.maxHeight}px`;
       popover.style.visibility = "visible";
       popover.dataset.placement = placement.placement;
