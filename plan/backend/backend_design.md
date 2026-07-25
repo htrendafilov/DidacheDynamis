@@ -82,7 +82,7 @@ GET /api/v1/dictionary/{id}/entry/{headword}
 GET /api/v1/books
 GET /api/v1/book/{id}
 GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=
-GET /api/v1/search?q=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=
+GET /api/v1/search?q=&refine=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=
 ```
 
 - **Caching:** API responses use `ETag` plus
@@ -92,7 +92,9 @@ GET /api/v1/search?q=&types=&works=&canon=&books=&languages=&sort=&limit=&offset
 - **No auth / no CSRF surface** — reading is fully public; there are no writes.
 - **Search:** provider-based FTS5 `MATCH` across Bible/commentary/dictionary/books with true counts,
   stable pagination, `bm25()` relevance or canonical/source ordering, highlighted snippets, and
-  type/work/testament/book/language filters. Query/list/limit/offset values are capped.
+  type/work/testament/book/language filters. Optional `refine` terms are safely tokenized and ANDed
+  with the primary query over the complete corpus. Query/refinement/list/limit/offset values are
+  capped.
 - **Pydantic** response models mirror the CIR node types; FastAPI's OpenAPI doc is the contract the
   frontend's `data/api.ts` types track.
 

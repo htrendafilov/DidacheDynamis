@@ -117,6 +117,7 @@ class SearchGroup(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
+    refine: str | None = None
     sort: str  # "relevance" | "canonical"
     total: int
     groups: list[SearchGroup]

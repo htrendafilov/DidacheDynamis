@@ -67,6 +67,77 @@ test("search finds a verse and opens it in the reader", async ({ page }) => {
   await expect(page.locator(".reader").getByText(/shepherd/i).first()).toBeVisible();
 });
 
+test("search filters by an individual Bible book and exposes a removable chip", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  const input = page.getByPlaceholder("Search the text…");
+  await input.fill("earth");
+  await input.press("Enter");
+  await expect(page.getByRole("tab", { name: /Bible/ })).toBeVisible();
+
+  await page.getByText("Bible books", { exact: true }).click();
+  await page.getByRole("checkbox", { name: "Genesis" }).check();
+  const chip = page.getByRole("button", { name: "Remove filter Genesis" });
+  await expect(chip).toBeVisible();
+  await expect(page.locator(".search-results").getByText(/Genesis 1:/).first()).toBeVisible();
+
+  await chip.click();
+  await expect(chip).not.toBeVisible();
+});
+
+test("mobile search presents filters in a bottom sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 680, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  const input = page.getByPlaceholder("Search the text…");
+  await input.fill("earth");
+  await input.press("Enter");
+
+  await page.getByRole("button", { name: /^☷ Filters/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Filters" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "New Testament" }).click();
+  await expect(
+    page.getByRole("button", { name: "Remove filter New Testament" }),
+  ).toBeVisible();
+  await sheet.getByRole("button", { name: "Close filters" }).click();
+  await expect(sheet).not.toBeVisible();
+});
+
+test("search refinement runs server-side and history restores it after reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  const input = page.getByPlaceholder("Search the text…");
+  await input.fill("earth");
+  await input.press("Enter");
+
+  const refine = page.getByPlaceholder("Refine these results…");
+  await refine.fill("created");
+  await refine.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Remove filter Refine: created" }),
+  ).toBeVisible();
+  await expect(page.locator(".search-results").getByText(/Genesis 1:1/).first()).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Search" }).click();
+  await page
+    .getByRole("button", { name: "Run search earth again" })
+    .first()
+    .click();
+  await expect(page.getByPlaceholder("Search the text…")).toHaveValue("earth");
+  await expect(page.getByPlaceholder("Refine these results…")).toHaveValue(
+    "created",
+  );
+  await expect(
+    page.getByRole("button", { name: "Remove filter Refine: created" }),
+  ).toBeVisible();
+});
+
 test("a cross-reference opens its destination in the same Bible pane", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("God so loved the world")).toBeVisible();

@@ -106,6 +106,7 @@ export interface SearchGroup {
 
 export interface SearchResponse {
   query: string;
+  refine: string | null;
   sort: SearchSort;
   total: number;
   groups: SearchGroup[];
@@ -232,6 +233,7 @@ export const api = {
   search: (
     q: string,
     opts: {
+      refine?: string;
       types?: string;
       works?: string;
       canon?: "ot" | "nt";
@@ -243,6 +245,7 @@ export const api = {
     } = {},
   ) => {
     const params = new URLSearchParams({ q });
+    if (opts.refine) params.set("refine", opts.refine);
     if (opts.types) params.set("types", opts.types);
     if (opts.works) params.set("works", opts.works);
     if (opts.canon) params.set("canon", opts.canon);

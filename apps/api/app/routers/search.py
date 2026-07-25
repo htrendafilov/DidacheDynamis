@@ -24,6 +24,12 @@ def _csv(value: str | None, cap: int, name: str) -> list[str] | None:
 @router.get("/search", response_model=SearchResponse)
 def search(
     q: str = Query(..., min_length=1, max_length=200),
+    refine: str | None = Query(
+        None,
+        min_length=1,
+        max_length=200,
+        description="additional terms ANDed with the primary query",
+    ),
     types: str | None = Query(None, description="content types, e.g. bible,commentary"),
     works: str | None = Query(None, description="restrict to these work ids"),
     canon: str | None = Query(None, pattern="^(ot|nt)$", description="testament filter"),
@@ -48,6 +54,9 @@ def search(
     # A multi-type ("All") query returns a small preview per group; a single-type query paginates it.
     preview = len(requested) > 1
     match = fts_query(q)
+    refine_match = fts_query(refine) if refine else None
+    if match is not None and refine_match is not None:
+        match = f"{match} {refine_match}"
 
     groups: list[SearchGroup] = []
     grand_total = 0
@@ -83,4 +92,4 @@ def search(
             )
         )
 
-    return SearchResponse(query=q, sort=sort, total=grand_total, groups=groups)
+    return SearchResponse(query=q, refine=refine, sort=sort, total=grand_total, groups=groups)

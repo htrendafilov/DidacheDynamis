@@ -1,13 +1,14 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.3 delivered; M7.4 and M8 proposed**  
+Status: **M7.1–M7.4 delivered; M7.5 and M8 proposed**
 Last reviewed: 2026-07-25
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
 filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
 General Book indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament
-filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace;
-the granular book picker, history, and refine field remain M7.4.
+filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace.
+M7.4 adds granular book filters, a mobile filter sheet, filter/refinement chips, local recent/pinned
+history, and server-side refinement with full state restoration.
 
 See also:
 
@@ -223,7 +224,7 @@ the runtime's read path other than the columns it can order and filter by.
 
 ## 6. Search history
 
-Search history remains local to the browser in a separate, versioned `localStorage` record such as
+Search history is delivered and remains local to the browser in the versioned `localStorage` record
 `bible-search-v1`.
 
 - Keep the most recent 50 distinct searches.
@@ -255,8 +256,9 @@ GET /api/v1/search
     &offset=0
 ```
 
-`refine=` in this example is **aspirational M7.4** and is not accepted by the shipped endpoint.
-The other shown filter/order/pagination parameters are implemented.
+All shown refinement/filter/order/pagination parameters are implemented. `q` and `refine` are each
+tokenized safely and combined with `AND` in the server-side FTS query, so refinement operates over the
+complete matching corpus rather than the currently loaded page.
 
 Comma-separated values match the current `works` convention. Validate every enum/identifier and cap
 query, refinement, list, limit, and offset sizes. All SQL values remain parameterized; the FTS query
@@ -456,15 +458,21 @@ Shipped:
 - Opening a **Bible result scrolls to and briefly flashes the exact verse** (`data-verse` anchors in
   `CIRRenderer`, `pane.focusVerse` + `.verse-flash`); commentary/dictionary/book navigate as before.
 - Reuses the shipped group tabs/counts, testament/work filters, and relevance/canonical ordering.
-- **Deferred to M7.4/polish:** the granular book picker, a dedicated mobile bottom-sheet for filters
-  (filters are currently inline in the scrollable view), and removable filter **chips**.
+- The granular book picker, mobile filter sheet, and removable chips deferred here shipped in M7.4.
 
-### M7.4 — History and refinement
+### M7.4 — History and refinement — DELIVERED 2026-07-25
 
-- Add the granular Bible book picker, wired to the shipped API `books=` filter.
-- Add recent/pinned local history and clear/delete controls.
-- Add server-side refinement against the complete result set.
-- Restore complete search state from a history entry.
+Shipped:
+
+- Granular localized Bible-book picker wired to the shipped API `books=` filter.
+- Individually removable testament, source, and book chips plus **Clear filters**.
+- Dedicated mobile filter bottom sheet with an active-filter count and Escape/scrim dismissal.
+- Versioned local recent/pinned history with effective-search deduplication and pin, delete, and clear
+  controls. Search history remains outside Dropbox note sync.
+- Server-side `refine=` terms combined with the main query over the complete FTS corpus.
+- History reruns restore query, refinement, work/book/testament filters, ordering, and selected group.
+- React/API/Playwright coverage for filtering, refinement, history persistence/restoration, chips, and
+  the mobile flow.
 
 ### M7.5 — Accessibility, tests, and documentation
 

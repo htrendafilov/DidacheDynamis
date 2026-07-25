@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SearchHit } from "../data/api";
 import i18n from "../i18n";
+import { rememberSearch, saveSearchHistory } from "../search/history";
 import { useStore } from "../state/store";
 import { SearchPanel } from "./SearchPanel";
 
@@ -11,6 +12,11 @@ const search = vi.fn();
 vi.mock("../data/api", () => ({ api: { search: (...args: unknown[]) => search(...args) } }));
 
 vi.mock("../data/hooks", () => ({
+  useBooks: () => [
+    { osis: "Gen", name: "Genesis", order: 1, chapter_count: 50 },
+    { osis: "Exod", name: "Exodus", order: 2, chapter_count: 40 },
+    { osis: "Matt", name: "Matthew", order: 40, chapter_count: 28 },
+  ],
   useWorks: () => [
     { id: "web", abbrev: "WEB", type: "bible", title: "World English Bible" },
     { id: "mhc", abbrev: "MHC", type: "commentary", title: "Matthew Henry" },
@@ -75,6 +81,7 @@ const allRes = () => ({
 describe("SearchPanel", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    localStorage.clear();
     search.mockReset();
     useStore.setState({
       panes: [{ id: "a", type: "bible", workId: "web", osis: "John", chapter: 3 }],
@@ -82,7 +89,7 @@ describe("SearchPanel", () => {
   });
 
   async function runSearch(props: Partial<ComponentProps<typeof SearchPanel>> = {}) {
-    render(<SearchPanel onClose={() => {}} {...props} />);
+    render(<SearchPanel mode="docked" onClose={() => {}} {...props} />);
     fireEvent.change(screen.getByPlaceholderText("Search the text…"), {
       target: { value: "earth" },
     });
@@ -163,6 +170,135 @@ describe("SearchPanel", () => {
         works: undefined,
       }),
     );
+  });
+
+  it("filters by individual Bible books and removes the filter from its chip", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
+    await screen.findByRole("tab", { name: "All 5" });
+
+    fireEvent.click(screen.getByText("Bible books"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Genesis" }));
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ books: "Gen" }),
+      ),
+    );
+
+    const chip = screen.getByRole("button", { name: "Remove filter Genesis" });
+    expect(chip).toBeInTheDocument();
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ books: undefined }),
+      ),
+    );
+  });
+
+  it("refines the complete result set on the server and exposes a removable chip", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
+    await screen.findByRole("tab", { name: "All 5" });
+
+    const refine = screen.getByPlaceholderText("Refine these results…");
+    fireEvent.change(refine, { target: { value: "created" } });
+    fireEvent.submit(refine.closest("form")!);
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ refine: "created" }),
+      ),
+    );
+
+    const chip = screen.getByRole("button", {
+      name: "Remove filter Refine: created",
+    });
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ refine: undefined }),
+      ),
+    );
+  });
+
+  it("restores query, refinement, filters, ordering, and group from history", async () => {
+    saveSearchHistory(
+      rememberSearch(
+        [],
+        {
+          query: "earth",
+          refine: "created",
+          sort: "canonical",
+          canon: "nt",
+          works: ["web"],
+          books: ["Gen"],
+          selected: "bible",
+        },
+        10,
+      ),
+    );
+    search.mockResolvedValue({
+      query: "earth",
+      refine: "created",
+      sort: "canonical",
+      total: 1,
+      groups: [group("bible", [gen])],
+    });
+
+    render(<SearchPanel mode="docked" onClose={() => {}} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Run search earth again" }),
+    );
+
+    await waitFor(() =>
+      expect(search).toHaveBeenCalledWith("earth", {
+        sort: "canonical",
+        refine: "created",
+        canon: "nt",
+        works: "web",
+        books: "Gen",
+        types: "bible",
+        offset: 0,
+      }),
+    );
+    expect(screen.getByPlaceholderText("Search the text…")).toHaveValue("earth");
+    expect(screen.getByPlaceholderText("Refine these results…")).toHaveValue(
+      "created",
+    );
+    expect(screen.getByRole("button", { name: "New Testament" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("checkbox", { name: "Genesis" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /WEB/ })).toBeChecked();
+    expect(screen.getByRole("tab", { name: "Bible 1" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("presents filters in a dismissible full-screen sheet on mobile", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch({ mode: "fullscreen" });
+    await screen.findByRole("tab", { name: "All 5" });
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Filters/ }));
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "New Testament" }));
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "earth",
+        expect.objectContaining({ canon: "nt" }),
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Remove filter New Testament" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
   });
 
   it("navigates each result type to the right pane", async () => {

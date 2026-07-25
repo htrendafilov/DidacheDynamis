@@ -257,10 +257,23 @@ def _bible_group(res: dict) -> dict:
 def test_search(client):
     res = client.get("/api/v1/search", params={"q": "shepherd"}).json()
     assert res["sort"] == "relevance"
+    assert res["refine"] is None
     hit = next(h for h in _bible_group(res)["hits"] if h["ref"] == "Ps.23.1")
     assert hit["kind"] == "bible" and hit["title"] == "Ps 23:1"
     assert "<b>" in hit["snippet"]
     assert hit["osis"] == "Ps" and hit["chapter"] == 23 and hit["verse"] == 1
+
+
+def test_search_refines_the_complete_server_side_result_set(client):
+    res = client.get(
+        "/api/v1/search",
+        params={"q": "the", "refine": "loved", "types": "bible", "sort": "canonical"},
+    ).json()
+    assert res["query"] == "the"
+    assert res["refine"] == "loved"
+    group = _bible_group(res)
+    assert group["total"] == 1
+    assert [hit["ref"] for hit in group["hits"]] == ["John.3.16"]
 
 
 def test_search_all_content_types_are_grouped(client):
