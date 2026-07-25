@@ -1261,18 +1261,22 @@ button.danger {
   text-decoration-thickness: 2px;
 }
 .scripture-ref-popover {
-  position: absolute;
+  position: fixed;
   z-index: 20;
-  /* Flush against the trigger: a gap would close the pop-up (mouseleave) before the
-     pointer can travel from the citation to "Open in Bible pane". */
-  top: 100%;
+  /* JS keeps the fixed pop-up within the pane/visual viewport and places it flush above or below
+     the trigger. A gap would close it (mouseleave) before the pointer reaches its action. */
+  top: 0;
   left: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  box-sizing: border-box;
   width: max-content;
-  max-width: min(22rem, 80vw);
+  max-width: min(22rem, calc(100vw - 1rem));
+  max-height: calc(100vh - 1rem);
   padding: 0.6rem 0.7rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1281,6 +1285,7 @@ button.danger {
   line-height: 1.4;
   text-align: left;
   white-space: normal;
+  overflow-wrap: anywhere;
   cursor: auto;
 }
 .scripture-ref-popover-title {

@@ -66,6 +66,45 @@ test("a chapter-only citation previews the chapter without pretending verse 1", 
   await expect(popover).not.toContainText("Numbers 12:1");
 });
 
+test("a preview near the pane corner stays fully visible", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 480 });
+  const pane = await openAaronEntry(page);
+  const body = pane.locator(".dictionary-entry");
+  const citation = pane.getByRole("button", { name: "Ex. 6:20" }).first();
+
+  // Recreate the edge case deterministically: move a real citation to the visible reading area's
+  // bottom-right corner, where the popover must shift left and flip above.
+  await citation.evaluate((element) => {
+    const bounds = element.closest(".pane-body")?.getBoundingClientRect();
+    const trigger = element.getBoundingClientRect();
+    if (!bounds) throw new Error("dictionary pane body is missing");
+    (element as HTMLElement).style.display = "inline-block";
+    (element as HTMLElement).style.transform = `translate(${
+      bounds.right - trigger.right - 10
+    }px, ${bounds.bottom - trigger.bottom - 10}px)`;
+  });
+  await citation.hover();
+
+  const popover = pane.locator(".scripture-ref-popover");
+  await expect(popover).toBeVisible();
+  await expect(popover).toHaveAttribute("data-placement", "above");
+  const [popoverBox, bodyBox] = await Promise.all([
+    popover.boundingBox(),
+    body.boundingBox(),
+  ]);
+  expect(popoverBox).not.toBeNull();
+  expect(bodyBox).not.toBeNull();
+  if (!popoverBox || !bodyBox) return;
+  expect(popoverBox.x).toBeGreaterThanOrEqual(bodyBox.x + 7);
+  expect(popoverBox.y).toBeGreaterThanOrEqual(bodyBox.y + 7);
+  expect(popoverBox.x + popoverBox.width).toBeLessThanOrEqual(
+    bodyBox.x + bodyBox.width - 7,
+  );
+  expect(popoverBox.y + popoverBox.height).toBeLessThanOrEqual(
+    bodyBox.y + bodyBox.height - 7,
+  );
+});
+
 test("an internal MOSES link opens the Moses entry in the same pane", async ({ page }) => {
   const pane = await openAaronEntry(page);
 
