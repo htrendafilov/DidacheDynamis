@@ -36,6 +36,10 @@ data/sources/*.private.*
 # Session handoff artifacts (local only)
 .continues-handoff.md
 *-handoff.md
+.kilo/
+
+# One-shot local release scripts
+release-fd29f03.sh
 
 # Playwright
 apps/web/test-results/
