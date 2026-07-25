@@ -1,13 +1,14 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.3 delivered; M7.4 and M8 proposed**  
+Status: **M7.1–M7.3 delivered; M7.4 in progress; M8 proposed**
 Last reviewed: 2026-07-25
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
 filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
 General Book indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament
-filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace;
-the granular book picker, history, and refine field remain M7.4.
+filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace.
+The first M7.4 slice adds the granular book picker, filter chips, and mobile filter sheet; history and
+the refine field remain.
 
 See also:
 
@@ -459,9 +460,17 @@ Shipped:
 - **Deferred to M7.4/polish:** the granular book picker, a dedicated mobile bottom-sheet for filters
   (filters are currently inline in the scrollable view), and removable filter **chips**.
 
-### M7.4 — History and refinement
+### M7.4 — History and refinement — IN PROGRESS
 
-- Add the granular Bible book picker, wired to the shipped API `books=` filter.
+Delivered in the first M7.4 slice:
+
+- Granular localized Bible-book picker wired to the shipped API `books=` filter.
+- Individually removable testament, source, and book chips plus **Clear filters**.
+- Dedicated mobile filter bottom sheet with an active-filter count and Escape/scrim dismissal.
+- React and Playwright coverage for per-book filtering, chip removal, and the mobile flow.
+
+Remaining:
+
 - Add recent/pinned local history and clear/delete controls.
 - Add server-side refinement against the complete result set.
 - Restore complete search state from a history entry.

@@ -8,7 +8,7 @@ import {
   type SearchKind,
   type SearchSort,
 } from "../data/api";
-import { useWorks } from "../data/hooks";
+import { useBooks, useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
 import { useStore } from "../state/store";
 
@@ -56,6 +56,8 @@ export function SearchPanel({
 }) {
   const { t, i18n } = useTranslation();
   const works = useWorks();
+  const bookWorkId = works?.find((work) => work.type === "bible")?.id ?? "web";
+  const books = useBooks(bookWorkId);
   const openPassage = useStore((s) => s.openPassage);
   const openCommentary = useStore((s) => s.openCommentary);
   const openDictionary = useStore((s) => s.openDictionary);
@@ -72,10 +74,26 @@ export function SearchPanel({
   const [sort, setSort] = useState<SearchSort>("relevance");
   const [canon, setCanon] = useState<"" | "ot" | "nt">("");
   const [workFilter, setWorkFilter] = useState<Set<string>>(new Set());
+  const [bookFilter, setBookFilter] = useState<Set<string>>(new Set());
+  const [bookQuery, setBookQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<Selected>("all");
   const [groups, setGroups] = useState<Partial<Record<SearchKind, GroupState>>>({});
   const [searched, setSearched] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    if (!open) setFiltersOpen(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [filtersOpen]);
 
   const merge = (group: SearchGroup): GroupState => ({
     total: group.total,
@@ -90,15 +108,18 @@ export function SearchPanel({
       sort?: SearchSort;
       canon?: "" | "ot" | "nt";
       works?: Set<string>;
+      books?: Set<string>;
       types?: string;
       offset?: number;
     } = {},
   ) {
     const effWorks = over.works ?? workFilter;
+    const effBooks = over.books ?? bookFilter;
     return {
       sort: over.sort ?? sort,
       canon: (over.canon ?? canon) || undefined,
       works: effWorks.size ? [...effWorks].join(",") : undefined,
+      books: effBooks.size ? [...effBooks].join(",") : undefined,
       types: over.types,
       offset: over.offset,
     };
@@ -134,6 +155,30 @@ export function SearchPanel({
 
   function applyFilter(o: ReturnType<typeof buildOpts>) {
     if (searched) void execute(selected, o);
+  }
+
+  function applyCanon(value: "" | "ot" | "nt") {
+    setCanon(value);
+    applyFilter(buildOpts({ canon: value }));
+  }
+
+  function applyWorks(next: Set<string>) {
+    setWorkFilter(next);
+    applyFilter(buildOpts({ works: next }));
+  }
+
+  function applyBooks(next: Set<string>) {
+    setBookFilter(next);
+    applyFilter(buildOpts({ books: next }));
+  }
+
+  function clearFilters() {
+    const emptyWorks = new Set<string>();
+    const emptyBooks = new Set<string>();
+    setCanon("");
+    setWorkFilter(emptyWorks);
+    setBookFilter(emptyBooks);
+    applyFilter(buildOpts({ canon: "", works: emptyWorks, books: emptyBooks }));
   }
 
   async function loadMore(kind: SearchKind) {
@@ -204,6 +249,144 @@ export function SearchPanel({
   }
 
   const visibleKinds = KIND_ORDER.filter((k) => (groups[k]?.total ?? 0) > 0);
+  const selectedWorks = works?.filter((work) => workFilter.has(work.id)) ?? [];
+  const selectedBooks =
+    books
+      ?.filter((book) => bookFilter.has(book.osis))
+      .map((book) => ({
+        osis: book.osis,
+        label: bookName(book.osis, i18n.language, book.name),
+      })) ?? [];
+  const normalizedBookQuery = bookQuery.trim().toLocaleLowerCase(i18n.language);
+  const visibleBooks =
+    books?.filter((book) =>
+      bookName(book.osis, i18n.language, book.name)
+        .toLocaleLowerCase(i18n.language)
+        .includes(normalizedBookQuery),
+    ) ?? [];
+  const activeFilterCount = (canon ? 1 : 0) + workFilter.size + bookFilter.size;
+
+  function filterControls() {
+    return (
+      <div className="search-filter-controls">
+        <div className="search-filter-section">
+          <span className="search-filter-label">{t("search.testamentLabel")}</span>
+          <div className="search-sort" role="group" aria-label={t("search.testamentLabel")}>
+            {(["", "ot", "nt"] as const).map((value) => (
+              <button
+                key={value || "all"}
+                type="button"
+                className={canon === value ? "active" : ""}
+                aria-pressed={canon === value}
+                onClick={() => applyCanon(value)}
+              >
+                {t(
+                  value === ""
+                    ? "search.testAll"
+                    : value === "ot"
+                      ? "search.testOt"
+                      : "search.testNt",
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="search-filter-section">
+          <span className="search-filter-label">{t("search.sortLabel")}</span>
+          <div className="search-sort" role="group" aria-label={t("search.sortLabel")}>
+            {(["relevance", "canonical"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={sort === value ? "active" : ""}
+                aria-pressed={sort === value}
+                onClick={() => {
+                  setSort(value);
+                  applyFilter(buildOpts({ sort: value }));
+                }}
+              >
+                {t(
+                  value === "relevance"
+                    ? "search.sortRelevance"
+                    : "search.sortCanonical",
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {works && works.length > 0 && (
+          <details className="search-works">
+            <summary>
+              {t("search.sources")}
+              {workFilter.size > 0 ? ` (${workFilter.size})` : ""}
+            </summary>
+            <div className="search-works-list">
+              {works
+                .filter((work) => work.type !== "xref")
+                .map((work) => (
+                  <label key={work.id}>
+                    <input
+                      type="checkbox"
+                      checked={workFilter.has(work.id)}
+                      onChange={(event) => {
+                        const next = new Set(workFilter);
+                        if (event.target.checked) next.add(work.id);
+                        else next.delete(work.id);
+                        applyWorks(next);
+                      }}
+                    />
+                    {work.abbrev} <span className="muted">{work.title}</span>
+                  </label>
+                ))}
+            </div>
+          </details>
+        )}
+
+        {books && books.length > 0 && (
+          <details className="search-books">
+            <summary>
+              {t("search.books")}
+              {bookFilter.size > 0 ? ` (${bookFilter.size})` : ""}
+            </summary>
+            <div className="search-book-picker">
+              <input
+                type="search"
+                value={bookQuery}
+                aria-label={t("search.findBook")}
+                placeholder={t("search.findBook")}
+                onChange={(event) => setBookQuery(event.target.value)}
+              />
+              <div className="search-book-list" role="group" aria-label={t("search.books")}>
+                {visibleBooks.map((book) => {
+                  const label = bookName(book.osis, i18n.language, book.name);
+                  return (
+                    <label key={book.osis}>
+                      <input
+                        type="checkbox"
+                        checked={bookFilter.has(book.osis)}
+                        onChange={(event) => {
+                          const next = new Set(bookFilter);
+                          if (event.target.checked) next.add(book.osis);
+                          else next.delete(book.osis);
+                          applyBooks(next);
+                        }}
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
+                {visibleBooks.length === 0 && (
+                  <span className="muted">{t("search.noBooks")}</span>
+                )}
+              </div>
+            </div>
+          </details>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`search-panel search-panel-${mode}`}>
@@ -224,69 +407,97 @@ export function SearchPanel({
         <button type="submit">{t("topbar.search")}</button>
       </form>
 
-      {searched && (
-        <div className="search-filters">
-          <div className="search-sort" role="group" aria-label={t("search.testamentLabel")}>
-            {(["", "ot", "nt"] as const).map((value) => (
-              <button
-                key={value || "all"}
-                type="button"
-                className={canon === value ? "active" : ""}
-                aria-pressed={canon === value}
-                onClick={() => {
-                  setCanon(value);
-                  applyFilter(buildOpts({ canon: value }));
-                }}
-              >
-                {t(value === "" ? "search.testAll" : value === "ot" ? "search.testOt" : "search.testNt")}
-              </button>
-            ))}
-          </div>
-          <div className="search-sort" role="group" aria-label={t("search.sortLabel")}>
-            {(["relevance", "canonical"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={sort === value ? "active" : ""}
-                aria-pressed={sort === value}
-                onClick={() => {
-                  setSort(value);
-                  applyFilter(buildOpts({ sort: value }));
-                }}
-              >
-                {t(value === "relevance" ? "search.sortRelevance" : "search.sortCanonical")}
-              </button>
-            ))}
-          </div>
-          {works && works.length > 0 && (
-            <details className="search-works">
-              <summary>
-                {t("search.sources")}
-                {workFilter.size > 0 ? ` (${workFilter.size})` : ""}
-              </summary>
-              <div className="search-works-list">
-                {works
-                  .filter((w) => w.type !== "xref")
-                  .map((w) => (
-                    <label key={w.id}>
-                      <input
-                        type="checkbox"
-                        checked={workFilter.has(w.id)}
-                        onChange={(e) => {
-                          const next = new Set(workFilter);
-                          if (e.target.checked) next.add(w.id);
-                          else next.delete(w.id);
-                          setWorkFilter(next);
-                          applyFilter(buildOpts({ works: next }));
-                        }}
-                      />
-                      {w.abbrev} <span className="muted">{w.title}</span>
-                    </label>
-                  ))}
-              </div>
-            </details>
-          )}
+      {searched && mode === "docked" && (
+        <div className="search-filters">{filterControls()}</div>
+      )}
+
+      {searched && mode === "fullscreen" && (
+        <div className="search-filter-toolbar">
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen(true)}
+          >
+            ☷ {t("search.filters")}
+            {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+          </button>
         </div>
+      )}
+
+      {searched && activeFilterCount > 0 && (
+        <div className="search-filter-chips" aria-label={t("search.activeFilters")}>
+          {canon && (
+            <button
+              type="button"
+              onClick={() => applyCanon("")}
+              aria-label={t("search.removeFilter", {
+                filter: t(canon === "ot" ? "search.testOt" : "search.testNt"),
+              })}
+            >
+              {t(canon === "ot" ? "search.testOt" : "search.testNt")} <span aria-hidden>×</span>
+            </button>
+          )}
+          {selectedWorks.map((work) => (
+            <button
+              type="button"
+              key={work.id}
+              onClick={() => {
+                const next = new Set(workFilter);
+                next.delete(work.id);
+                applyWorks(next);
+              }}
+              aria-label={t("search.removeFilter", { filter: work.abbrev })}
+            >
+              {work.abbrev} <span aria-hidden>×</span>
+            </button>
+          ))}
+          {selectedBooks.map((book) => (
+            <button
+              type="button"
+              key={book.osis}
+              onClick={() => {
+                const next = new Set(bookFilter);
+                next.delete(book.osis);
+                applyBooks(next);
+              }}
+              aria-label={t("search.removeFilter", { filter: book.label })}
+            >
+              {book.label} <span aria-hidden>×</span>
+            </button>
+          ))}
+          <button type="button" className="search-clear-filters" onClick={clearFilters}>
+            {t("search.clearFilters")}
+          </button>
+        </div>
+      )}
+
+      {searched && mode === "fullscreen" && filtersOpen && (
+        <>
+          <button
+            type="button"
+            className="search-filter-sheet-scrim"
+            aria-label={t("search.closeFilters")}
+            onClick={() => setFiltersOpen(false)}
+          />
+          <section
+            className="search-filter-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("search.filters")}
+          >
+            <header>
+              <h3>{t("search.filters")}</h3>
+              <button
+                type="button"
+                aria-label={t("search.closeFilters")}
+                onClick={() => setFiltersOpen(false)}
+              >
+                ✕
+              </button>
+            </header>
+            {filterControls()}
+          </section>
+        </>
       )}
 
       {searched && visibleKinds.length > 0 && (
