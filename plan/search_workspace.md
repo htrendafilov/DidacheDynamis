@@ -1,7 +1,7 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.5 delivered; M8 proposed — sources and licensing resolved 2026-07-27 (§10.1)**
-Last reviewed: 2026-07-25
+Status: **M7.1–M7.5 delivered; M8.1 delivered — sources and licensing resolved 2026-07-27 (§10.1); M8.2–M8.4 proposed**
+Last reviewed: 2026-07-27
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
 filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
@@ -419,12 +419,21 @@ NT  <w lemma="strong:G1722 lemma.TR:εν" morph="robinson:PREP" src="1">In</w>
 2. **Identifier padding is inconsistent between testaments.** The OT zero-pads to five characters
    (`H07225`), the NT does not (`G1722`). Hebrew runs to H8674 and Greek to G5624, so four digits
    suffice for both. Normalize on *both* sides — verse tokens and lexicon keys — before any join; a
-   mismatch produces silent empty lookups rather than an error. **The key format the two lexicon
-   modules use is not yet verified; confirm it at import time** and normalize to whatever the
-   canonical form turns out to be rather than assuming it matches this document.
+   mismatch produces silent empty lookups rather than an error. **Verified at import (2026-07-27):**
+   the lexicon modules key entries as bare five-digit numbers with no letter prefix (`00001` →
+   `G0001`), so the canonical form is letter + four digits (`H0001`/`G0001`). Verification also
+   found: letter-suffixed keys (`00031A`) exist only as `@@@@` placeholder stubs and are skipped;
+   the Greek module has 135 key holes (30 of them tagged by the KJV, e.g. `G3778`) plus one keyed
+   but lemma-less entry (`G0251`) — recorded in build diagnostics; 52 Greek entries carry upstream
+   Chinese editorial annotations, imported verbatim; the Hebrew module is CP1252 plain text with
+   seven spurious `&Š` bytes (removed, count asserted) and one misprinted entry number (`H8483`,
+   imported under its authoritative module key).
 3. **The two testaments use different morphology systems.** OT is `strongMorph:TH8804`, NT is
    `robinson:PREP`. Store the scheme alongside the code (`strongMorph` / `robinson`) instead of
-   flattening both into one opaque string, or the reader cannot label what it is showing.
+   flattening both into one opaque string, or the reader cannot label what it is showing. The KJV
+   also has 745 tagged spans where the Strong's-id and morphology lists have different cardinalities,
+   and the markup does not identify which id owns which code. The importer preserves the Strong's ids
+   but omits morphology for those ambiguous spans; the full-source audit pins the mismatch inventory.
 4. **KJV italicised words carry no Strong's at all.** `<transChange type="added">was</transChange>`
    marks words the translators supplied. These are legitimately untagged; the schema must allow a
    surface span with no lexical entry rather than treating it as a parse failure.
@@ -639,11 +648,23 @@ Source and licensing are **resolved** (§10.1): the committed KJV already carrie
 and morphology, and the two lexicon modules are public domain. No acquisition step and no owner
 decision gate remain.
 
-**M8.1 — importer and data model.** Export `StrongsGreek` / `StrongsHebrew` to `data/sources/`; teach
-the SWORD Bible adapter to preserve `<w lemma=… morph=…>` instead of discarding it; add
-`verse_tokens` + `strong_lexicon` with the multi-Strong's primary key (§10.3); normalize identifiers
-across both tables; bump `SCHEMA_VERSION`. Exit: a rebuilt `content.sqlite` where Gen 1:1 and John
-1:1 resolve every span to the expected ids, and untagged `transChange` words survive as untagged.
+**M8.1 — importer and data model — DELIVERED 2026-07-27**
+
+Shipped:
+- `StrongsGreek` / `StrongsHebrew` exported raw (no `-s`) to `data/sources/` and recorded in
+  `plan/content_and_licensing.md` and `data/sources/README.md` with checksums and source limits.
+- The SWORD Bible adapter preserves `<w lemma=… morph=…>`: tagged spans become unmerged CIR runs
+  carrying a normalized `lemma` list (`id`, plus `s`/`m` when morphology is tagged), and every
+  surface span — including untagged `transChange` words and empty untranslated `<w/>` spans —
+  lands in `verse_tokens` keyed `(position, ordinal)` (§10.3). Ids normalize to letter + four
+  digits on both sides (§10.2, item 2).
+- `strong_lexicon` populated from both modules (5,488 Greek + 8,674 Hebrew entries); lexicon
+  works registered as `type="lexicon"` with license/attribution; `SCHEMA_VERSION` 2.
+- Build diagnostics assert entry counts, the Hebrew e-text cleanups, the Greek key holes, the
+  lemma-less `G0251`, and the upstream CJK annotations.
+- Exit verified on a rebuilt `content.sqlite`: Gen 1:1 and John 1:1 resolve every tagged span to
+  the expected lexicon entries, untagged `transChange` words survive as untagged rows, and works
+  without lexical data (WEB) are byte-identical with zero token rows.
 
 **M8.2 — API surface.** Optional `lemma` field on the verse `Run` (never `strong` — §10.4); lexicon
 lookup endpoint; `/ready` unchanged. Exit: passage responses carry lexical data for KJV and are

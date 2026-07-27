@@ -35,6 +35,12 @@ book_sections(work_id, section_id, parent_id, sort_order, level, title, body_jso
 
 xrefs(osis_code, chapter, verse, target_ref, votes)          -- TSK; translation-independent
 
+-- M8.1 Strong's lexical data (see ../search_workspace.md §10):
+verse_tokens(work_id, osis_code, chapter, verse, position, ordinal,
+             surface, normalized, strong_id, morph_scheme, morph_code,
+             PRIMARY KEY(work_id, osis_code, chapter, verse, position, ordinal))
+strong_lexicon(strong_id, language, lemma, transliteration, pronunciation, definition_json)
+
 -- Ordinary FTS5 virtual tables storing indexed content directly
 -- (selected locator/sort columns shown; these do not use content='' or external content):
 bible_fts(text, work_id UNINDEXED, ref UNINDEXED, osis UNINDEXED,

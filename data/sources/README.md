@@ -11,6 +11,8 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 | `Easton.raw.imp.gz` | Easton's Bible Dictionary (raw structured export; active importer input) | Public domain | CrossWire Easton module |
 | `crossreferences_kjv.tsv` | TSK-derived cross-references | CC BY 4.0 | CrossReferences.org KJV mapping |
 | `BaptistConfession1689.imp.gz` | Baptist Confession of Faith of 1689 | Public domain | CrossWire BaptistConfession1689 1.0.2 |
+| `StrongsGreek.imp.gz` | Strong's Greek Dictionary (M8 lexical data) | Public domain | CrossWire StrongsGreek 2.0 |
+| `StrongsHebrew.imp.gz` | Strong's Hebrew Dictionary (M8 lexical data) | Public domain | CrossWire StrongsHebrew 1.2 |
 
 **World English Bible attribution (required):** "The World English Bible is in the Public Domain. That
 means that it is not copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
@@ -33,6 +35,9 @@ bibleimport add-study --out data/content.sqlite \
   --mhc-source data/sources/MHC.imp.gz \
   --easton-source data/sources/Easton.raw.imp.gz \
   --xref-source data/sources/crossreferences_kjv.tsv
+bibleimport add-strongs --out data/content.sqlite \
+  --greek-source data/sources/StrongsGreek.imp.gz \
+  --hebrew-source data/sources/StrongsHebrew.imp.gz
 ```
 
 ## Study-source provenance
@@ -77,6 +82,33 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
   - CrossWire metadata records `RawGenBook`, version 1.0.2, and `Public Domain`.
   - downloaded raw ZIP SHA-256: `d6210b1114ea1a6fcd3336524813c08ca3ad57c761814246b15fa278eb8fc98a`
   - committed raw-OSIS export SHA-256: `b59db23d63355091d4ffc976334bbd514b2ef4545c303b7aba5e6d7e527b4c7b`
+- Strong's Greek Dictionary module:
+  https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsGreek
+  - CrossWire metadata records version 2.0 and `Public Domain`; the text derives from James
+    Strong, *Exhaustive Concordance of the Bible* (1890), public domain by age.
+  - exported with the official SWORD 1.9.0 utility (raw, no `-s`):
+    `SWORD_PATH=<modules> mod2imp StrongsGreek | gzip -n -9 > StrongsGreek.imp.gz`
+  - committed export SHA-256: `5d79ff282bf2cc1f1d2ed144ae1546a484b7f903c4111071b0f17626543e9031`
+  - TEI `<entryFree>` records keyed by bare 5-digit numbers (`00001` -> `G0001`).
+  - import validation: 5,742 records = 1 front-matter + 252 `@@@@` placeholder stubs +
+    5,488 entries + `G0251` (keyed with a definition but no lemma — recorded anomaly, not
+    imported). 135 numbers have no key at all (module holes; 30 of them are tagged in the
+    KJV, e.g. `G3778` — no entry exists to import). 52 entries carry Chinese editorial
+    annotations from the upstream e-text; imported verbatim and counted in diagnostics.
+- Strong's Hebrew Dictionary module:
+  https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsHebrew
+  - CrossWire metadata records version 1.2 and `Public Domain — Copy Freely`; same 1890
+    Strong derivation.
+  - exported with the official SWORD 1.9.0 utility (raw, no `-s`):
+    `SWORD_PATH=<modules> mod2imp StrongsHebrew | gzip -n -9 > StrongsHebrew.imp.gz`
+  - committed export SHA-256: `0e6d2570054f011e517298302c212f4eee4be27a27c12df31ec13e3c5ae10532`
+  - plain-text records (no TEI), CP1252 bytes; the module is transliteration-only (no Hebrew
+    script), so `strong_lexicon.transliteration` stays NULL for Hebrew entries.
+  - import validation: 8,674 entries, contiguous keys; the 1996 e-text's seven spurious
+    `&Š` (0x8A) sequences are removed with the count asserted in the build (a module update
+    that changes the count fails the import for review); `H8483`'s first line misprints its
+    own number as 8383 — the module key is authoritative and the entry is imported as `H8483`
+    with the mismatch recorded.
 
 The imported `works` records carry the same license and attribution. CCEL ThML remains supported by
 the adapter and test fixtures, but production uses CrossWire's explicitly redistributable editions.

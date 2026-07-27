@@ -29,6 +29,24 @@ base text are held by the Crown of England, so the app does **not** label this e
 it displays CrossWire's terms and source, and the repository includes the exact source export and
 conversion code.
 
+## Strong's lexical works (M8) — cleared 2026-07-27
+
+The KJV row above already covers the word-level Strong's numbers and morphology **embedded in** the
+KJV module (`<w lemma="strong:…" morph="…">`) — they are part of the committed KJV export, not a new
+text. The two lexicon works that supply definitions are recorded here per the gate in
+[`search_workspace.md`](search_workspace.md) §10.1:
+
+| Work | Type | Language | License | Notes |
+|---|---|---|---|---|
+| Strong's Greek Dictionary (CrossWire `StrongsGreek` 2.0) | Lexicon | grc | Public domain | Derives from James Strong, *Exhaustive Concordance of the Bible* (1890), public domain by age. |
+| Strong's Hebrew Dictionary (CrossWire `StrongsHebrew` 1.2) | Lexicon | hbo | Public domain — "Copy Freely" | Same 1890 Strong derivation. Transliteration-only module (no Hebrew script). |
+
+Both modules' pages mark them public domain; both fit the existing content policy (every shipped work
+is PD or CrossWire-licensed) with no new rights question. Known source-quality limits (module key
+holes, one lemma-less entry, CJK editorial annotations, Hebrew e-text cleanups) are documented with
+checksums and counts in [`../data/sources/README.md`](../data/sources/README.md) and are asserted in
+the import diagnostics, not silently patched.
+
 ## Bulgarian Bible — DEFERRED (rights not yet cleared)
 
 **Preferred target: the ББД (Bulgarian Bible Society) edition** — *"Библия, ревизирано издание"*

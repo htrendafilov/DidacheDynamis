@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .books import BY_OSIS
-from .canonical import BookMeta, HeadingRow, VerseRow, WorkMeta
-from .formats import genbook, study, sword_bible, sword_dictionary, usfx
+from .canonical import BookMeta, HeadingRow, TokenRow, VerseRow, WorkMeta
+from .formats import genbook, strongs_lexicon, study, sword_bible, sword_dictionary, usfx
 from .schema import create_schema
 from .validation import Diagnostics, align_versification, validate
 
@@ -28,6 +28,17 @@ class AlignmentExpectation:
     missing_in_base: frozenset[VerseRef] = frozenset()
 
 
+@dataclass(frozen=True)
+class LexicalSentinel:
+    """Known lexical row counts tied to a reviewed Bible source."""
+
+    osis: str
+    chapter: int
+    verse: int
+    tagged_spans: int
+    strong_ids: int
+
+
 @dataclass
 class BibleSpec:
     work_id: str
@@ -41,6 +52,7 @@ class BibleSpec:
     source_version: str | None = None
     direction: str = "ltr"
     expected_alignment: AlignmentExpectation | None = None
+    lexical_sentinel: LexicalSentinel | None = None
 
 
 @dataclass
@@ -100,6 +112,7 @@ def _write_work(
     books: list[BookMeta],
     verses: list[VerseRow],
     headings: list[HeadingRow],
+    tokens: list[TokenRow] | None = None,
 ) -> None:
     _insert_work(conn, meta)
     conn.executemany(
@@ -109,14 +122,45 @@ def _write_work(
     conn.executemany(
         "INSERT INTO verses(work_id,osis_code,chapter,verse,nodes_json,plain_text) "
         "VALUES(?,?,?,?,?,?)",
-        [(meta.id, v.osis, v.chapter, v.verse, json.dumps(v.cir, ensure_ascii=False),
-          v.plain_text) for v in verses],
+        [
+            (
+                meta.id,
+                v.osis,
+                v.chapter,
+                v.verse,
+                json.dumps(v.cir, ensure_ascii=False),
+                v.plain_text,
+            )
+            for v in verses
+        ],
     )
     conn.executemany(
         "INSERT INTO headings(work_id,osis_code,chapter,before_verse,kind,text) "
         "VALUES(?,?,?,?,?,?)",
         [(meta.id, h.osis, h.chapter, h.before_verse, h.kind, h.text) for h in headings],
     )
+    if tokens:
+        conn.executemany(
+            "INSERT INTO verse_tokens"
+            "(work_id,osis_code,chapter,verse,position,ordinal,surface,normalized,"
+            "strong_id,morph_scheme,morph_code) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    meta.id,
+                    t.osis,
+                    t.chapter,
+                    t.verse,
+                    t.position,
+                    t.ordinal,
+                    t.surface,
+                    t.normalized,
+                    t.strong_id,
+                    t.morph_scheme,
+                    t.morph_code,
+                )
+                for t in tokens
+            ],
+        )
     conn.executemany(
         "INSERT INTO bible_fts(text,work_id,ref,osis,testament,book_order,chapter,verse) "
         "VALUES(?,?,?,?,?,?,?,?)",
@@ -396,10 +440,38 @@ def append_bible(
         raise ValueError(f"content database does not exist: {out_db}")
     if fmt != "sword-imp":
         raise ValueError(f"unsupported append format: {fmt}")
-    books, verses, headings = sword_bible.load_sword_bible(source)
+    books, verses, headings, tokens = sword_bible.load_sword_bible(source)
     diag = validate(books, verses, headings)
     if not diag.ok:
         return diag
+    tagged = [token for token in tokens if token.strong_id is not None]
+    diag.stats.update(
+        {
+            "verse_tokens": len(tokens),
+            "strong_ids": len(tagged),
+            "multi_strong_spans": len(
+                {(t.osis, t.chapter, t.verse, t.position) for t in tagged if t.ordinal > 0}
+            ),
+        }
+    )
+    sentinel = spec.lexical_sentinel
+    if sentinel is not None:
+        sentinel_tokens = [
+            token
+            for token in tagged
+            if (token.osis, token.chapter, token.verse)
+            == (sentinel.osis, sentinel.chapter, sentinel.verse)
+        ]
+        actual_spans = len({token.position for token in sentinel_tokens})
+        actual_ids = len(sentinel_tokens)
+        if (actual_spans, actual_ids) != (sentinel.tagged_spans, sentinel.strong_ids):
+            diag.errors.append(
+                "lexical sentinel mismatch for "
+                f"{sentinel.osis}.{sentinel.chapter}.{sentinel.verse}: expected "
+                f"{sentinel.tagged_spans} tagged spans/{sentinel.strong_ids} Strong's ids, "
+                f"found {actual_spans}/{actual_ids}"
+            )
+            return diag
     source_checksum = source_sha256(source)
     meta = WorkMeta(
         id=spec.work_id,
@@ -501,7 +573,7 @@ def append_bible(
         if not diag.ok:
             return diag
         conn.execute("BEGIN")
-        _write_work(conn, meta, books, verses, headings)
+        _write_work(conn, meta, books, verses, headings, tokens)
         conn.commit()
         conn.execute("PRAGMA optimize")
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -512,6 +584,112 @@ def append_bible(
     finally:
         conn.close()
     return diag
+
+
+def append_strongs(
+    out_db: str | Path,
+    *,
+    greek_source: str | Path,
+    hebrew_source: str | Path,
+    expected_greek_entries: int | None = strongs_lexicon.EXPECTED_STRONGS_GREEK_ENTRIES,
+    expected_greek_sequence_gaps: int | None = strongs_lexicon.EXPECTED_GREEK_SEQUENCE_GAPS,
+    expected_greek_cjk_annotations: int | None = strongs_lexicon.EXPECTED_GREEK_CJK_ANNOTATIONS,
+    expected_greek_anomalies: frozenset[tuple[str, str]]
+    | None = strongs_lexicon.EXPECTED_GREEK_ANOMALIES,
+    expected_hebrew_entries: int | None = strongs_lexicon.EXPECTED_STRONGS_HEBREW_ENTRIES,
+    expected_hebrew_cleanups: int | None = strongs_lexicon.EXPECTED_HEBREW_BYTE_CLEANUPS,
+) -> tuple[dict[str, int], dict]:
+    """Append the M8 Strong's lexical library (Greek + Hebrew) to an existing content DB.
+
+    Both modules are public-domain derivatives of Strong's Exhaustive Concordance (1890).
+    Returns (row-count stats, per-module diagnostics) for the build's JSON artifact.
+    """
+    out_db = Path(out_db)
+    greek_path = Path(greek_source)
+    hebrew_path = Path(hebrew_source)
+    if not out_db.exists():
+        raise ValueError(f"content database does not exist: {out_db}")
+    greek, greek_diag = strongs_lexicon.load_strongs_greek(
+        greek_path,
+        expected_entries=expected_greek_entries,
+        expected_sequence_gaps=expected_greek_sequence_gaps,
+        expected_cjk_annotations=expected_greek_cjk_annotations,
+        expected_anomalies=expected_greek_anomalies,
+    )
+    hebrew, hebrew_diag = strongs_lexicon.load_strongs_hebrew(
+        hebrew_path,
+        expected_entries=expected_hebrew_entries,
+        expected_cleanups=expected_hebrew_cleanups,
+    )
+    if not greek or not hebrew:
+        raise ValueError("a Strong's lexicon source parsed to zero entries")
+    greek_meta = WorkMeta(
+        id="strongsgreek",
+        type="lexicon",
+        language="grc",
+        title="Strong's Greek Dictionary",
+        abbrev="StrGrk",
+        direction="ltr",
+        versification="none",
+        license="Public Domain",
+        attribution=(
+            "James Strong, Exhaustive Concordance of the Bible (1890). "
+            "Public-domain CrossWire SWORD module."
+        ),
+        source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsGreek",
+        source_version="CrossWire StrongsGreek 2.0",
+        checksum=source_sha256(greek_path),
+    )
+    hebrew_meta = WorkMeta(
+        id="strongshebrew",
+        type="lexicon",
+        language="hbo",
+        title="Strong's Hebrew Dictionary",
+        abbrev="StrHeb",
+        direction="ltr",
+        versification="none",
+        license="Public Domain",
+        attribution=(
+            "James Strong, Exhaustive Concordance of the Bible (1890). "
+            "Public-domain CrossWire SWORD module."
+        ),
+        source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsHebrew",
+        source_version="CrossWire StrongsHebrew 1.2",
+        checksum=source_sha256(hebrew_path),
+    )
+    conn = sqlite3.connect(out_db)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("BEGIN")
+        for meta in (greek_meta, hebrew_meta):
+            _insert_work(conn, meta)
+        conn.executemany(
+            "INSERT INTO strong_lexicon"
+            "(strong_id,language,lemma,transliteration,pronunciation,definition_json) "
+            "VALUES(?,?,?,?,?,?)",
+            [
+                (
+                    row.strong_id,
+                    row.language,
+                    row.lemma,
+                    row.transliteration,
+                    row.pronunciation,
+                    json.dumps(row.definition, ensure_ascii=False),
+                )
+                for row in (*greek, *hebrew)
+            ],
+        )
+        conn.commit()
+        conn.execute("PRAGMA optimize")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {
+        "strongs_greek_entries": len(greek),
+        "strongs_hebrew_entries": len(hebrew),
+    }, {"greek": greek_diag, "hebrew": hebrew_diag}
 
 
 def append_book(

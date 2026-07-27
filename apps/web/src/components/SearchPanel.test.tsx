@@ -22,6 +22,8 @@ vi.mock("../data/hooks", () => ({
     { id: "mhc", abbrev: "MHC", type: "commentary", title: "Matthew Henry" },
     { id: "easton", abbrev: "EBD", type: "dictionary", title: "Easton's" },
     { id: "baptist1689", abbrev: "1689", type: "book", title: "1689 Confession" },
+    { id: "strongsgreek", abbrev: "StrGrk", type: "lexicon", title: "Strong's Greek" },
+    { id: "tsk", abbrev: "TSK", type: "xref", title: "Treasury of Scripture Knowledge" },
   ],
 }));
 
@@ -97,6 +99,16 @@ describe("SearchPanel", () => {
       fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
     });
   }
+
+  it("lists only work types supported by the current search providers", async () => {
+    search.mockResolvedValue(allRes());
+    await runSearch();
+    fireEvent.click(screen.getByText("Sources"));
+
+    expect(screen.getByText("World English Bible")).toBeInTheDocument();
+    expect(screen.queryByText("Strong's Greek")).not.toBeInTheDocument();
+    expect(screen.queryByText("Treasury of Scripture Knowledge")).not.toBeInTheDocument();
+  });
 
   it("stays open on desktop (docked) and flags the verse to flash", async () => {
     search.mockResolvedValue(allRes());

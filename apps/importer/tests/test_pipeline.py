@@ -4,13 +4,16 @@ from pathlib import Path
 from bibleimport.pipeline import (
     AlignmentExpectation,
     BibleSpec,
+    LexicalSentinel,
     append_bible,
+    append_strongs,
     build_bible,
     source_sha256,
 )
 from bibleimport.schema import SCHEMA_VERSION
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_usfx.xml"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 SPEC = BibleSpec(
     work_id="test",
@@ -156,4 +159,167 @@ def test_unexpected_alignment_blocks_append_without_changing_database(tmp_path):
     assert any("unexpected versification" in error for error in diag.errors)
     after_conn = sqlite3.connect(db)
     assert after_conn.execute("SELECT id,type,checksum FROM works ORDER BY id").fetchall() == before
-    assert after_conn.execute("SELECT count(*) FROM verses WHERE work_id='blocked'").fetchone()[0] == 0
+    assert (
+        after_conn.execute("SELECT count(*) FROM verses WHERE work_id='blocked'").fetchone()[0] == 0
+    )
+
+
+def test_lexical_sentinel_blocks_an_untagged_bible(tmp_path):
+    db = build(tmp_path)
+    diag = append_bible(
+        FIXTURES / "mini_kjv.imp",
+        BibleSpec(
+            work_id="untagged",
+            title="Untagged Bible",
+            abbrev="UB",
+            language="en",
+            versification="kjv",
+            license="test",
+            attribution="test",
+            lexical_sentinel=LexicalSentinel(
+                osis="Gen",
+                chapter=1,
+                verse=1,
+                tagged_spans=6,
+                strong_ids=7,
+            ),
+        ),
+        db,
+    )
+
+    assert not diag.ok
+    assert diag.errors == [
+        "lexical sentinel mismatch for Gen.1.1: expected 6 tagged spans/7 Strong's ids, found 0/0"
+    ]
+    conn = sqlite3.connect(db)
+    assert conn.execute("SELECT count(*) FROM works WHERE id='untagged'").fetchone()[0] == 0
+
+
+def _append_kjv_strongs(db: Path):
+    source = FIXTURES / "mini_kjv_strongs.imp"
+    spec = BibleSpec(
+        work_id="kjv",
+        title="King James Version",
+        abbrev="KJV",
+        language="en",
+        versification="kjv",
+        license="GPL",
+        attribution="CrossWire KJV Strong's test fixture",
+        expected_alignment=AlignmentExpectation(
+            base_work_id="test",
+            base_checksum=source_sha256(FIXTURE),
+            source_checksum=source_sha256(source),
+            missing_in_other=frozenset({("Ps", 23, 1)}),
+            missing_in_base=frozenset({("Gen", 1, 1), ("Gen", 1, 2), ("John", 1, 1)}),
+        ),
+    )
+    diag = append_bible(source, spec, db)
+    assert diag.ok, diag.errors
+    return diag
+
+
+def test_append_bible_writes_verse_tokens(tmp_path):
+    db = build(tmp_path)
+    diag = _append_kjv_strongs(db)
+    assert diag.stats["verse_tokens"] > 0
+    assert diag.stats["strong_ids"] > 0
+    assert diag.stats["multi_strong_spans"] > 0
+    conn = sqlite3.connect(db)
+    # The WEB work carries no lexical data.
+    assert conn.execute("SELECT count(*) FROM verse_tokens WHERE work_id='test'").fetchone()[0] == 0
+    rows = conn.execute(
+        "SELECT position,ordinal,surface,strong_id,morph_scheme,morph_code "
+        "FROM verse_tokens WHERE work_id='kjv' AND osis_code='Gen' AND chapter=1 AND verse=1 "
+        "ORDER BY position,ordinal"
+    ).fetchall()
+    created = [row for row in rows if row[2] == "created"]
+    assert [(row[1], row[3], row[4], row[5]) for row in created] == [
+        (0, "H0853", None, None),
+        (1, "H1254", None, None),
+    ]
+    assert created[0][0] == created[1][0]  # one span, two Strong's ids
+    # Gen 1:2's italicised transChange word survives as an untagged span (the verse's
+    # other 'was' is a tagged span and must not match).
+    supplied = conn.execute(
+        "SELECT surface,strong_id,ordinal FROM verse_tokens "
+        "WHERE work_id='kjv' AND osis_code='Gen' AND chapter=1 AND verse=2 "
+        "AND surface LIKE '%was%' AND strong_id IS NULL"
+    ).fetchall()
+    assert supplied == [(" was ", None, 0)]
+    # John 1:1 'the Word' resolves G3588/G3056 with robinson morphology per ordinal.
+    word = conn.execute(
+        "SELECT position,ordinal,strong_id,morph_scheme,morph_code FROM verse_tokens "
+        "WHERE work_id='kjv' AND osis_code='John' AND chapter=1 AND verse=1 "
+        "AND surface='the Word' ORDER BY position,ordinal"
+    ).fetchall()
+    first_span = word[:2]
+    assert first_span[0][0] == first_span[1][0]  # same span, two ids
+    assert [(row[1], row[2], row[3], row[4]) for row in first_span] == [
+        (0, "G3588", "robinson", "T-NSM"),
+        (1, "G3056", "robinson", "N-NSM"),
+    ]
+    # The CIR of the same verse carries the normalized lemma list.
+    nodes = conn.execute(
+        "SELECT nodes_json FROM verses WHERE work_id='kjv' AND osis_code='Gen' "
+        "AND chapter=1 AND verse=1"
+    ).fetchone()[0]
+    assert '"H7225"' in nodes and '"lemma"' in nodes
+
+
+def test_append_strongs_writes_lexicon_and_works(tmp_path):
+    db = build(tmp_path)
+    stats, diags = append_strongs(
+        db,
+        greek_source=FIXTURES / "mini_strongs_greek.imp",
+        hebrew_source=FIXTURES / "mini_strongs_hebrew.imp",
+        expected_greek_entries=2,
+        expected_greek_sequence_gaps=None,
+        expected_greek_cjk_annotations=None,
+        expected_greek_anomalies=None,
+        expected_hebrew_entries=3,
+        expected_hebrew_cleanups=0,
+    )
+    assert stats == {"strongs_greek_entries": 2, "strongs_hebrew_entries": 3}
+    assert diags["greek"]["skipped_stubs"] == 1
+    assert diags["hebrew"]["spurious_sequences_removed"] == 0
+    conn = sqlite3.connect(db)
+    works = conn.execute(
+        "SELECT id,type,license FROM works WHERE type='lexicon' ORDER BY id"
+    ).fetchall()
+    assert works == [
+        ("strongsgreek", "lexicon", "Public Domain"),
+        ("strongshebrew", "lexicon", "Public Domain"),
+    ]
+    alpha = conn.execute(
+        "SELECT language,lemma,transliteration,pronunciation,definition_json "
+        "FROM strong_lexicon WHERE strong_id='G0001'"
+    ).fetchone()
+    assert alpha[:4] == ("grc", "ἄλφα", "a", "al'-fah")
+    assert "G0427" in alpha[4]
+    ab = conn.execute(
+        "SELECT language,lemma,transliteration FROM strong_lexicon WHERE strong_id='H0001'"
+    ).fetchone()
+    assert ab == ("hbo", "'ab", None)
+    # Token ids join to lexicon entries on the normalized form (M8.1 exit criterion).
+    resolved = conn.execute(
+        "SELECT count(*) FROM verse_tokens t JOIN strong_lexicon l "
+        "ON t.strong_id = l.strong_id WHERE t.work_id='kjv'"
+    ).fetchone()[0]
+    assert resolved == 0  # mini fixtures share no ids; the join shape is exercised below
+
+
+def test_token_lexicon_join_on_normalized_ids(tmp_path):
+    db = build(tmp_path)
+    _append_kjv_strongs(db)
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO strong_lexicon"
+        "(strong_id,language,lemma,transliteration,pronunciation,definition_json) "
+        "VALUES('H7225','hbo','re-shiyth',NULL,'ray-sheeth','{\"text\": \"beginning\"}')"
+    )
+    joined = conn.execute(
+        "SELECT t.surface,l.lemma FROM verse_tokens t JOIN strong_lexicon l "
+        "ON t.strong_id=l.strong_id "
+        "WHERE t.work_id='kjv' AND t.osis_code='Gen' AND t.chapter=1 AND t.verse=1"
+    ).fetchall()
+    assert joined == [("In the beginning", "re-shiyth")]
