@@ -1,7 +1,17 @@
 # Interactive AI Chat Window — Reassessed Proposal (Architecture Variants, Model Landscape, Cost & Privacy Analysis)
 
-Status: **proposal / research report** — no code committed. Companion to, and reassessment of,
-[`interactive_chat_feature_proposal.md`](interactive_chat_feature_proposal.md) (see §11 appendix).
+Status: **research report — superseded for implementation purposes.** Companion to, and reassessment
+of, [`interactive_chat_feature_proposal.md`](interactive_chat_feature_proposal.md) (see §11 appendix).
+The design that ships is [`interactive_chat_plan.md`](interactive_chat_plan.md); this document remains
+useful for its model landscape (§6), cross-lingual RAG analysis (§4), and the critique in §11.
+
+> Two corrections found on review, in addition to the snapshot caveat below:
+>
+> - **§6.1 "Claude Haiku (3.5/4.x)".** Claude Haiku 3.5 was retired on 2026-02-19. The current model
+>   is Claude Haiku 4.5 — 200K context, $1.00 in / $5.00 out per million tokens, which matches the
+>   quoted range; only the "3.5" half refers to a model that no longer exists.
+> - **§9 cites `SearchPanel.tsx`** for the `bible-search-v1` versioning pattern. It moved to
+>   `apps/web/src/search/history.ts` when M7.4 shipped.
 
 > **Verification caveat.** Model names, prices, and free-tier limits below are a snapshot and change
 > monthly. Verify the current landscape (provider pricing pages, OpenRouter model list, Ollama

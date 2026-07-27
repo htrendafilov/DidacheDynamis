@@ -1,5 +1,30 @@
 # Interactive AI Chat Window — 2026 Model Benchmarks, Cost Analysis, BYOK & Tool-Calling Architecture
 
+> **Status: SUPERSEDED — do not implement from this document.**
+> Kept as a historical research note. The design that ships is
+> [`interactive_chat_plan.md`](interactive_chat_plan.md).
+>
+> Known errors, verified against the repository:
+>
+> - **The API endpoints in §4 do not exist.** `/api/v1/passages?reference=`,
+>   `/api/v1/commentary?reference=`, and `/api/v1/dictionary?term=` were never built. The real routes
+>   are `/api/v1/works/{work_id}/passage/{osis}/{chapter}`,
+>   `/api/v1/commentary/{work_id}/{osis}/{chapter}`, and
+>   `/api/v1/dictionary/{work_id}/entry/{headword}`. Both sequence diagrams and both architecture
+>   patterns are drawn against an API that does not exist.
+> - **Model names in §2 are not real releases** — "Gemini 3.6 Flash" and "Qwen 3.5" do not correspond
+>   to verifiable models (see the appendix of `interactive_chat_feature_proposal_kimi_k3.md`).
+> - **§5.1 contradicts the repository's credential precedent.** It puts API keys in
+>   `IndexedDB`/`localStorage`; the established Dropbox pattern (`apps/web/src/sync/dropboxAuth.ts`)
+>   and the implementation plan both require `sessionStorage` only, so a bearer credential does not
+>   outlive the tab.
+> - **The Content-Security-Policy is not considered.** Production ships
+>   `connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com`; every provider
+>   `fetch()` described here would be blocked until its origin is added explicitly.
+> - **§3 mixes two funding models.** "45,000 chats/month completely free" assumes one shared
+>   developer-funded key, which is the cost and abuse exposure the implementation plan defers to a
+>   separate architecture decision — not the BYOK model described in §4 of this same document.
+
 ## 1. Executive Summary
 
 This report provides a complete architectural proposal, provider price comparison, and client-side implementation strategy for adding an **Interactive AI Chat Window** to the bilingual Bible study application (`bible_app_bg`).
