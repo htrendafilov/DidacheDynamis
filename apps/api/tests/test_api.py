@@ -319,6 +319,7 @@ def test_lexicon_entry_missing_and_invalid(strongs_client):
     assert strongs_client.get("/api/v1/lexicon/G9999").status_code == 404
     assert strongs_client.get("/api/v1/lexicon/X123").status_code == 400
     assert strongs_client.get("/api/v1/lexicon/strong:H0001").status_code == 400
+    assert strongs_client.get(f"/api/v1/lexicon/H{'9' * 5000}").status_code == 400
 
 
 def _group(res: dict, type_: str) -> dict:

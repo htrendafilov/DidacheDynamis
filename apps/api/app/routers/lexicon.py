@@ -21,7 +21,9 @@ router = APIRouter(prefix=settings.API_V1, tags=["lexicon"])
 
 # Same canonical form as bibleimport.canonical.normalize_strong_id (intentionally
 # duplicated: the production API package does not depend on the offline importer).
-_STRONG_ID = re.compile(r"^(?P<letter>[HGhg])(?P<number>\d+)(?P<suffix>[A-Za-z]?)$")
+# Five digits cover the KJV source's extra leading-zero padding (e.g. H07225) while
+# bounding public input before int conversion.
+_STRONG_ID = re.compile(r"^(?P<letter>[HGhg])(?P<number>[0-9]{1,5})(?P<suffix>[A-Za-z]?)$")
 # The id's leading letter partitions the namespace and is already validated, so work_id
 # does not depend on the language column having exactly the expected values.
 _WORK_BY_LETTER = {"G": "strongsgreek", "H": "strongshebrew"}

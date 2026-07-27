@@ -49,6 +49,10 @@ FastAPI's generated OpenAPI schema is the runtime contract. When changing respon
 `apps/api/app/models.py`, update the matching interfaces and fetch functions in
 `apps/web/src/data/api.ts`.
 
+Bible passage runs have the wire shape `{t, wj, lemma?}`. For works carrying lexical annotations,
+`lemma` is an array of `{id, s?, m?}` records: normalized Strong's identifier, optional morphology
+scheme, and optional morphology code. The field is omitted entirely for unannotated runs and works.
+
 ### Unified search contract
 
 `q` and optional `refine` are safely tokenized; all terms are combined with `AND` rather than
