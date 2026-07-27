@@ -20,6 +20,7 @@ from .pipeline import (
     BookSpec,
     append_bible,
     append_book,
+    append_strongs,
     append_study_content,
     build_bible,
     easton_source_version,
@@ -35,6 +36,8 @@ SOURCE_FILES = {
     "easton": "Easton.raw.imp.gz",
     "tsk": "crossreferences_kjv.tsv",
     "baptist1689": "BaptistConfession1689.imp.gz",
+    "strongsgreek": "StrongsGreek.imp.gz",
+    "strongshebrew": "StrongsHebrew.imp.gz",
 }
 
 WEB_SPEC = BibleSpec(
@@ -328,6 +331,43 @@ def _cmd_add_book(args) -> int:
     return 0
 
 
+def _strongs_audits(
+    greek_source: str | Path, hebrew_source: str | Path, stats: dict, diags: dict
+) -> list[dict]:
+    greek = _audit_record(
+        "strongsgreek",
+        greek_source,
+        result="ok",
+        statistics={"lexicon_entries": stats["strongs_greek_entries"]},
+        source_version="CrossWire StrongsGreek 2.0",
+    )
+    greek["lexicon_diagnostics"] = diags["greek"]
+    hebrew = _audit_record(
+        "strongshebrew",
+        hebrew_source,
+        result="ok",
+        statistics={"lexicon_entries": stats["strongs_hebrew_entries"]},
+        source_version="CrossWire StrongsHebrew 1.2",
+    )
+    hebrew["lexicon_diagnostics"] = diags["hebrew"]
+    return [greek, hebrew]
+
+
+def _cmd_add_strongs(args) -> int:
+    stats, diags = append_strongs(
+        args.out,
+        greek_source=args.greek_source,
+        hebrew_source=args.hebrew_source,
+    )
+    print(" ".join(f"{key}={value}" for key, value in stats.items()))
+    imports = _strongs_audits(args.greek_source, args.hebrew_source, stats, diags)
+    for audit in imports:
+        _print_audit(audit)
+    _write_report(args, imports, result="ok")
+    print("OK")
+    return 0
+
+
 def _cmd_build_all(args) -> int:
     """Build the complete content DB (WEB + KJV + study library + General Books) in one step.
 
@@ -422,13 +462,33 @@ def _cmd_build_all(args) -> int:
     )
     imports.append(audit)
     _print_audit(audit)
+
+    print("==> Strong's lexicons (Greek, Hebrew)")
+    stats, diags = append_strongs(
+        out,
+        greek_source=src / SOURCE_FILES["strongsgreek"],
+        hebrew_source=src / SOURCE_FILES["strongshebrew"],
+    )
+    print(" ".join(f"{key}={value}" for key, value in stats.items()))
+    strongs_imports = _strongs_audits(
+        src / SOURCE_FILES["strongsgreek"],
+        src / SOURCE_FILES["strongshebrew"],
+        stats,
+        diags,
+    )
+    imports.extend(strongs_imports)
+    for audit in strongs_imports:
+        _print_audit(audit)
+
     _write_report(args, imports, result="ok")
     print("OK")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="bibleimport", description="Build content.sqlite from Bible sources.")
+    p = argparse.ArgumentParser(
+        prog="bibleimport", description="Build content.sqlite from Bible sources."
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     w = sub.add_parser("build-web", help="Import the World English Bible (USFX).")
@@ -497,6 +557,19 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--xref-source", required=True, help="TSK-derived crossreferences_kjv.tsv")
     s.add_argument("--report", help="diagnostics JSON (default: <out>.diagnostics.json)")
     s.set_defaults(func=_cmd_add_study)
+
+    st = sub.add_parser(
+        "add-strongs", help="Append Strong's Greek + Hebrew lexicons (M8 lexical data)."
+    )
+    st.add_argument(
+        "--greek-source", required=True, help="StrongsGreek.imp.gz (raw mod2imp export)"
+    )
+    st.add_argument(
+        "--hebrew-source", required=True, help="StrongsHebrew.imp.gz (raw mod2imp export)"
+    )
+    st.add_argument("--out", required=True, help="existing content.sqlite path")
+    st.add_argument("--report", help="diagnostics JSON (default: <out>.diagnostics.json)")
+    st.set_defaults(func=_cmd_add_strongs)
 
     args = p.parse_args(argv)
     if args.report and Path(args.report).resolve() == Path(args.out).resolve():

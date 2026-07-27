@@ -10,7 +10,8 @@ import sqlite3
 
 # Increment this whenever an API-visible schema change is made. The API keeps a matching
 # CONTENT_SCHEMA_VERSION constant and refuses to serve an incompatible database.
-SCHEMA_VERSION = 1
+# v2: verse_tokens + strong_lexicon (M8.1 Strong's lexical data).
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
@@ -103,6 +104,38 @@ CREATE TABLE xrefs (
     votes      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_xrefs_ref ON xrefs(osis_code, chapter, verse);
+
+-- M8 Strong's lexical data (plan/search_workspace.md §10.3). verse_tokens holds one row per
+-- surface span per ordinal: position is the 0-based span index in document order, ordinal the
+-- Nth Strong's number within that span (a span can carry several, e.g. 'created' ->
+-- H0853/H1254). Untagged spans (plain text, KJV transChange additions) get exactly one row
+-- with ordinal=0 and strong_id NULL, so a verse can be rendered from verse_tokens alone.
+-- strong_id/morphology are NULLable for those spans; ids are normalized H/G + 4 digits.
+CREATE TABLE verse_tokens (
+    work_id      TEXT NOT NULL REFERENCES works(id),
+    osis_code    TEXT NOT NULL,
+    chapter      INTEGER NOT NULL,
+    verse        INTEGER NOT NULL,
+    position     INTEGER NOT NULL,
+    ordinal      INTEGER NOT NULL,
+    surface      TEXT NOT NULL,
+    normalized   TEXT NOT NULL,
+    strong_id    TEXT,
+    morph_scheme TEXT,              -- 'strongMorph' (OT) | 'robinson' (NT) | NULL
+    morph_code   TEXT,
+    PRIMARY KEY (work_id, osis_code, chapter, verse, position, ordinal)
+);
+CREATE INDEX idx_verse_tokens_strong
+    ON verse_tokens(strong_id, work_id, osis_code, chapter, verse);
+
+CREATE TABLE strong_lexicon (
+    strong_id       TEXT PRIMARY KEY,
+    language        TEXT NOT NULL,  -- 'grc' | 'hbo'
+    lemma           TEXT NOT NULL,
+    transliteration TEXT,
+    pronunciation   TEXT,
+    definition_json TEXT NOT NULL
+);
 
 -- Full-text search (contentless FTS5 mirroring plain_text / body). UNINDEXED columns carry the
 -- locator (for navigation) plus numeric sort keys so the search API can order canonically/by source

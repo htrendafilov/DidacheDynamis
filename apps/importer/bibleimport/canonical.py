@@ -22,10 +22,28 @@ import re
 from dataclasses import dataclass, field
 
 _WS = re.compile(r"\s+")
+_STRONG_ID = re.compile(r"^(?P<letter>[HGhg])(?P<number>\d+)(?P<suffix>[A-Za-z]?)$")
 
 
 def norm_ws(text: str) -> str:
     return _WS.sub(" ", text)
+
+
+def normalize_strong_id(value: str) -> str | None:
+    """Canonical Strong's identifier: letter + zero-padded 4-digit number + optional
+    uppercase suffix ('H07225' -> 'H7225', 'G26' -> 'G0026', 'G0031a' -> 'G0031A').
+
+    Both testaments fit four digits (Hebrew runs to H8674, Greek to G5624), so this
+    collapses the KJV's inconsistent OT/NT padding onto the same form the lexicon
+    keys normalize to. Returns None for anything that is not a Strong's id.
+    """
+    match = _STRONG_ID.match(value.strip())
+    if not match:
+        return None
+    letter = match.group("letter").upper()
+    number = int(match.group("number"))
+    suffix = match.group("suffix").upper()
+    return f"{letter}{number:04d}{suffix}"
 
 
 @dataclass
@@ -38,17 +56,29 @@ class Line:
     def add_text(self, text: str, wj: bool) -> None:
         if not text:
             return
-        if self.runs and self.runs[-1]["wj"] == wj:
+        if self.runs and self.runs[-1]["wj"] == wj and "lemma" not in self.runs[-1]:
             self.runs[-1]["t"] += text
         else:
             self.runs.append({"wj": wj, "t": text})
+
+    def add_lemma_text(self, text: str, wj: bool, lemma: list[dict]) -> None:
+        """A lexical span (OSIS ``<w lemma="strong:…">``): never merged with neighbours,
+        so the reader can anchor a popover to exactly this surface word."""
+        if not text:
+            return
+        self.runs.append({"wj": wj, "t": text, "lemma": lemma})
 
     def to_json(self) -> dict:
         runs = []
         for r in self.runs:
             t = r["t"]
             if t:
-                runs.append({"wj": r["wj"], "t": t} if r["wj"] else {"t": t})
+                run = {"t": t}
+                if r["wj"]:
+                    run = {"wj": True, **run}
+                if "lemma" in r:
+                    run["lemma"] = r["lemma"]
+                runs.append(run)
         return {"kind": self.kind, "level": self.level, "para_start": self.para_start, "runs": runs}
 
 
@@ -76,6 +106,39 @@ class VerseAccum:
                 parts.append(r["t"])
             parts.append(" ")
         return norm_ws("".join(parts)).strip()
+
+
+@dataclass
+class TokenRow:
+    """One surface span of a verse (plan/search_workspace.md §10.3).
+
+    `position` is the 0-based span index in document order; `ordinal` disambiguates the
+    multiple Strong's numbers one span can carry ('created' -> H0853/H1254). An untagged
+    span (plain text, punctuation, KJV transChange additions) gets exactly one row with
+    ordinal=0 and strong_id NULL, so every surface span appears in verse_tokens.
+    """
+
+    osis: str
+    chapter: int
+    verse: int
+    position: int
+    ordinal: int
+    surface: str
+    normalized: str
+    strong_id: str | None
+    morph_scheme: str | None
+    morph_code: str | None
+
+
+@dataclass
+class LexiconRow:
+    strong_id: str
+    language: str  # 'grc' | 'hbo'
+    lemma: str
+    transliteration: str | None
+    pronunciation: str | None
+    definition: dict  # -> strong_lexicon.definition_json
+    plain_text: str
 
 
 @dataclass
