@@ -39,6 +39,7 @@ rejects content requests clearly instead of allowing a later missing-column SQL 
 | `GET /api/v1/commentary/{work_id}/{osis}/{chapter}?verse=` | Commentary entries for a chapter/reference |
 | `GET /api/v1/dictionary/{work_id}/entries?prefix=&limit=` | Dictionary headword list |
 | `GET /api/v1/dictionary/{work_id}/entry/{headword}` | One dictionary entry |
+| `GET /api/v1/lexicon/{strong_id}` | One Strong's lexicon entry (normalized id; 404 for valid-but-absent ids) |
 | `GET /api/v1/books` | Installed General Book works |
 | `GET /api/v1/book/{work_id}` | General Book TOC tree and all section bodies |
 | `GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=` | Cross-references and previews |
@@ -47,6 +48,10 @@ rejects content requests clearly instead of allowing a later missing-column SQL 
 FastAPI's generated OpenAPI schema is the runtime contract. When changing response models in
 `apps/api/app/models.py`, update the matching interfaces and fetch functions in
 `apps/web/src/data/api.ts`.
+
+Bible passage runs have the wire shape `{t, wj, lemma?}`. For works carrying lexical annotations,
+`lemma` is an array of `{id, s?, m?}` records: normalized Strong's identifier, optional morphology
+scheme, and optional morphology code. The field is omitted entirely for unannotated runs and works.
 
 ### Unified search contract
 

@@ -24,7 +24,13 @@ def _parse_range(verses: str) -> tuple[int, int]:
     return start, end
 
 
-@router.get("/works/{work_id}/passage/{osis}/{chapter}", response_model=Passage)
+@router.get(
+    "/works/{work_id}/passage/{osis}/{chapter}",
+    response_model=Passage,
+    # Run.lemma is optional; omitting it when absent keeps works without lexical
+    # data (WEB) byte-identical to their pre-M8 responses (plan §11 M8.2 exit).
+    response_model_exclude_none=True,
+)
 def passage(
     work_id: str,
     osis: str,

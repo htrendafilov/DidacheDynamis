@@ -246,6 +246,82 @@ def test_passage_verse_range_rejects_bad_input(client):
         assert r.status_code == 400, bad
 
 
+def _runs(passage: dict) -> list[dict]:
+    return [r for v in passage["verses"] for ln in v["lines"] for r in ln["runs"]]
+
+
+def test_kjv_passage_carries_lemma_runs(strongs_client):
+    p = strongs_client.get("/api/v1/works/kjv/passage/Gen/1").json()
+    runs = _runs(p)
+    beginning = next(r for r in runs if r["t"] == "In the beginning")
+    assert beginning["lemma"] == [{"id": "H7225"}]
+    # 'created' has two ids but one morph code in the source; the importer keeps
+    # morphology only on a cardinality match, so both entries carry ids only.
+    created = next(r for r in runs if r["t"] == "created")
+    assert created["lemma"] == [{"id": "H0853"}, {"id": "H1254"}]
+    # Gen 1:2's italicised transChange word is an untagged span: no lemma key at all.
+    supplied = next(r for r in runs if r["t"].strip() == "was" and "lemma" not in r)
+    assert supplied["t"] == " was "
+
+
+def test_kjv_matched_cardinality_keeps_morphology(strongs_client):
+    p = strongs_client.get("/api/v1/works/kjv/passage/John/1").json()
+    word = next(r for r in _runs(p) if r["t"] == "the Word")
+    assert word["lemma"] == [
+        {"id": "G3588", "s": "robinson", "m": "T-NSM"},
+        {"id": "G3056", "s": "robinson", "m": "N-NSM"},
+    ]
+
+
+def test_kjv_nt_runs_normalize_ids_and_keep_red_letter(strongs_client):
+    p = strongs_client.get("/api/v1/works/kjv/passage/John/3").json()
+    loved = next(r for r in _runs(p) if r["t"] == "loved")
+    assert loved["lemma"] == [{"id": "G0025", "s": "robinson", "m": "V-AAI-3S"}]
+    assert loved["wj"] is True
+
+
+def test_web_passage_has_no_lemma_and_is_byte_identical(strongs_client):
+    res = strongs_client.get("/api/v1/works/web/passage/John/3")
+    assert res.status_code == 200
+    # response_model_exclude_none drops the optional field entirely, so works without
+    # lexical data keep their pre-M8 byte shape (plan §11 M8.2 exit criterion).
+    assert '"lemma"' not in res.text
+    assert all("lemma" not in run for run in _runs(res.json()))
+
+
+def test_lexicon_entry_lookup(strongs_client):
+    res = strongs_client.get("/api/v1/lexicon/G0001")
+    assert res.status_code == 200
+    entry = res.json()
+    assert entry["strong_id"] == "G0001"
+    assert entry["language"] == "grc"
+    assert entry["work_id"] == "strongsgreek"
+    assert entry["lemma"] == "ἄλφα"
+    assert entry["transliteration"] == "a"
+    assert entry["pronunciation"] == "al'-fah"
+    assert "first letter of the alphabet" in entry["definition"]
+    assert entry["see"] == ["G0427", "G0260"]
+
+
+def test_lexicon_entry_normalizes_ids(strongs_client):
+    entry = strongs_client.get("/api/v1/lexicon/h0001").json()
+    assert entry["strong_id"] == "H0001"
+    assert entry["language"] == "hbo"
+    assert entry["work_id"] == "strongshebrew"
+    assert entry["lemma"] == "'ab"
+    assert entry["transliteration"] is None  # transliteration-only module
+    assert entry["pronunciation"] == "awb"
+    see = strongs_client.get("/api/v1/lexicon/H0002").json()["see"]
+    assert see == ["H0001"]
+
+
+def test_lexicon_entry_missing_and_invalid(strongs_client):
+    assert strongs_client.get("/api/v1/lexicon/G9999").status_code == 404
+    assert strongs_client.get("/api/v1/lexicon/X123").status_code == 400
+    assert strongs_client.get("/api/v1/lexicon/strong:H0001").status_code == 400
+    assert strongs_client.get(f"/api/v1/lexicon/H{'9' * 5000}").status_code == 400
+
+
 def _group(res: dict, type_: str) -> dict:
     return next(g for g in res["groups"] if g["type"] == type_)
 

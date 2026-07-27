@@ -16,7 +16,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import settings
 from .db import database_status
-from .routers import commentary, dictionary, general_books, health, passages, search, works, xrefs
+from .routers import (
+    commentary,
+    dictionary,
+    general_books,
+    health,
+    lexicon,
+    passages,
+    search,
+    works,
+    xrefs,
+)
 
 API_CACHE_CONTROL = "public, max-age=0, must-revalidate"
 HTML_CACHE_CONTROL = "no-store, max-age=0, must-revalidate"
@@ -126,6 +136,7 @@ app.include_router(commentary.router)
 app.include_router(dictionary.router)
 app.include_router(xrefs.router)
 app.include_router(general_books.router)
+app.include_router(lexicon.router)
 
 
 # Serve the built SPA in production (absent in dev, where Vite serves it).
