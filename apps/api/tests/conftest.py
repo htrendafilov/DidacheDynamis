@@ -73,3 +73,72 @@ def client(db_path, monkeypatch) -> TestClient:
 
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture(scope="session")
+def strongs_db_path(tmp_path_factory) -> Path:
+    """WEB + KJV-with-Strong's + the mini lexicons: the M8 lexical corpus, kept
+    separate so the search tests' single-Bible corpus assumptions still hold."""
+    from bibleimport.pipeline import (
+        AlignmentExpectation,
+        BibleSpec,
+        append_bible,
+        append_strongs,
+        build_bible,
+        source_sha256,
+    )
+
+    src = tmp_path_factory.mktemp("src") / "mini_usfx.xml"
+    src.write_text(MINI_USFX, encoding="utf-8")
+    out = tmp_path_factory.mktemp("data") / "content.sqlite"
+    spec = BibleSpec(
+        work_id="web", title="World English Bible", abbrev="WEB", language="en",
+        versification="kjv", license="Public Domain", attribution="WEB is public domain.",
+        source_url="https://ebible.org/", source_version="test fixture",
+    )
+    diag = build_bible(src, spec, out, fmt="usfx")
+    assert diag.ok, diag.errors
+    fixture_dir = Path(__file__).parents[2] / "importer" / "tests" / "fixtures"
+    kjv_source = fixture_dir / "mini_kjv_strongs.imp"
+    kjv_diag = append_bible(
+        kjv_source,
+        BibleSpec(
+            work_id="kjv",
+            title="King James Version",
+            abbrev="KJV",
+            language="en",
+            versification="kjv",
+            license="GPL",
+            attribution="CrossWire KJV Strong's test fixture",
+            expected_alignment=AlignmentExpectation(
+                base_work_id="web",
+                base_checksum=source_sha256(src),
+                source_checksum=source_sha256(kjv_source),
+                missing_in_other=frozenset({("Ps", 23, 1)}),
+                missing_in_base=frozenset({("Gen", 1, 1), ("Gen", 1, 2), ("John", 1, 1)}),
+            ),
+        ),
+        out,
+    )
+    assert kjv_diag.ok, kjv_diag.errors
+    append_strongs(
+        out,
+        greek_source=fixture_dir / "mini_strongs_greek.imp",
+        hebrew_source=fixture_dir / "mini_strongs_hebrew.imp",
+        expected_greek_entries=2,
+        expected_greek_sequence_gaps=None,
+        expected_greek_cjk_annotations=None,
+        expected_greek_anomalies=None,
+        expected_hebrew_entries=3,
+        expected_hebrew_cleanups=0,
+    )
+    return out
+
+
+@pytest.fixture()
+def strongs_client(strongs_db_path, monkeypatch) -> TestClient:
+    monkeypatch.setattr(settings, "CONTENT_DB_PATH", strongs_db_path)
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c

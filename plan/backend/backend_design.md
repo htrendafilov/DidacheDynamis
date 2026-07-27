@@ -143,7 +143,7 @@ TSK-derived TSV). SWORD binaries are never parsed directly.
 apps/api/app/
   main.py            # FastAPI app, static SPA mount, routers, cache headers
   db.py              # read-only sqlite connection mgmt (mode=ro, per request) + schema guard
-  routers/           # health, works, passages, commentary, dictionary, general_books, xrefs, search
+  routers/           # health, works, passages, commentary, dictionary, general_books, xrefs, search, lexicon
   models.py          # Pydantic CIR + response models
   settings.py        # API prefix + DB and built-SPA paths from environment
   pyproject.toml     # ruff, pytest, deps

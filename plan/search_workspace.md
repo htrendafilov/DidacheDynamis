@@ -1,6 +1,6 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.5 delivered; M8.1 delivered — sources and licensing resolved 2026-07-27 (§10.1); M8.2–M8.4 proposed**
+Status: **M7.1–M7.5, M8.1–M8.2 delivered; M8.3–M8.4 proposed**
 Last reviewed: 2026-07-27
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
@@ -666,9 +666,18 @@ Shipped:
   the expected lexicon entries, untagged `transChange` words survive as untagged rows, and works
   without lexical data (WEB) are byte-identical with zero token rows.
 
-**M8.2 — API surface.** Optional `lemma` field on the verse `Run` (never `strong` — §10.4); lexicon
-lookup endpoint; `/ready` unchanged. Exit: passage responses carry lexical data for KJV and are
-byte-identical for works without it.
+**M8.2 — API surface — DELIVERED 2026-07-27**
+
+Shipped:
+- Optional `lemma` field on the verse `Run` (`RunLemma{id, s?, m?}` — never `strong`, §10.4);
+  the passage route serializes with `response_model_exclude_none`, so works without lexical
+  data are byte-identical to their pre-M8 responses (verified by test).
+- `GET /api/v1/lexicon/{strong_id}` returning the normalized entry (lemma, transliteration,
+  pronunciation, definition, `see` cross-references, and the lexicon `work_id` for
+  attribution); ids normalize server-side (padding/case-insensitive), invalid ids 400, and
+  valid-but-absent ids (module key holes, e.g. G3778) 404.
+- `/ready` unchanged; `apps/web/src/data/api.ts` types kept in sync (`RunLemma`, `Run.lemma`,
+  `StrongEntry`, `api.lexiconEntry`).
 
 **M8.3 — reader toggle.** `settings.strongs` off by default, lexicon popover, Dictionary-pane
 hand-off, EN/BG strings with the usual parity test. Exit: with the toggle off the rendered DOM is

@@ -39,6 +39,7 @@ rejects content requests clearly instead of allowing a later missing-column SQL 
 | `GET /api/v1/commentary/{work_id}/{osis}/{chapter}?verse=` | Commentary entries for a chapter/reference |
 | `GET /api/v1/dictionary/{work_id}/entries?prefix=&limit=` | Dictionary headword list |
 | `GET /api/v1/dictionary/{work_id}/entry/{headword}` | One dictionary entry |
+| `GET /api/v1/lexicon/{strong_id}` | One Strong's lexicon entry (normalized id; 404 for valid-but-absent ids) |
 | `GET /api/v1/books` | Installed General Book works |
 | `GET /api/v1/book/{work_id}` | General Book TOC tree and all section bodies |
 | `GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=` | Cross-references and previews |

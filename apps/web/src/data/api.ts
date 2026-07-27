@@ -21,9 +21,19 @@ export interface Book {
   chapter_count: number;
 }
 
+// One Strong's annotation on a verse run (M8.2; named lemma — never strong — so it
+// cannot be confused with the DocumentRun.strong bold flag). s/m appear only when
+// the source tags morphology for this id.
+export interface RunLemma {
+  id: string; // normalized Strong's id, e.g. "H1254"
+  s?: string; // morphology scheme: 'strongMorph' (OT) | 'robinson' (NT)
+  m?: string; // morphology code, e.g. "TH8804"
+}
+
 export interface Run {
   t: string;
   wj?: boolean;
+  lemma?: RunLemma[]; // word-level lexical data (works with Strong's annotations)
 }
 
 export interface Line {
@@ -165,6 +175,19 @@ export interface DictionaryEntry {
   body: Document;
 }
 
+// One Strong's lexicon entry (M8.2). work_id identifies the lexicon work
+// (strongsgreek | strongshebrew) so the client can cite its attribution from /works.
+export interface StrongEntry {
+  strong_id: string;
+  language: string; // 'grc' | 'hbo'
+  work_id: string;
+  lemma: string;
+  transliteration: string | null;
+  pronunciation: string | null;
+  definition: string;
+  see: string[]; // cross-referenced Strong's ids, normalized
+}
+
 export interface GeneralBookSection {
   section_id: string;
   title: string;
@@ -224,6 +247,8 @@ export const api = {
     ),
   dictionaryEntry: (workId: string, headword: string) =>
     get<DictionaryEntry>(`/dictionary/${workId}/entry/${encodeURIComponent(headword)}`),
+  lexiconEntry: (strongId: string) =>
+    get<StrongEntry>(`/lexicon/${encodeURIComponent(strongId)}`),
   generalBooks: () => get<Work[]>("/books"),
   generalBook: (workId: string) => get<GeneralBook>(`/book/${encodeURIComponent(workId)}`),
   crossReferences: (osis: string, chapter: number, verse: number, previewWork = "web") =>

@@ -7,9 +7,26 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 
+class RunLemma(BaseModel):
+    """One Strong's annotation on a verse run (plan/search_workspace.md §10.4).
+
+    Named `lemma` — never `strong`/`strongs` — so it cannot be confused with the
+    DocumentRun.strong (bold) typography flag. `s`/`m` are present only when the
+    source tags morphology for this id.
+    """
+
+    id: str  # normalized Strong's id, e.g. "H1254"
+    s: str | None = None  # morphology scheme: 'strongMorph' (OT) | 'robinson' (NT)
+    m: str | None = None  # morphology code, e.g. "TH8804"
+
+
 class Run(BaseModel):
     t: str
     wj: bool = False  # words of Jesus (red-letter)
+    # Optional word-level lexical data (M8): present only for works whose source
+    # carries Strong's annotations (today: KJV). The passage route serializes with
+    # response_model_exclude_none so works without it stay byte-identical.
+    lemma: list[RunLemma] | None = None
 
 
 class Line(BaseModel):
@@ -175,6 +192,20 @@ class DictionaryEntry(BaseModel):
     work_id: str
     headword: str
     body: Document
+
+
+class StrongEntry(BaseModel):
+    """One Strong's lexicon entry (M8.2). `work_id` identifies the lexicon work
+    (strongsgreek | strongshebrew) so clients can cite its attribution from /works."""
+
+    strong_id: str
+    language: str  # 'grc' | 'hbo'
+    work_id: str
+    lemma: str
+    transliteration: str | None
+    pronunciation: str | None
+    definition: str
+    see: list[str]  # cross-referenced Strong's ids, normalized
 
 
 class GeneralBookSection(BaseModel):
