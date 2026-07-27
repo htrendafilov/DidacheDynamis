@@ -193,11 +193,17 @@ def load_strongs_hebrew(
     """Parse the plain-text mod2imp export of CrossWire StrongsHebrew (CP1252 bytes)."""
     path = Path(path)
     opener = gzip.open if path.suffix == ".gz" else open
+    chunks: list[bytes] = []
+    total = 0
     with opener(path, "rb") as handle:
-        raw = handle.read()
-    if len(raw) > _MAX_IMP_BYTES:
-        raise ValueError(f"compressed IMP exceeds {_MAX_IMP_BYTES} byte limit: {path}")
-    text = raw.decode("cp1252", errors="strict")
+        # Enforce the expanded-size ceiling while streaming (zip-bomb guard), the same
+        # boundary the other IMP readers enforce per line.
+        while chunk := handle.read(1 << 20):
+            total += len(chunk)
+            if total > _MAX_IMP_BYTES:
+                raise ValueError(f"expanded IMP exceeds {_MAX_IMP_BYTES} byte limit: {path}")
+            chunks.append(chunk)
+    text = b"".join(chunks).decode("cp1252", errors="strict")
     cleanups = text.count(_SPURIOUS)
     if expected_cleanups is not None and cleanups != expected_cleanups:
         raise ValueError(
@@ -209,6 +215,7 @@ def load_strongs_hebrew(
     rows: list[LexiconRow] = []
     skipped_front_matter = 0
     anomalies: list[dict] = []
+    module_numbers: set[int] = set()
     records = re.split(r"^\$\$\$", text, flags=re.MULTILINE)[1:]
     for record in records:
         first_newline = record.find("\n")
@@ -219,6 +226,7 @@ def load_strongs_hebrew(
         if not key.isdigit() or int(key) == 0:
             skipped_front_matter += 1
             continue
+        module_numbers.add(int(key))
         lines = body.splitlines()
         first = _HEBREW_FIRST_LINE.match(lines[0]) if lines else None
         if first is None:
@@ -251,8 +259,9 @@ def load_strongs_hebrew(
         raise ValueError(
             f"StrongsHebrew entry-count regression: expected {expected_entries}, parsed {len(rows)}"
         )
-    keyed = {int(row.strong_id[1:]) for row in rows}
-    gaps = [f"H{n:04d}" for n in range(1, 8675) if n not in keyed]
+    # Gaps are computed over module keys (not imported rows), mirroring the Greek loader:
+    # an anomaly-skipped entry is reported as an anomaly, not as a hole in the module.
+    gaps = [f"H{n:04d}" for n in range(1, 8675) if n not in module_numbers]
     diag = {
         "format": "plain-cp1252",
         "entries": len(rows),
