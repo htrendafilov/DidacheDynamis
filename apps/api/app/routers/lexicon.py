@@ -22,7 +22,9 @@ router = APIRouter(prefix=settings.API_V1, tags=["lexicon"])
 # Same canonical form as bibleimport.canonical.normalize_strong_id (intentionally
 # duplicated: the production API package does not depend on the offline importer).
 _STRONG_ID = re.compile(r"^(?P<letter>[HGhg])(?P<number>\d+)(?P<suffix>[A-Za-z]?)$")
-_WORK_BY_LANGUAGE = {"grc": "strongsgreek", "hbo": "strongshebrew"}
+# The id's leading letter partitions the namespace and is already validated, so work_id
+# does not depend on the language column having exactly the expected values.
+_WORK_BY_LETTER = {"G": "strongsgreek", "H": "strongshebrew"}
 
 
 def _normalize_strong_id(value: str) -> str | None:
@@ -55,7 +57,7 @@ def strong_entry(
     return StrongEntry(
         strong_id=row["strong_id"],
         language=row["language"],
-        work_id=_WORK_BY_LANGUAGE[row["language"]],
+        work_id=_WORK_BY_LETTER[normalized[0]],
         lemma=row["lemma"],
         transliteration=row["transliteration"],
         pronunciation=row["pronunciation"],
