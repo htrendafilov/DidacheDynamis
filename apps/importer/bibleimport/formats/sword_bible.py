@@ -3,7 +3,8 @@
 Word-level lexical annotations (plan/search_workspace.md §10) are preserved, not discarded:
 each ``<w lemma="strong:…" morph="…">`` becomes an unmerged CIR run carrying a ``lemma``
 list, and contributes rows to ``verse_tokens``. A surface span can carry several Strong's
-numbers ("created" -> H0853/H1254) and the morphology codes align positionally with them;
+numbers ("created" -> H0853/H1254). Morphology aligns positionally only when its cardinality
+matches the Strong's-id list; ambiguous mismatched spans retain their ids without morphology;
 untranslated source words (empty ``<w/>``) yield token rows with an empty surface, and
 translated-but-untagged spans (KJV ``transChange`` additions, punctuation, plain text)
 yield a single NULL-id row each.
@@ -13,11 +14,12 @@ from __future__ import annotations
 
 import gzip
 import re
+from collections import Counter
 from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
 
-from ..books import CANON
+from ..books import BY_OSIS, CANON
 from ..canonical import (
     BookMeta,
     HeadingRow,
@@ -89,32 +91,76 @@ def _w_surface(element) -> str:
     return "".join(parts)
 
 
-def _w_lexical(element) -> list[dict]:
-    """Strong's ids + morphology of one <w>, normalized; [] when the span is untagged.
-
-    Morphology codes align positionally with the ids (ordinal i takes morph token i; an
-    id without a matching code — the OT untranslated-particle case — gets no morphology).
-    Non-Strong's lemma tokens (lemma.TR Greek lemmas) are not identifiers and are skipped.
-    """
+def _w_annotations(element) -> tuple[list[str], list[str]]:
     ids = []
     for token in element.attrib.get("lemma", "").split():
         if token.startswith("strong:"):
             normalized = normalize_strong_id(token[len("strong:") :])
             if normalized:
                 ids.append(normalized)
-    morphs = element.attrib.get("morph", "").split()
+    return ids, element.attrib.get("morph", "").split()
+
+
+def _w_lexical(element) -> list[dict]:
+    """Strong's ids + unambiguous morphology of one <w>, normalized.
+
+    Non-Strong's lemma tokens (lemma.TR Greek lemmas) are skipped. Morphology is attached
+    only when its list has the same cardinality as the Strong's ids. The KJV's mismatched
+    OT lists do not encode which id a code belongs to, so guessing would confidently
+    misattribute some entries; those spans retain their ids with no morphology.
+    """
+    ids, morphs = _w_annotations(element)
+    aligned_morphs = morphs if len(morphs) == len(ids) else []
     entries = []
     for ordinal, strong_id in enumerate(ids):
         entry = {"id": strong_id}
-        if ordinal < len(morphs):
-            scheme, sep, code = morphs[ordinal].partition(":")
+        if ordinal < len(aligned_morphs):
+            scheme, sep, code = aligned_morphs[ordinal].partition(":")
             if sep:
                 entry["s"] = scheme
                 entry["m"] = code
             else:
-                entry["m"] = morphs[ordinal]
+                entry["m"] = aligned_morphs[ordinal]
         entries.append(entry)
     return entries
+
+
+def lexical_cardinality_audit(path: str | Path) -> dict:
+    """Inventory tagged spans whose Strong's-id/morphology cardinalities disagree."""
+    path = Path(path)
+    tagged_spans = 0
+    mismatches: Counter[str] = Counter()
+    for key, fragment in _entries(path):
+        match = _KEY.match(key)
+        if not match:
+            continue
+        osis = _osis_book(match.group("book"))
+        if osis is None:
+            continue
+        try:
+            root = DefusedET.fromstring(
+                f"<root>{fragment}</root>",
+                forbid_dtd=True,
+                forbid_entities=True,
+                forbid_external=True,
+            )
+        except Exception as exc:
+            raise ValueError("invalid OSIS fragment in SWORD Bible export") from exc
+        testament = BY_OSIS[osis].testament
+        for element in root.iter():
+            if element.tag.rsplit("}", 1)[-1] != "w":
+                continue
+            ids, morphs = _w_annotations(element)
+            if not ids:
+                continue
+            tagged_spans += 1
+            if morphs and len(ids) != len(morphs):
+                mismatches[f"{testament}:{len(ids)}:{len(morphs)}"] += 1
+    return {
+        "tagged_spans": tagged_spans,
+        "mismatched_spans": sum(mismatches.values()),
+        "mismatches": dict(sorted(mismatches.items())),
+    }
 
 
 def _collect_spans(spans: list[_Span], element, words_of_jesus: bool = False) -> None:

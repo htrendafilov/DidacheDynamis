@@ -18,6 +18,7 @@ from .pipeline import (
     AlignmentExpectation,
     BibleSpec,
     BookSpec,
+    LexicalSentinel,
     append_bible,
     append_book,
     append_strongs,
@@ -92,6 +93,13 @@ KJV_SPEC = BibleSpec(
                 ("Rom", 16, 27),
             }
         ),
+    ),
+    lexical_sentinel=LexicalSentinel(
+        osis="Gen",
+        chapter=1,
+        verse=1,
+        tagged_spans=6,
+        strong_ids=7,
     ),
 )
 

@@ -28,6 +28,17 @@ class AlignmentExpectation:
     missing_in_base: frozenset[VerseRef] = frozenset()
 
 
+@dataclass(frozen=True)
+class LexicalSentinel:
+    """Known lexical row counts tied to a reviewed Bible source."""
+
+    osis: str
+    chapter: int
+    verse: int
+    tagged_spans: int
+    strong_ids: int
+
+
 @dataclass
 class BibleSpec:
     work_id: str
@@ -41,6 +52,7 @@ class BibleSpec:
     source_version: str | None = None
     direction: str = "ltr"
     expected_alignment: AlignmentExpectation | None = None
+    lexical_sentinel: LexicalSentinel | None = None
 
 
 @dataclass
@@ -442,6 +454,24 @@ def append_bible(
             ),
         }
     )
+    sentinel = spec.lexical_sentinel
+    if sentinel is not None:
+        sentinel_tokens = [
+            token
+            for token in tagged
+            if (token.osis, token.chapter, token.verse)
+            == (sentinel.osis, sentinel.chapter, sentinel.verse)
+        ]
+        actual_spans = len({token.position for token in sentinel_tokens})
+        actual_ids = len(sentinel_tokens)
+        if (actual_spans, actual_ids) != (sentinel.tagged_spans, sentinel.strong_ids):
+            diag.errors.append(
+                "lexical sentinel mismatch for "
+                f"{sentinel.osis}.{sentinel.chapter}.{sentinel.verse}: expected "
+                f"{sentinel.tagged_spans} tagged spans/{sentinel.strong_ids} Strong's ids, "
+                f"found {actual_spans}/{actual_ids}"
+            )
+            return diag
     source_checksum = source_sha256(source)
     meta = WorkMeta(
         id=spec.work_id,
@@ -562,6 +592,10 @@ def append_strongs(
     greek_source: str | Path,
     hebrew_source: str | Path,
     expected_greek_entries: int | None = strongs_lexicon.EXPECTED_STRONGS_GREEK_ENTRIES,
+    expected_greek_sequence_gaps: int | None = strongs_lexicon.EXPECTED_GREEK_SEQUENCE_GAPS,
+    expected_greek_cjk_annotations: int | None = strongs_lexicon.EXPECTED_GREEK_CJK_ANNOTATIONS,
+    expected_greek_anomalies: frozenset[tuple[str, str]]
+    | None = strongs_lexicon.EXPECTED_GREEK_ANOMALIES,
     expected_hebrew_entries: int | None = strongs_lexicon.EXPECTED_STRONGS_HEBREW_ENTRIES,
     expected_hebrew_cleanups: int | None = strongs_lexicon.EXPECTED_HEBREW_BYTE_CLEANUPS,
 ) -> tuple[dict[str, int], dict]:
@@ -576,7 +610,11 @@ def append_strongs(
     if not out_db.exists():
         raise ValueError(f"content database does not exist: {out_db}")
     greek, greek_diag = strongs_lexicon.load_strongs_greek(
-        greek_path, expected_entries=expected_greek_entries
+        greek_path,
+        expected_entries=expected_greek_entries,
+        expected_sequence_gaps=expected_greek_sequence_gaps,
+        expected_cjk_annotations=expected_greek_cjk_annotations,
+        expected_anomalies=expected_greek_anomalies,
     )
     hebrew, hebrew_diag = strongs_lexicon.load_strongs_hebrew(
         hebrew_path,

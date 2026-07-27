@@ -430,7 +430,10 @@ NT  <w lemma="strong:G1722 lemma.TR:εν" morph="robinson:PREP" src="1">In</w>
    imported under its authoritative module key).
 3. **The two testaments use different morphology systems.** OT is `strongMorph:TH8804`, NT is
    `robinson:PREP`. Store the scheme alongside the code (`strongMorph` / `robinson`) instead of
-   flattening both into one opaque string, or the reader cannot label what it is showing.
+   flattening both into one opaque string, or the reader cannot label what it is showing. The KJV
+   also has 745 tagged spans where the Strong's-id and morphology lists have different cardinalities,
+   and the markup does not identify which id owns which code. The importer preserves the Strong's ids
+   but omits morphology for those ambiguous spans; the full-source audit pins the mismatch inventory.
 4. **KJV italicised words carry no Strong's at all.** `<transChange type="added">was</transChange>`
    marks words the translators supplied. These are legitimately untagged; the schema must allow a
    surface span with no lexical entry rather than treating it as a parse failure.

@@ -4,6 +4,7 @@ from pathlib import Path
 from bibleimport.pipeline import (
     AlignmentExpectation,
     BibleSpec,
+    LexicalSentinel,
     append_bible,
     append_strongs,
     build_bible,
@@ -163,6 +164,37 @@ def test_unexpected_alignment_blocks_append_without_changing_database(tmp_path):
     )
 
 
+def test_lexical_sentinel_blocks_an_untagged_bible(tmp_path):
+    db = build(tmp_path)
+    diag = append_bible(
+        FIXTURES / "mini_kjv.imp",
+        BibleSpec(
+            work_id="untagged",
+            title="Untagged Bible",
+            abbrev="UB",
+            language="en",
+            versification="kjv",
+            license="test",
+            attribution="test",
+            lexical_sentinel=LexicalSentinel(
+                osis="Gen",
+                chapter=1,
+                verse=1,
+                tagged_spans=6,
+                strong_ids=7,
+            ),
+        ),
+        db,
+    )
+
+    assert not diag.ok
+    assert diag.errors == [
+        "lexical sentinel mismatch for Gen.1.1: expected 6 tagged spans/7 Strong's ids, found 0/0"
+    ]
+    conn = sqlite3.connect(db)
+    assert conn.execute("SELECT count(*) FROM works WHERE id='untagged'").fetchone()[0] == 0
+
+
 def _append_kjv_strongs(db: Path):
     source = FIXTURES / "mini_kjv_strongs.imp"
     spec = BibleSpec(
@@ -202,7 +234,7 @@ def test_append_bible_writes_verse_tokens(tmp_path):
     ).fetchall()
     created = [row for row in rows if row[2] == "created"]
     assert [(row[1], row[3], row[4], row[5]) for row in created] == [
-        (0, "H0853", "strongMorph", "TH8804"),
+        (0, "H0853", None, None),
         (1, "H1254", None, None),
     ]
     assert created[0][0] == created[1][0]  # one span, two Strong's ids
@@ -241,6 +273,9 @@ def test_append_strongs_writes_lexicon_and_works(tmp_path):
         greek_source=FIXTURES / "mini_strongs_greek.imp",
         hebrew_source=FIXTURES / "mini_strongs_hebrew.imp",
         expected_greek_entries=2,
+        expected_greek_sequence_gaps=None,
+        expected_greek_cjk_annotations=None,
+        expected_greek_anomalies=None,
         expected_hebrew_entries=3,
         expected_hebrew_cleanups=0,
     )

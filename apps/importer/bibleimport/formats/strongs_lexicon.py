@@ -21,6 +21,7 @@ Source quirks, handled deterministically and recorded in diagnostics:
 from __future__ import annotations
 
 import gzip
+import hashlib
 import re
 from pathlib import Path
 
@@ -36,6 +37,15 @@ from .study import _imp_entries
 EXPECTED_STRONGS_GREEK_ENTRIES = 5488
 EXPECTED_STRONGS_HEBREW_ENTRIES = 8674
 EXPECTED_HEBREW_BYTE_CLEANUPS = 7
+EXPECTED_GREEK_SEQUENCE_GAPS = 135
+EXPECTED_GREEK_CJK_ANNOTATIONS = 52
+EXPECTED_GREEK_ANOMALIES = frozenset({("00251", "missing_lemma_or_definition")})
+EXPECTED_GREEK_SEQUENCE_GAPS_SHA256 = (
+    "cd743d8246b317cdd5ca44cd036621e82d7c274cc74f409d6d8e3ef52888488e"
+)
+EXPECTED_GREEK_CJK_IDS_SHA256 = (
+    "148a508255395a346fa5566578b152558bb65ecfbbd59b327fc2cce8a38c50a9"
+)
 
 _MAX_IMP_BYTES = 128 * 1024 * 1024
 _ENTRY_N = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Za-z]?)$")
@@ -80,8 +90,17 @@ def _definition_text(def_element) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def _ids_sha256(values: list[str]) -> str:
+    return hashlib.sha256("\n".join(values).encode()).hexdigest()
+
+
 def load_strongs_greek(
-    path: str | Path, *, expected_entries: int | None = EXPECTED_STRONGS_GREEK_ENTRIES
+    path: str | Path,
+    *,
+    expected_entries: int | None = EXPECTED_STRONGS_GREEK_ENTRIES,
+    expected_sequence_gaps: int | None = EXPECTED_GREEK_SEQUENCE_GAPS,
+    expected_cjk_annotations: int | None = EXPECTED_GREEK_CJK_ANNOTATIONS,
+    expected_anomalies: frozenset[tuple[str, str]] | None = EXPECTED_GREEK_ANOMALIES,
 ) -> tuple[list[LexiconRow], dict]:
     """Parse the raw TEI mod2imp export of CrossWire StrongsGreek."""
     rows: list[LexiconRow] = []
@@ -162,7 +181,7 @@ def load_strongs_greek(
     # them so a module update that fills gaps (or an importer bug that creates them) is
     # visible. G0251 is keyed but ships without a lemma, so it is an anomaly, not a hole.
     gaps = [f"G{n:04d}" for n in range(1, 5625) if n not in module_numbers]
-    # 53 entries carry Chinese editorial annotations from the upstream e-text (e.g. G3588).
+    # 52 entries carry Chinese editorial annotations from the upstream e-text (e.g. G3588).
     # Imported verbatim — faithful to the source — and counted here for review.
     cjk = [
         row.strong_id
@@ -172,6 +191,34 @@ def load_strongs_greek(
             for char in (row.lemma + (row.pronunciation or "") + row.plain_text)
         )
     ]
+    if expected_sequence_gaps is not None and len(gaps) != expected_sequence_gaps:
+        raise ValueError(
+            "StrongsGreek sequence-gap regression: "
+            f"expected {expected_sequence_gaps}, found {len(gaps)}"
+        )
+    if (
+        expected_sequence_gaps == EXPECTED_GREEK_SEQUENCE_GAPS
+        and _ids_sha256(gaps) != EXPECTED_GREEK_SEQUENCE_GAPS_SHA256
+    ):
+        raise ValueError("StrongsGreek sequence-gap identity regression")
+    if expected_cjk_annotations is not None and len(cjk) != expected_cjk_annotations:
+        raise ValueError(
+            "StrongsGreek CJK-annotation regression: "
+            f"expected {expected_cjk_annotations}, found {len(cjk)}"
+        )
+    if (
+        expected_cjk_annotations == EXPECTED_GREEK_CJK_ANNOTATIONS
+        and _ids_sha256(cjk) != EXPECTED_GREEK_CJK_IDS_SHA256
+    ):
+        raise ValueError("StrongsGreek CJK-annotation identity regression")
+    actual_anomalies = frozenset(
+        (str(anomaly.get("key", "")), str(anomaly.get("reason", ""))) for anomaly in anomalies
+    )
+    if expected_anomalies is not None and actual_anomalies != expected_anomalies:
+        raise ValueError(
+            "StrongsGreek anomaly regression: "
+            f"expected {sorted(expected_anomalies)}, found {sorted(actual_anomalies)}"
+        )
     diag = {
         "format": "raw-tei",
         "entries": len(rows),

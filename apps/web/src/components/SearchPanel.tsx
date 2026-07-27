@@ -731,7 +731,9 @@ export function SearchPanel({
             </summary>
             <div className="search-works-list">
               {works
-                .filter((work) => work.type !== "xref")
+                .filter((work) =>
+                  KIND_ORDER.some((kind) => kind === work.type),
+                )
                 .map((work) => (
                   <label key={work.id}>
                     <input

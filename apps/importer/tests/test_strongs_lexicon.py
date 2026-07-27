@@ -10,10 +10,15 @@ from bibleimport.formats.strongs_lexicon import (
 FIXTURES = Path(__file__).parent / "fixtures"
 GREEK = FIXTURES / "mini_strongs_greek.imp"
 HEBREW = FIXTURES / "mini_strongs_hebrew.imp"
+MINI_GREEK_EXPECTATIONS = {
+    "expected_sequence_gaps": None,
+    "expected_cjk_annotations": None,
+    "expected_anomalies": None,
+}
 
 
 def test_greek_parses_entries_and_skips_front_matter_and_stubs():
-    rows, diag = load_strongs_greek(GREEK, expected_entries=2)
+    rows, diag = load_strongs_greek(GREEK, expected_entries=2, **MINI_GREEK_EXPECTATIONS)
     assert [row.strong_id for row in rows] == ["G0001", "G1722"]
     alpha = rows[0]
     assert alpha.language == "grc"
@@ -32,7 +37,28 @@ def test_greek_parses_entries_and_skips_front_matter_and_stubs():
 
 def test_greek_entry_count_regression_fails_loudly():
     with pytest.raises(ValueError, match="entry-count regression"):
-        load_strongs_greek(GREEK, expected_entries=999)
+        load_strongs_greek(GREEK, expected_entries=999, **MINI_GREEK_EXPECTATIONS)
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"expected_sequence_gaps": 999}, "sequence-gap regression"),
+        ({"expected_cjk_annotations": 999}, "CJK-annotation regression"),
+        (
+            {"expected_anomalies": frozenset({("unexpected", "test")})},
+            "anomaly regression",
+        ),
+    ],
+)
+def test_greek_known_diagnostics_regressions_fail_loudly(override, message):
+    expectations = {**MINI_GREEK_EXPECTATIONS, **override}
+    with pytest.raises(ValueError, match=message):
+        load_strongs_greek(
+            GREEK,
+            expected_entries=2,
+            **expectations,
+        )
 
 
 def test_hebrew_parses_plain_entries_with_multiword_lemmas():

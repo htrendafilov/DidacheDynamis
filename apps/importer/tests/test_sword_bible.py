@@ -1,10 +1,19 @@
+import os
 from pathlib import Path
 
+import pytest
+from defusedxml import ElementTree as DefusedET
+
 from bibleimport.canonical import normalize_strong_id
-from bibleimport.formats.sword_bible import load_sword_bible
+from bibleimport.formats.sword_bible import (
+    _w_lexical,
+    lexical_cardinality_audit,
+    load_sword_bible,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_kjv.imp"
 STRONGS_FIXTURE = Path(__file__).parent / "fixtures" / "mini_kjv_strongs.imp"
+KJV_SOURCE = Path(__file__).parents[3] / "data" / "sources" / "KJV.imp.gz"
 
 
 def test_sword_bible_maps_refs_text_red_letter_and_headings():
@@ -50,7 +59,7 @@ def test_strongs_genesis_span_and_ordinal_keying():
     assert runs[0] == {"t": "In the beginning", "lemma": [{"id": "H7225"}]}
     created = next(run for run in runs if run["t"] == "created")
     assert created["lemma"] == [
-        {"id": "H0853", "s": "strongMorph", "m": "TH8804"},
+        {"id": "H0853"},
         {"id": "H1254"},
     ]
 
@@ -58,10 +67,7 @@ def test_strongs_genesis_span_and_ordinal_keying():
     created_rows = [t for t in rows if t.surface == "created"]
     assert [(t.position, t.ordinal) for t in created_rows] == [(4, 0), (4, 1)]
     assert created_rows[0].strong_id == "H0853"
-    assert (created_rows[0].morph_scheme, created_rows[0].morph_code) == (
-        "strongMorph",
-        "TH8804",
-    )
+    assert created_rows[0].morph_scheme is None and created_rows[0].morph_code is None
     assert created_rows[1].strong_id == "H1254"
     assert created_rows[1].morph_scheme is None and created_rows[1].morph_code is None
     # Untagged whitespace spans are single NULL-id rows.
@@ -76,6 +82,18 @@ def test_strongs_transchange_survives_untagged():
     assert len(supplied) == 1
     assert supplied[0].surface == " was "
     assert supplied[0].ordinal == 0
+
+
+def test_morphology_is_omitted_when_there_are_more_codes_than_ids():
+    word = DefusedET.fromstring(
+        '<w lemma="strong:H03455 strong:H07760" '
+        'morph="strongMorph:TH8799 strongMorph:TH8675 strongMorph:TH8714">'
+        "And there was set</w>",
+        forbid_dtd=True,
+        forbid_entities=True,
+        forbid_external=True,
+    )
+    assert _w_lexical(word) == [{"id": "H3455"}, {"id": "H7760"}]
 
 
 def test_strongs_john_multi_id_morphology_and_empty_surface():
@@ -104,3 +122,26 @@ def test_strongs_john_multi_id_morphology_and_empty_surface():
     john316 = next(v for v in verses if (v.osis, v.chapter, v.verse) == ("John", 3, 16))
     assert john316.plain_text.startswith("For God so loved the world")
     assert all(run.get("wj") for run in john316.cir["lines"][0]["runs"])
+
+
+def test_full_source_lexical_cardinality_matches_verified_inventory():
+    if not KJV_SOURCE.exists() or KJV_SOURCE.stat().st_size < 1024:
+        message = f"raw KJV source not present (Git LFS object not pulled): {KJV_SOURCE}"
+        if os.environ.get("CI"):
+            pytest.fail(message)
+        pytest.skip(message)
+
+    assert lexical_cardinality_audit(KJV_SOURCE) == {
+        "tagged_spans": 355850,
+        "mismatched_spans": 745,
+        "mismatches": {
+            "NT:1:2": 1,
+            "NT:2:1": 9,
+            "NT:3:1": 3,
+            "OT:2:1": 585,
+            "OT:2:3": 131,
+            "OT:3:1": 14,
+            "OT:3:2": 1,
+            "OT:3:5": 1,
+        },
+    }
