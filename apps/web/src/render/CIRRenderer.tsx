@@ -1,20 +1,51 @@
 // Renders canonical verse content. Verse-per-line vs flowing is a layout choice over the
 // same data; words-of-Christ styling is driven by the container's data-woc attribute (CSS).
-import type { Heading, Line, Run, Verse } from "../data/api";
-import type { VerseLayout, WordsOfChrist } from "../state/store";
+//
+// Strong's mode (M8.3): when enabled, runs carrying a `lemma` list render as plain button
+// elements with a data-strongs index into a per-chapter lemma table, and all interaction is
+// delegated to one handler set on the container feeding one shared popover — never a React
+// component with its own handlers per word (Psalm 119 has ~850 tagged spans). With the
+// toggle off the rendered DOM is byte-for-byte what it was before M8.3.
+import { useMemo, useRef, useState, type MouseEvent, type KeyboardEvent, type FocusEvent } from "react";
 
-function Runs({ runs }: { runs: Run[] }) {
+import type { Heading, Line, Run, RunLemma, Verse } from "../data/api";
+import type { VerseLayout, WordsOfChrist } from "../state/store";
+import { StrongsPopover } from "./StrongsPopover";
+
+function Runs({
+  runs,
+  strongsEnabled,
+  lemmaIndex,
+}: {
+  runs: Run[];
+  strongsEnabled: boolean;
+  lemmaIndex: WeakMap<Run, number>;
+}) {
   return (
     <>
-      {runs.map((r, i) =>
-        r.wj ? (
+      {runs.map((r, i) => {
+        const strongsIdx =
+          strongsEnabled && r.lemma?.length ? lemmaIndex.get(r) : undefined;
+        if (strongsIdx !== undefined) {
+          return (
+            <button
+              key={i}
+              type="button"
+              data-strongs={strongsIdx}
+              className={r.wj ? "strongs-word woj" : "strongs-word"}
+            >
+              {r.t}
+            </button>
+          );
+        }
+        return r.wj ? (
           <span key={i} className="woj">
             {r.t}
           </span>
         ) : (
           <span key={i}>{r.t}</span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
@@ -43,14 +74,18 @@ function headingMap(headings: Heading[]): Map<number, Heading[]> {
   return m;
 }
 
+type RunProps = { strongsEnabled: boolean; lemmaIndex: WeakMap<Run, number> };
+
 function PerLine({
   verses,
   headings,
   onVerseClick,
+  runProps,
 }: {
   verses: Verse[];
   headings: Heading[];
   onVerseClick?: (verse: number) => void;
+  runProps: RunProps;
 }) {
   const hmap = headingMap(headings);
   return (
@@ -62,7 +97,8 @@ function PerLine({
           ))}
           {v.lines.map((ln: Line, i) => (
             <div key={i} className={ln.kind === "q" ? `line q q${ln.level}` : "line p"}>
-              {i === 0 && <VNum n={v.verse} onClick={onVerseClick} />} <Runs runs={ln.runs} />
+              {i === 0 && <VNum n={v.verse} onClick={onVerseClick} />}{" "}
+              <Runs runs={ln.runs} {...runProps} />
             </div>
           ))}
         </div>
@@ -80,10 +116,12 @@ function Flowing({
   verses,
   headings,
   onVerseClick,
+  runProps,
 }: {
   verses: Verse[];
   headings: Heading[];
   onVerseClick?: (verse: number) => void;
+  runProps: RunProps;
 }) {
   const hmap = headingMap(headings);
   const blocks: Block[] = [];
@@ -119,7 +157,7 @@ function Flowing({
               {b.verseNum !== undefined && (
                 <VNum n={b.verseNum} onClick={onVerseClick} />
               )}{" "}
-              <Runs runs={b.runs} />
+              <Runs runs={b.runs} {...runProps} />
             </div>
           );
         return (
@@ -130,7 +168,7 @@ function Flowing({
                 {s.verseNum !== undefined && (
                   <VNum n={s.verseNum} onClick={onVerseClick} />
                 )}{" "}
-                <Runs runs={s.runs} />
+                <Runs runs={s.runs} {...runProps} />
               </span>
             ))}
           </p>
@@ -145,20 +183,109 @@ export function CIRRenderer({
   headings,
   layout,
   wordsOfChrist,
+  strongsEnabled = false,
   onVerseClick,
 }: {
   verses: Verse[];
   headings: Heading[];
   layout: VerseLayout;
   wordsOfChrist: WordsOfChrist;
+  strongsEnabled?: boolean;
   onVerseClick?: (verse: number) => void;
 }) {
+  // Per-chapter lemma table in document order; buttons reference it by data-strongs index.
+  const lemmas = useMemo(() => {
+    const list: RunLemma[][] = [];
+    for (const verse of verses)
+      for (const line of verse.lines)
+        for (const run of line.runs) if (run.lemma?.length) list.push(run.lemma);
+    return list;
+  }, [verses]);
+  const lemmaIndex = useMemo(() => {
+    const map = new WeakMap<Run, number>();
+    let i = 0;
+    for (const verse of verses)
+      for (const line of verse.lines)
+        for (const run of line.runs) if (run.lemma?.length) map.set(run, i++);
+    return map;
+  }, [verses]);
+
+  const [active, setActive] = useState<number | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const openWord = (el: HTMLElement) => {
+    const idx = el.dataset.strongs;
+    if (idx === undefined) return;
+    setActive(Number(idx));
+    setAnchor(el);
+  };
+  const closeWord = () => {
+    setActive(null);
+    setAnchor(null);
+  };
+  const staysOpen = (to: EventTarget | null): boolean =>
+    to instanceof Node &&
+    Boolean(
+      (to as HTMLElement).closest?.("[data-strongs]") ||
+        (to as HTMLElement).closest?.(".strongs-popover"),
+    );
+  const wordFrom = (target: EventTarget): HTMLElement | null =>
+    target instanceof HTMLElement ? target.closest<HTMLElement>("[data-strongs]") : null;
+
+  const runProps: RunProps = { strongsEnabled, lemmaIndex };
+
   return (
-    <div className="reader" data-woc={wordsOfChrist} data-layout={layout}>
+    <div
+      ref={rootRef}
+      className="reader"
+      data-woc={wordsOfChrist}
+      data-layout={layout}
+      onMouseOver={(e: MouseEvent) => {
+        const el = wordFrom(e.target);
+        if (el) openWord(el);
+      }}
+      onMouseOut={(e: MouseEvent) => {
+        if (!staysOpen(e.relatedTarget)) closeWord();
+      }}
+      onFocus={(e: FocusEvent) => {
+        const el = wordFrom(e.target);
+        if (el) openWord(el);
+      }}
+      onBlur={(e: FocusEvent) => {
+        if (!staysOpen(e.relatedTarget)) closeWord();
+      }}
+      onClick={(e: MouseEvent) => {
+        const el = wordFrom(e.target);
+        if (!el) return;
+        const idx = Number(el.dataset.strongs);
+        if (active === idx) closeWord();
+        else openWord(el);
+      }}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === "Escape" && active !== null) {
+          e.stopPropagation();
+          closeWord();
+        }
+      }}
+    >
       {layout === "per-line" ? (
-        <PerLine verses={verses} headings={headings} onVerseClick={onVerseClick} />
+        <PerLine
+          verses={verses}
+          headings={headings}
+          onVerseClick={onVerseClick}
+          runProps={runProps}
+        />
       ) : (
-        <Flowing verses={verses} headings={headings} onVerseClick={onVerseClick} />
+        <Flowing
+          verses={verses}
+          headings={headings}
+          onVerseClick={onVerseClick}
+          runProps={runProps}
+        />
+      )}
+      {strongsEnabled && active !== null && anchor && (
+        <StrongsPopover anchor={anchor} lemmas={lemmas[active]} onClose={closeWord} />
       )}
     </div>
   );

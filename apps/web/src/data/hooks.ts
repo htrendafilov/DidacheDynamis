@@ -9,6 +9,7 @@ import {
   type DictionaryHeadword,
   type GeneralBook,
   type Passage,
+  type StrongEntry,
   type Work,
 } from "./api";
 
@@ -172,4 +173,55 @@ export function useCrossReferences(
     };
   }, [osis, chapter, verse, previewWork]);
   return data;
+}
+
+// Strong's lexicon lookups (M8.3). Surface words repeat constantly ('the' -> G3588), so
+// results are deduplicated and cached for the session; a missing entry (the module key
+// holes, e.g. G3778) caches as null rather than re-failing on every hover.
+const strongEntryCache = new Map<string, Promise<StrongEntry | null>>();
+
+export function strongEntry(strongId: string): Promise<StrongEntry | null> {
+  let cached = strongEntryCache.get(strongId);
+  if (!cached) {
+    cached = api.lexiconEntry(strongId).catch(() => null);
+    strongEntryCache.set(strongId, cached);
+  }
+  return cached;
+}
+
+/** Test-only: clear the session lexicon cache between specs. */
+export function clearStrongEntryCache(): void {
+  strongEntryCache.clear();
+}
+
+export function useStrongEntry(strongId: string | null) {
+  const [state, setState] = useState<{
+    loading: boolean;
+    notFound: boolean;
+    error: boolean;
+    data: StrongEntry | null;
+  }>({ loading: false, notFound: false, error: false, data: null });
+  useEffect(() => {
+    if (!strongId) {
+      setState({ loading: false, notFound: false, error: false, data: null });
+      return;
+    }
+    let alive = true;
+    setState({ loading: true, notFound: false, error: false, data: null });
+    api
+      .lexiconEntry(strongId)
+      .then((data) => {
+        if (alive) setState({ loading: false, notFound: false, error: false, data });
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        // A 404 (valid id, module key hole) is a clean miss, not a failure.
+        const notFound = err instanceof Error && err.message.startsWith("404");
+        setState({ loading: false, notFound, error: !notFound, data: null });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [strongId]);
+  return state;
 }

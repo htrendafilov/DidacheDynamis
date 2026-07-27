@@ -63,7 +63,7 @@ export function calculatePopoverPosition(
   return { top, left, maxWidth, maxHeight, placement };
 }
 
-function visibleBoundary(trigger: HTMLElement): Rect {
+export function visibleBoundary(trigger: HTMLElement): Rect {
   const visualViewport = window.visualViewport;
   const viewportLeft = visualViewport?.offsetLeft ?? 0;
   const viewportTop = visualViewport?.offsetTop ?? 0;

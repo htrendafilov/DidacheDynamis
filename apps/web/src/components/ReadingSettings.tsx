@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next";
 
+import { useWorks } from "../data/hooks";
 import {
   useStore,
   type BookReadingMode,
+  type StrongsMode,
   type Theme,
   type UiLang,
   type VerseLayout,
@@ -45,6 +47,9 @@ export function ReadingSettings() {
   const { t } = useTranslation();
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
+  const works = useWorks();
+  // The Strong's toggle is only meaningful when the lexicon works are installed (M8.3).
+  const hasLexicon = Boolean(works?.some((w) => w.type === "lexicon"));
 
   return (
     <div className="reading-settings" role="dialog" aria-label={t("topbar.settings")}>
@@ -81,6 +86,17 @@ export function ReadingSettings() {
           { value: "red", label: t("settings.red") },
         ]}
       />
+      {hasLexicon && (
+        <Segmented<StrongsMode>
+          label={t("settings.strongs")}
+          value={settings.strongs ?? "off"}
+          onChange={(v) => setSettings({ strongs: v })}
+          options={[
+            { value: "off", label: t("settings.strongsOff") },
+            { value: "on", label: t("settings.strongsOn") },
+          ]}
+        />
+      )}
       <Segmented<Theme>
         label={t("settings.theme")}
         value={settings.theme}
