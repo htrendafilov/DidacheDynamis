@@ -1,6 +1,6 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.5 delivered; M8 proposed**
+Status: **M7.1–M7.5 delivered; M8 proposed — sources and licensing resolved 2026-07-27 (§10.1)**
 Last reviewed: 2026-07-25
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
@@ -367,7 +367,72 @@ Strong's is structured lexical data and must not be inserted as ordinary free te
 Introduce it only after selecting sources whose licenses permit import, redistribution, and public web
 display.
 
-Proposed data model:
+### 10.1 Sources — resolved 2026-07-27
+
+The licensing gate above is **closed**, and no new Bible source is required.
+
+**The KJV we already import carries complete Strong's data.** `data/sources/KJV.imp.gz` (CrossWire
+KJV 3.1, already committed and already licensed for our use) tags every one of its 31,102 verses with
+word-level Strong's numbers and morphology. The current adapter reads the text out of those tags and
+**discards the attributes** — `_collect_text` in `apps/importer/bibleimport/formats/sword_bible.py`
+skips only `note` and `title`, so `<w>` contributes its text and its `lemma`/`morph` are dropped on
+the floor. M8 is therefore a parser and schema change against a source already in the repository, not
+an acquisition project.
+
+**Two public-domain lexicons supply the definitions:**
+
+| Module | Version | Distribution licence |
+|---|---|---|
+| [`StrongsGreek`](https://crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsGreek) | 2.0 | Public Domain |
+| [`StrongsHebrew`](https://crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsHebrew) | 1.2 | Public Domain — "Copy Freely" |
+
+Both derive from James Strong, *Exhaustive Concordance of the Bible* (1890) — public domain by age,
+independent of the module packaging. They fit the existing content policy (every shipped work is PD or
+CrossWire-licensed) with no new rights question, and they need no owner decision gate.
+
+Export them the same way as the other CrossWire modules, into `data/sources/` under Git LFS, and
+record them in `plan/content_and_licensing.md` and `data/sources/README.md`:
+
+```bash
+SWORD_PATH=/path/to/unpacked/modules mod2imp StrongsGreek  | gzip -n -9 > StrongsGreek.imp.gz
+SWORD_PATH=/path/to/unpacked/modules mod2imp StrongsHebrew | gzip -n -9 > StrongsHebrew.imp.gz
+```
+
+Use the **raw** export (no `-s`), as the Easton work established: the stripped form discards the
+structured markup that makes the entries worth importing.
+
+### 10.2 What the KJV markup actually looks like
+
+Four properties of the real data invalidate the naive reading of the schema below. Verified against
+the committed source:
+
+```text
+OT  <w lemma="strong:H07225">In the beginning</w>
+    <w lemma="strong:H0853 strong:H01254" morph="strongMorph:TH8804">created</w>
+NT  <w lemma="strong:G1722 lemma.TR:εν" morph="robinson:PREP" src="1">In</w>
+    <w lemma="strong:G3588 strong:G3056" morph="robinson:T-NSM robinson:N-NSM" src="4 5">the Word</w>
+```
+
+1. **A surface span can carry more than one Strong's number.** "created" maps to `H0853 H01254`;
+   "the Word" maps to `G3588 G3056`. A single `strong_id` column per position cannot represent this —
+   see the revised primary key in §10.3. This is the single most likely thing to be discovered late.
+2. **Identifier padding is inconsistent between testaments.** The OT zero-pads to five characters
+   (`H07225`), the NT does not (`G1722`). Hebrew runs to H8674 and Greek to G5624, so four digits
+   suffice for both. Normalize on *both* sides — verse tokens and lexicon keys — before any join; a
+   mismatch produces silent empty lookups rather than an error. **The key format the two lexicon
+   modules use is not yet verified; confirm it at import time** and normalize to whatever the
+   canonical form turns out to be rather than assuming it matches this document.
+3. **The two testaments use different morphology systems.** OT is `strongMorph:TH8804`, NT is
+   `robinson:PREP`. Store the scheme alongside the code (`strongMorph` / `robinson`) instead of
+   flattening both into one opaque string, or the reader cannot label what it is showing.
+4. **KJV italicised words carry no Strong's at all.** `<transChange type="added">was</transChange>`
+   marks words the translators supplied. These are legitimately untagged; the schema must allow a
+   surface span with no lexical entry rather than treating it as a parse failure.
+
+A bonus the NT provides for free: `lemma.TR:εν` is the actual Greek lemma, inline. That means Greek
+lemma display does not depend on the lexicon module at all, and gives a cross-check against it.
+
+### 10.3 Data model
 
 ```sql
 CREATE TABLE verse_tokens (
@@ -375,12 +440,14 @@ CREATE TABLE verse_tokens (
     osis_code   TEXT NOT NULL,
     chapter     INTEGER NOT NULL,
     verse       INTEGER NOT NULL,
-    position    INTEGER NOT NULL,
+    position    INTEGER NOT NULL,  -- surface span index within the verse
+    ordinal     INTEGER NOT NULL,  -- Nth Strong's within that span, 0-based
     surface     TEXT NOT NULL,
     normalized  TEXT NOT NULL,
-    strong_id   TEXT,
-    morphology  TEXT,
-    PRIMARY KEY (work_id, osis_code, chapter, verse, position)
+    strong_id   TEXT,              -- NULL for untagged spans (KJV transChange)
+    morph_scheme TEXT,             -- 'strongMorph' (OT) | 'robinson' (NT)
+    morph_code  TEXT,
+    PRIMARY KEY (work_id, osis_code, chapter, verse, position, ordinal)
 );
 
 CREATE INDEX idx_verse_tokens_strong
@@ -396,20 +463,94 @@ CREATE TABLE strong_lexicon (
 );
 ```
 
-Normalize identifiers as `H0001` and `G0001`. Future search can support:
+`position` is the surface span, `ordinal` disambiguates the multiple Strong's numbers a span can
+carry (§10.2, item 1). An untagged span gets exactly one row with `ordinal = 0` and `strong_id` NULL,
+so "every surface span appears in this table" stays true and the reader can render a verse from
+`verse_tokens` alone.
 
-- Exact Strong number.
-- Hebrew/Greek lemma.
-- Transliteration.
-- English gloss.
-- Morphology, if the chosen source provides it with compatible rights.
-- Combined text and lexical constraints, for example `earth` within verses tagged `G1093`.
+Normalize identifiers to a single canonical form — `H0001` / `G0001` unless the lexicon modules turn
+out to use something else (§10.2, item 2) — and apply it to both tables at import.
+
+### 10.4 CIR and API impact
 
 The current SWORD Bible adapter reduces verse fragments to display text plus words-of-Jesus flags. To
 support Strong's, it must preserve word-level OSIS `<w lemma="strong:…">` and morphology attributes in
 the canonical representation while also populating `verse_tokens`. The reader then highlights the
 translated surface word and opens the lexicon entry. The runtime still reads imported SQLite data; it
 does not parse SWORD modules directly.
+
+The verse `Run` is currently `{t, wj}` (`apps/api/app/models.py`, `apps/web/src/data/api.ts`). Strong's
+adds an optional lexical field to it.
+
+> **Naming hazard.** `DocumentRun` — the commentary/dictionary run type — already has a boolean field
+> named **`strong`**, meaning bold (HTML `<strong>`). Do not name the new field `strong` or `strongs`
+> on either run type. Use `lemma` (carrying the normalized ids and morphology), so a reader of the
+> code cannot confuse typography with lexicography.
+
+Because the field is optional and absent unless the work has lexical data, this is an additive API
+change: existing clients ignore it, and works without Strong's are unaffected.
+
+### 10.5 Reader integration — Strong's toggle in the Bible pane
+
+Strong's display is **off by default** and lives in the existing reading-settings group beside
+`verseLayout` and `wordsOfChrist`, persisted in the same zustand `Settings` slice:
+
+```text
+settings.strongs = "off" | "on"
+```
+
+Behaviour when on:
+
+- Tagged surface spans get a subtle affordance (dotted underline, matching the `scripture-ref`
+  convention rather than inventing a third one) and open a lexicon popover on hover/focus/tap.
+- The popover shows the normalized id, lemma, transliteration, morphology (labelled with its scheme),
+  and the short definition, with an action to open the full entry in a Dictionary pane — the same
+  shape as the Easton scripture pop-up, so there is one interaction language for reference lookups.
+- Untagged spans (`transChange` additions, punctuation) render exactly as they do today.
+
+Constraints this must not break — all are shipped behaviour with tests:
+
+- **Composition with existing rendering.** Words-of-Christ colouring and Strong's underlining apply to
+  the same runs and must compose; verse layout (`per-line` and `flowing`) must both work.
+- **`data-verse` anchors** in `CIRRenderer` drive the search-result scroll-and-flash. Splitting runs
+  into word spans must not move or duplicate them.
+- **Copy/paste must stay clean.** A reader copying a verse should get the verse text, not a word
+  salad with interleaved markup or ids.
+- **Rendering cost.** John 1:1 alone has ~15 tagged spans; a long chapter has several hundred to over
+  a thousand. Render spans as plain elements with one delegated handler per pane — not one React
+  component with its own handlers per word — and measure a worst-case chapter (Psalm 119) before
+  shipping.
+- **Accessibility.** Keyboard-reachable, and the M7.5 focus behaviour must not regress. With the
+  toggle off, the DOM should be unchanged from today.
+
+### 10.6 Search integration
+
+`StrongsSearchProvider` (§8) joins `verse_tokens` to `strong_lexicon` and supports:
+
+- Exact Strong number.
+- Hebrew/Greek lemma — for Greek, cross-checked against the inline `lemma.TR` in the KJV source.
+- Transliteration.
+- English gloss.
+- Morphology, filtered by scheme so an OT `strongMorph` code cannot be matched against an NT
+  `robinson` one.
+- Combined text and lexical constraints, for example `earth` within verses tagged `G1093`.
+
+Strong's results are gated on lexical works being present, per §4 — the tab stays hidden otherwise.
+
+### 10.7 Delivery notes
+
+- Adding `verse_tokens` and `strong_lexicon` bumps `SCHEMA_VERSION`. The deploy is the standard
+  ordered one: rebuild `content.sqlite` to a temporary path, atomically rename, restart the API, then
+  deploy the SPA. Restarting first returns `503 schema-outdated` on every `/api/v1` request.
+- The KJV rebuild reparses an already-committed source, so the diff to verify is `verse_tokens` row
+  counts per book, not new content. Gate the build on a token count for a known verse (Gen 1:1 has
+  six spans and seven Strong's numbers) the way the Easton import gates on its entry count.
+- Documentation touchpoints: `plan/content_and_licensing.md` (two new PD works),
+  `data/sources/README.md` (export commands + checksums), `docs/user/search-and-lookup.md` (the
+  reader toggle), `docs/developer/api-service.md` (the new run field).
+- `plan/interactive_chat_plan.md` §11 treats M8 as its lexical upgrade hook — when this ships, the
+  assistant's `lookup_strongs` tool and its "original-language data unavailable" disclaimer both
+  become live work.
 
 ## 11. Delivery milestones
 
@@ -494,10 +635,27 @@ Shipped:
 
 ### M8 — Strong's
 
-- Complete source/licensing decision.
-- Preserve/import word-level lexical annotations.
-- Add token and lexicon tables plus `StrongsSearchProvider`.
-- Add Strong's search mode, lexical result cards, popover/pane, and combined queries.
+Source and licensing are **resolved** (§10.1): the committed KJV already carries complete Strong's
+and morphology, and the two lexicon modules are public domain. No acquisition step and no owner
+decision gate remain.
+
+**M8.1 — importer and data model.** Export `StrongsGreek` / `StrongsHebrew` to `data/sources/`; teach
+the SWORD Bible adapter to preserve `<w lemma=… morph=…>` instead of discarding it; add
+`verse_tokens` + `strong_lexicon` with the multi-Strong's primary key (§10.3); normalize identifiers
+across both tables; bump `SCHEMA_VERSION`. Exit: a rebuilt `content.sqlite` where Gen 1:1 and John
+1:1 resolve every span to the expected ids, and untagged `transChange` words survive as untagged.
+
+**M8.2 — API surface.** Optional `lemma` field on the verse `Run` (never `strong` — §10.4); lexicon
+lookup endpoint; `/ready` unchanged. Exit: passage responses carry lexical data for KJV and are
+byte-identical for works without it.
+
+**M8.3 — reader toggle.** `settings.strongs` off by default, lexicon popover, Dictionary-pane
+hand-off, EN/BG strings with the usual parity test. Exit: with the toggle off the rendered DOM is
+unchanged from today; with it on, Psalm 119 renders within budget and M7.5 focus behaviour and
+`data-verse` anchors both still pass.
+
+**M8.4 — search.** `StrongsSearchProvider`, Strong's search mode, lexical result cards, and combined
+text+lexical queries (§10.6).
 
 ## 12. Acceptance scenarios
 
