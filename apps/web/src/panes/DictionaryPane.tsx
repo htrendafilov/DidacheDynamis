@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SourceSelector } from "../components/SourceSelector";
@@ -30,15 +30,23 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
   const updatePane = useStore((state) => state.updatePane);
   const entry = useStrongEntry(pane.headword ?? null);
   const [draft, setDraft] = useState(pane.headword ?? "");
+  const selfNav = useRef(false);
 
-  // Keep the input in sync with navigations (popover hand-off, see-also links).
+  // Sync the input with external navigations (popover hand-off, see-also links) but never
+  // rewrite it after our own keystroke-driven navigation — that would clobber the draft
+  // mid-typing (each valid prefix normalizes to a different id).
   useEffect(() => {
+    if (selfNav.current) {
+      selfNav.current = false;
+      return;
+    }
     setDraft(pane.headword ?? "");
   }, [pane.headword]);
 
   const navigate = (value: string) => {
     const normalized = normalizeStrongId(value);
     if (normalized && normalized !== pane.headword) {
+      selfNav.current = true;
       updatePane(pane.id, { headword: normalized });
     }
   };

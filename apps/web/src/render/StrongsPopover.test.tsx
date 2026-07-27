@@ -107,6 +107,47 @@ describe("StrongsPopover", () => {
     expect(popover).toHaveTextContent("Morphology (strongMorph): TH8804");
   });
 
+  it("stays open when a tapped word fires mouseover before click (touch path)", async () => {
+    vi.spyOn(api, "lexiconEntry").mockResolvedValue(g2316);
+    const { container } = renderReader();
+    const word = screen.getByRole("button", { name: "God" });
+    fireEvent.mouseOver(word);
+    fireEvent.click(word);
+
+    expect(await screen.findByRole("group", { name: "G2316" })).toBeInTheDocument();
+
+    // Tapping non-word verse text dismisses.
+    const whitespace = container.querySelector(".line > span")!;
+    fireEvent.click(whitespace);
+    expect(screen.queryByRole("group", { name: "G2316" })).not.toBeInTheDocument();
+  });
+
+  it("closes when the passage changes underneath an open popover", async () => {
+    vi.spyOn(api, "lexiconEntry").mockResolvedValue(g2316);
+    const { rerender } = renderReader();
+    fireEvent.mouseOver(screen.getByRole("button", { name: "God" }));
+    await screen.findByRole("group", { name: "G2316" });
+
+    const nextChapter: Verse[] = [
+      {
+        verse: 2,
+        lines: [
+          { kind: "p", level: 1, para_start: true, runs: [{ t: "And the earth" }] },
+        ],
+      },
+    ];
+    rerender(
+      <CIRRenderer
+        verses={nextChapter}
+        headings={[]}
+        layout="per-line"
+        wordsOfChrist="red"
+        strongsEnabled
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "G2316" })).not.toBeInTheDocument();
+  });
+
   it("closes on Escape", async () => {
     vi.spyOn(api, "lexiconEntry").mockResolvedValue(g2316);
     const { container } = renderReader();

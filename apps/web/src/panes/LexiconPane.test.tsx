@@ -93,6 +93,20 @@ describe("LexiconPane (Strong's dictionary work)", () => {
     expect(useStore.getState().panes[0]).toMatchObject({ id: "lex-pane", headword: "G1722" });
   });
 
+  it("keeps the draft exactly as typed across per-keystroke navigations", () => {
+    entry.mockReturnValue({ loading: false, notFound: false, error: false, data: g0001 });
+    render(<Harness />);
+    const input = screen.getByRole("searchbox", { name: "Find a word…" });
+
+    // Each valid prefix navigates (g1 -> G0001, g17 -> G0017, …); the input must keep the
+    // user's own text instead of being rewritten to the normalized headword mid-typing.
+    for (const value of ["g", "g1", "g17", "g172", "g1722"]) {
+      fireEvent.change(input, { target: { value } });
+      expect(input).toHaveValue(value);
+    }
+    expect(useStore.getState().panes[0]).toMatchObject({ id: "lex-pane", headword: "G1722" });
+  });
+
   it("shows a clean miss for a valid id with no entry", () => {
     entry.mockReturnValue({ loading: false, notFound: true, error: false, data: null });
     render(<Harness />);

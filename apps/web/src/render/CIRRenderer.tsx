@@ -6,7 +6,15 @@
 // delegated to one handler set on the container feeding one shared popover — never a React
 // component with its own handlers per word (Psalm 119 has ~850 tagged spans). With the
 // toggle off the rendered DOM is byte-for-byte what it was before M8.3.
-import { useMemo, useRef, useState, type MouseEvent, type KeyboardEvent, type FocusEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type KeyboardEvent,
+  type FocusEvent,
+} from "react";
 
 import type { Heading, Line, Run, RunLemma, Verse } from "../data/api";
 import type { VerseLayout, WordsOfChrist } from "../state/store";
@@ -214,6 +222,13 @@ export function CIRRenderer({
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // A passage change (including a synced pane navigated without any pointer/focus
+  // transition here) must not leave the popover on a stale word/anchor.
+  useEffect(() => {
+    setActive(null);
+    setAnchor(null);
+  }, [verses]);
+
   const openWord = (el: HTMLElement) => {
     const idx = el.dataset.strongs;
     if (idx === undefined) return;
@@ -234,6 +249,9 @@ export function CIRRenderer({
     target instanceof HTMLElement ? target.closest<HTMLElement>("[data-strongs]") : null;
 
   const runProps: RunProps = { strongsEnabled, lemmaIndex };
+  // The lemma table rebuilds with new verses before the reset effect runs, so validate the
+  // index for this commit rather than handing the popover a stale or missing entry.
+  const activeLemmas = active !== null ? lemmas[active] : undefined;
 
   return (
     <div
@@ -257,10 +275,13 @@ export function CIRRenderer({
       }}
       onClick={(e: MouseEvent) => {
         const el = wordFrom(e.target);
-        if (!el) return;
-        const idx = Number(el.dataset.strongs);
-        if (active === idx) closeWord();
-        else openWord(el);
+        if (el) {
+          // Idempotent: a tap opens and stays open (touch fires mouseover before click,
+          // so a toggle would open-then-close in the same tap); tapping a word keeps it.
+          openWord(el);
+          return;
+        }
+        closeWord(); // tapping non-word verse text dismisses
       }}
       onKeyDown={(e: KeyboardEvent) => {
         if (e.key === "Escape" && active !== null) {
@@ -284,8 +305,8 @@ export function CIRRenderer({
           runProps={runProps}
         />
       )}
-      {strongsEnabled && active !== null && anchor && (
-        <StrongsPopover anchor={anchor} lemmas={lemmas[active]} onClose={closeWord} />
+      {strongsEnabled && anchor && activeLemmas && (
+        <StrongsPopover anchor={anchor} lemmas={activeLemmas} onClose={closeWord} />
       )}
     </div>
   );

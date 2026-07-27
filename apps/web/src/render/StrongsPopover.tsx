@@ -50,26 +50,58 @@ export function StrongsPopover({
   useLayoutEffect(() => {
     const popover = popoverRef.current;
     if (!popover) return;
-    const anchorRect = anchor.getBoundingClientRect();
-    // jsdom and other non-layout renderers report zero-sized client rects. Keep the popover
-    // available to accessibility/tests there; real browsers always provide geometry.
-    if (anchorRect.width === 0 && anchorRect.height === 0) {
+    let frame = 0;
+
+    const position = () => {
+      frame = 0;
+      const anchorRect = anchor.getBoundingClientRect();
+      // jsdom and other non-layout renderers report zero-sized client rects. Keep the
+      // popover available to accessibility/tests there; real browsers provide geometry.
+      if (anchorRect.width === 0 && anchorRect.height === 0) {
+        popover.style.visibility = "visible";
+        return;
+      }
+      const boundary = visibleBoundary(anchor);
+      popover.style.setProperty(
+        "--scripture-popover-boundary-width",
+        `${boundary.width}px`,
+      );
+      popover.style.maxHeight = `${boundary.height}px`;
+      const placement = calculatePopoverPosition(
+        anchorRect,
+        boundary,
+        popover.getBoundingClientRect(),
+      );
+      popover.style.top = `${placement.top}px`;
+      popover.style.left = `${placement.left}px`;
+      popover.style.maxHeight = `${placement.maxHeight}px`;
       popover.style.visibility = "visible";
-      return;
-    }
-    const boundary = visibleBoundary(anchor);
-    popover.style.setProperty("--scripture-popover-boundary-width", `${boundary.width}px`);
-    popover.style.maxHeight = `${boundary.height}px`;
-    const placement = calculatePopoverPosition(
-      anchorRect,
-      boundary,
-      popover.getBoundingClientRect(),
-    );
-    popover.style.top = `${placement.top}px`;
-    popover.style.left = `${placement.left}px`;
-    popover.style.maxHeight = `${placement.maxHeight}px`;
-    popover.style.visibility = "visible";
-    popover.dataset.placement = placement.placement;
+      popover.dataset.placement = placement.placement;
+    };
+    const schedule = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(position);
+    };
+
+    // Same tracking as the scripture pop-up: a keyboard-opened popover must follow its
+    // word when the pane scrolls or the viewport changes.
+    position();
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    observer?.observe(anchor);
+    observer?.observe(popover);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
+      observer?.disconnect();
+    };
   }, [anchor, entries]);
 
   const title = lemmas.map((lemma) => lemma.id).join(", ");
