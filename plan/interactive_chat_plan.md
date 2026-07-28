@@ -169,7 +169,7 @@ Use raw `fetch` and hand-parse SSE. Do **not** add an SDK: the OpenAI/Anthropic 
 | Provider | OpenAI-compatible base URL | Auth | Required extra headers | Browser CORS | Verdict |
 |---|---|---|---|---|---|
 | **OpenRouter** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <key>` | optional `HTTP-Referer`, `X-Title` (attribution) | ✅ Works today; browser BYOK is a documented use case | **Ship in M9.2** |
-| **Anthropic** | `https://api.anthropic.com/v1` | `Authorization: Bearer <key>` | `anthropic-dangerous-direct-browser-access: true` | ✅ Officially supported since Aug 2024 | **Ship in M9.2** |
+| **Anthropic** | `https://api.anthropic.com/v1` | `Authorization: Bearer <key>` | `anthropic-dangerous-direct-browser-access: true` | ✅ Officially supported since Aug 2024 | **Deferred — no API key available (§5.5)** |
 | **Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer <key>` | none — keep the header set minimal | ✅ Verified working with raw `fetch`. Undocumented by Google, so keep the registry row easy to drop | **Ship in M9.2** |
 | **OpenAI direct** | `https://api.openai.com/v1` | — | — | ❌ The **preflight** succeeds and echoes the origin, but the actual `POST /chat/completions` response carries no `Access-Control-Allow-Origin`, so the browser blocks it | **Out of scope — reach OpenAI models via OpenRouter instead** |
 
@@ -204,7 +204,17 @@ Measured 2026-07-29 ([`chat/m9.0-findings.md`](chat/m9.0-findings.md) §4):
 - **Free-model output quality is a separate problem from privacy, and it is serious.** Four identical Bulgarian requests routed to four different models: one produced gibberish, one was a content-safety classifier that replied `"User"`, two were good. Passing the privacy gate does not make a model usable for a Bulgarian Bible reader. See §18 and [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §7 — the default-model choice is an open owner decision.
 - **Hidden reasoning silently consumes the output budget.** `openrouter/free` at `max_tokens: 160` returned 160 chunks and an empty answer. Requests must send `reasoning: {enabled: false}` (not `exclude`, which only hides the output while still spending the budget), and Gemini needs its thinking budget disabled too. See `chat/m9.2-workspace-and-provider.md` §4b.
 
-### 5.5 Deferred
+#### 5.4a Anthropic direct — deferred, and not needed
+
+Technically cleared at M9.0 (CORS works with the browser header, `/models` works through the compat layer), but **not shipping in M9.2**: a direct adapter needs an Anthropic API key, and a Claude Pro subscription is not one.
+
+Consumer subscriptions (Pro, Max) and API access are **separate billing pools**. A Pro plan grants claude.ai and Claude Code; it does not turn the account into an API wallet, and there is no OAuth flow that lets a third-party web app spend a consumer subscription's entitlement. Using Claude directly would mean opening an Anthropic Console account and buying pay-as-you-go credits — a second paid relationship for the same models.
+
+**And it buys nothing.** OpenRouter carries 26 Claude models, including `anthropic/claude-haiku-4.5` at $1.00/$5.00 per million tokens — the same rates as Anthropic's own API — reachable with the OpenRouter key the app already uses. The direct adapter would add a CSP origin, a second credential, and a provider-specific header for models that are already available.
+
+Revisit only if OpenRouter's routing becomes a problem for Claude specifically. The M9.0 reachability findings are recorded in [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §1a so the work is not lost.
+
+## 5.5 Deferred
 
 **OpenRouter OAuth (PKCE).** Deferred to M9.6. It is a convenience, not a security upgrade: it produces the same bearer token in the same `sessionStorage`. Its real benefits are app-scoped keys and per-app revocation in OpenRouter's UI. Its cost here is unusual: **OpenRouter's authorization endpoint has no `state` parameter** — `https://openrouter.ai/auth` accepts only `callback_url`, `code_challenge`, `code_challenge_method` and returns only `?code=`. The CSRF nonce has to be embedded in `callback_url` ourselves. When it ships, follow the repo precedent exactly: callback at `origin + pathname` (not a new route), nonce in an `or_state` query parameter mirroring `dbx-` in `dropboxAuth.ts:79`, and strip the parameters with `history.replaceState` immediately.
 
@@ -507,9 +517,10 @@ CSP additions, each only when its adapter actually ships:
 
 ```text
 connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com
-            https://openrouter.ai https://api.anthropic.com
-            https://generativelanguage.googleapis.com
+            https://openrouter.ai https://generativelanguage.googleapis.com
 ```
+
+`https://api.anthropic.com` is **not** added — the direct Anthropic adapter is deferred (§5.4a). Add it only if that adapter ever ships.
 
 Strengthen `apps/api/tests/test_api.py:53`: it currently only asserts strings are *present*. Add a negative assertion that `connect-src` contains no bare-scheme wildcard and matches an exact expected allowlist.
 
@@ -557,9 +568,9 @@ Exit: `/ready` reports matching schema versions after deploy; `GET /api/v1/works
 
 - `ChatDrawer` shell, `activeWorkspace` state machine in `App.tsx`, TopBar entry, focus management, i18n + parity test.
 - Provider registry, key-paste settings UI, `sessionStorage` credential store, connect-validation, Disconnect.
-- Single OpenAI-compatible adapter: streaming SSE parser, typed errors, abort, retry policy, `usage: {include: true}`.
-- Model catalogue + picker with filtering (OpenRouter lists hundreds of models).
-- CSP origins for the adapters that passed M9.0.
+- Single OpenAI-compatible adapter for **OpenRouter and Gemini**: streaming SSE parser, typed errors, abort, retry policy, per-provider usage opt-in, reasoning suppression.
+- Model catalogue + picker with filtering (OpenRouter lists 367 models).
+- CSP origins for those two adapters only.
 - Lazy chunks; `VITE_CHAT_ENABLED` off in production.
 
 Exit: connect a key, pick a model, send a plain message, stream it, stop it, disconnect — behind the flag.
