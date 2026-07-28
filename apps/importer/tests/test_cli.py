@@ -11,6 +11,15 @@ FIXTURE = Path(__file__).parent / "fixtures" / "mini_usfx.xml"
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+def test_baptist_confession_uses_reviewed_source_and_provenance():
+    assert cli.SOURCE_FILES["baptist1689"] == "BaptistConfession1689-ed1.imp.gz"
+    spec = cli.BAPTIST_1689_SPEC
+    assert spec.license == "Public Domain"
+    assert "editorial revision 1" in (spec.source_version or "")
+    assert "historical 1677 text" in spec.attribution
+    assert "No doctrinal or stylistic modernization" in spec.attribution
+
+
 def test_build_web_writes_default_diagnostics_and_audit_line(tmp_path, capsys):
     out = tmp_path / "content.sqlite"
 

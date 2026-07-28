@@ -21,6 +21,7 @@ if [ -f apps/importer/pyproject.toml ]; then
   fi
   "$RUFF" check apps/importer
   "$IMPORTER_PY" -m pytest apps/importer -q
+  "$IMPORTER_PY" scripts/build_baptist_confession_1689_ed1.py --check
 fi
 
 echo "==> api: ruff + pytest"
