@@ -24,7 +24,13 @@ def normalize_strong_id(value: str) -> str | None:
 
 
 def normalize_lexical_search(value: str) -> str:
-    """Match the importer's NFKD case/diacritic fold for structured search."""
+    """Match the importer's NFKD case/diacritic fold for structured search.
+
+    Deliberately duplicated from `bibleimport.canonical.normalize_lexical_search`: the API
+    never imports the importer (see AGENTS.md). Both sides must fold identically or a
+    folded query stops matching the folded columns — `test_strongs_entry_search_normalizes_
+    id_and_folds_diacritics` builds its fixture through the importer, so drift fails there.
+    """
     decomposed = unicodedata.normalize("NFKD", value)
     folded = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
     return " ".join(folded.casefold().split())

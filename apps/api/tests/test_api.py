@@ -416,6 +416,48 @@ def test_strongs_combined_text_and_morphology_search(strongs_client):
     assert no_match["total"] == 0
 
 
+def test_strongs_occurrence_snippet_is_a_bounded_excerpt_around_the_surface():
+    from app.search_providers import VERSE_EXCERPT, _excerpt
+
+    short = "In the beginning was the Word."
+    assert _excerpt(short, VERSE_EXCERPT, "Word") == short
+
+    long_verse = "alpha " * 60 + "TARGET " + "omega " * 60
+    windowed = _excerpt(long_verse, VERSE_EXCERPT, "TARGET")
+    assert "TARGET" in windowed
+    assert len(windowed) <= VERSE_EXCERPT + 2  # the two ellipsis characters
+    assert windowed.startswith("…")
+    assert windowed.endswith("…")
+
+    head = _excerpt(long_verse, VERSE_EXCERPT, None)
+    assert head.startswith("alpha")
+    assert head.endswith("…")
+
+
+def test_strongs_language_filter_applies_to_occurrences_as_well_as_entries(strongs_client):
+    excluded = (
+        {"q": "G1722", "types": "strongs", "verse_text": "beginning", "languages": "hbo"},
+        {"q": "primary preposition", "types": "strongs", "languages": "hbo"},
+    )
+    for params in excluded:
+        group = _group(strongs_client.get("/api/v1/search", params=params).json(), "strongs")
+        assert group["total"] == 0, params
+    included = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={
+                "q": "G1722",
+                "types": "strongs",
+                "verse_text": "beginning",
+                "languages": "grc",
+            },
+        ).json(),
+        "strongs",
+    )
+    assert included["total"] == 1
+    assert included["hits"][0]["kind"] == "strongs_occurrence"
+
+
 def test_strongs_occurrences_group_repeats_and_paginate_canonically(strongs_client):
     first = strongs_client.get(
         "/api/v1/lexicon/g3588/occurrences",

@@ -85,7 +85,10 @@ test("Strong's search opens an entry and a highlighted Bible occurrence", async 
   await expect(
     dictionary.getByRole("heading", { name: "Occurrences in the Bible" }),
   ).toBeVisible();
-  await expect(dictionary.getByText(/occurrences in \d+ verses/)).toBeVisible();
+  // Singular and plural are both valid: an id used once reads "1 occurrence in 1 verse".
+  await expect(
+    dictionary.getByText(/\d+ occurrences? in \d+ verses?/),
+  ).toBeVisible();
 
   await dictionary.locator(".strongs-occurrence-list button").first().click();
   await expect(page.locator(".reader .strongs-flash").first()).toBeVisible();

@@ -80,7 +80,10 @@ combines the lexical constraint with Bible FTS. Optional
 `morph_scheme=strongMorph|robinson` and `morph=` must be supplied together and match an exact code.
 Lexical-only requests return `kind=strongs_entry`; requests with Bible text or morphology return
 `kind=strongs_occurrence`, grouped by annotated work + Strong's id + verse. Repeated uses carry
-`occurrence_count` and ordered `surfaces` rather than duplicate paginated rows.
+`occurrence_count` and ordered `surfaces` rather than duplicate paginated rows. `languages=`
+restricts the *lexicon* language (`grc`/`hbo`) in both modes; for an exact id absent from the
+installed modules that language comes from the id letter. An occurrence `snippet` is a bounded,
+word-aligned excerpt centred on the tagged surface form, not the entire verse.
 
 `/lexicon/{strong_id}/occurrences` calls the same Strong's provider and returns `total` verse rows,
 `occurrence_total`, `available_works`, pagination metadata, and `strongs_occurrence` hits. Schema v3

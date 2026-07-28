@@ -53,6 +53,9 @@ def normalize_lexical_search(value: str) -> str:
     Greek accents and Hebrew niqqud are combining marks after NFKD decomposition.
     Removing them and case-folding gives the API deterministic searchable shadow
     values without parsing or normalizing source content at runtime.
+
+    `apps/api/app/strongs.py` holds the query-side twin of this fold; the API never imports
+    the importer (see AGENTS.md). The two must stay byte-identical in behaviour.
     """
     decomposed = unicodedata.normalize("NFKD", value)
     folded = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")

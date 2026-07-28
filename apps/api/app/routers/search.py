@@ -109,6 +109,7 @@ def search(
                     lexical_query,
                     verse_text,
                     work_filter,
+                    language_filter,
                     testament,
                     book_filter,
                     morph_scheme,

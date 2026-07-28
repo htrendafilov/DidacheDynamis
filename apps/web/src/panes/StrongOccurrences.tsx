@@ -30,7 +30,13 @@ export function StrongOccurrences({
     source || (sources?.length === 1 ? sources[0].work_id : "");
   const sourcesReady = sources !== null;
   const bookSource = effectiveSource || sources?.[0]?.work_id || "kjv";
-  const books = useBooks(bookSource);
+  const allBooks = useBooks(bookSource);
+  // Offering an OT book while the testament filter says NT can only ever yield an empty
+  // list, so the two controls stay consistent. Genesis..Malachi are sort_order 1..39.
+  const books = allBooks?.filter(
+    (value) =>
+      !canon || (canon === "ot" ? value.order <= 39 : value.order > 39),
+  );
   const openOccurrence = useStore((state) => state.openStrongsOccurrence);
   const requestId = useRef(0);
   const [result, setResult] = useState<StrongOccurrenceResponse | null>(null);
@@ -121,9 +127,10 @@ export function StrongOccurrences({
           <span>{t("search.testament")}</span>
           <select
             value={canon}
-            onChange={(event) =>
-              setCanon(event.target.value as "" | "ot" | "nt")
-            }
+            onChange={(event) => {
+              setCanon(event.target.value as "" | "ot" | "nt");
+              setBook(""); // the previous book may not belong to the new testament
+            }}
           >
             <option value="">{t("search.testAll")}</option>
             <option value="ot">{t("search.testOt")}</option>
@@ -152,8 +159,10 @@ export function StrongOccurrences({
       {!loading && result && (
         <p className="muted">
           {t("strongs.occurrenceSummary", {
-            occurrences: result.occurrence_total,
-            verses: result.total,
+            occurrences: t("strongs.occurrenceCount", {
+              count: result.occurrence_total,
+            }),
+            verses: t("strongs.verseCount", { count: result.total }),
           })}
         </p>
       )}

@@ -207,18 +207,32 @@ export function SearchPanel({
   ) {
     const effWorks = over.works ?? workFilter;
     const effBooks = over.books ?? bookFilter;
+    // The API rejects a morphology scheme without a code (and vice versa), so the pair is
+    // only ever sent complete. Half a pair is a control the user has not finished filling
+    // in — surfaced inline as morphIncomplete, never as a failed request.
+    const effMorphScheme = over.morphScheme ?? morphScheme;
+    const effMorph = (over.morph ?? morph).trim();
+    const morphReady = Boolean(effMorphScheme) && Boolean(effMorph);
     return {
       sort: over.sort ?? sort,
       refine: (over.refine ?? refine).trim() || undefined,
       verseText: (over.verseText ?? verseText).trim() || undefined,
-      morphScheme: (over.morphScheme ?? morphScheme) || undefined,
-      morph: (over.morph ?? morph).trim() || undefined,
+      morphScheme: morphReady ? effMorphScheme || undefined : undefined,
+      morph: morphReady ? effMorph : undefined,
       canon: (over.canon ?? canon) || undefined,
       works: effWorks.size ? [...effWorks].join(",") : undefined,
       books: effBooks.size ? [...effBooks].join(",") : undefined,
       types: over.types,
       offset: over.offset,
     };
+  }
+
+  // Bible-text and morphology constrain the Strong's provider only; every other group must
+  // be asked without them, or a lingering Strong's filter would silently narrow its results.
+  function scoped(selection: Selected, o: ReturnType<typeof buildOpts>) {
+    return selection === "strongs"
+      ? o
+      : { ...o, verseText: undefined, morphScheme: undefined, morph: undefined };
   }
 
   async function execute(
@@ -233,15 +247,7 @@ export function SearchPanel({
     setError(false);
     setAnnouncement(t("search.loading"));
     try {
-      const requestOptions =
-        selection === "strongs"
-          ? o
-          : {
-              ...o,
-              verseText: undefined,
-              morphScheme: undefined,
-              morph: undefined,
-            };
+      const requestOptions = scoped(selection, o);
       if (selection === "all") {
         const res = await api.search(query, requestOptions);
         if (currentRequest !== requestId.current) return false;
@@ -509,7 +515,7 @@ export function SearchPanel({
     try {
       const res = await api.search(
         q.trim(),
-        buildOpts({ types: kind, offset: current.hits.length }),
+        scoped(kind, buildOpts({ types: kind, offset: current.hits.length })),
       );
       if (currentRequest !== requestId.current) return;
       const g = res.groups[0];
@@ -621,8 +627,10 @@ export function SearchPanel({
               {hit.kind === "strongs_entry" && (
                 <span className="strongs-result-count">
                   {t("strongs.occurrenceSummary", {
-                    occurrences: hit.occurrence_count,
-                    verses: hit.verse_count,
+                    occurrences: t("strongs.occurrenceCount", {
+                      count: hit.occurrence_count,
+                    }),
+                    verses: t("strongs.verseCount", { count: hit.verse_count }),
                   })}
                 </span>
               )}
@@ -680,6 +688,10 @@ export function SearchPanel({
         .toLocaleLowerCase(i18n.language)
         .includes(normalizedBookQuery),
     ) ?? [];
+  // Exactly one half of the morphology pair filled in: not searchable, and not an error the
+  // API should be asked to produce.
+  const morphIncomplete =
+    selected === "strongs" && Boolean(morphScheme) !== Boolean(morph.trim());
   const activeFilterCount =
     (refine.trim() ? 1 : 0) +
     (selected === "strongs" && verseText.trim() ? 1 : 0) +
@@ -1045,6 +1057,9 @@ export function SearchPanel({
                   onChange={(event) => setVerseText(event.target.value)}
                 />
               </label>
+              {/* Not `required`: these live inside a <details> the user can collapse, and a
+                  hidden invalid control blocks submission with no reachable message. The
+                  incomplete pair is reported inline and simply omitted from the request. */}
               <details>
                 <summary>{t("strongs.advanced")}</summary>
                 <div className="strongs-morph-fields">
@@ -1052,7 +1067,7 @@ export function SearchPanel({
                     <span>{t("strongs.morphScheme")}</span>
                     <select
                       value={morphScheme}
-                      required={Boolean(morph)}
+                      aria-invalid={morphIncomplete && !morphScheme}
                       onChange={(event) =>
                         setMorphScheme(
                           event.target.value as
@@ -1072,14 +1087,19 @@ export function SearchPanel({
                     <input
                       value={morph}
                       maxLength={40}
-                      pattern="[A-Za-z0-9-]+"
-                      required={Boolean(morphScheme)}
+                      aria-invalid={morphIncomplete && !morph.trim()}
                       placeholder={t("strongs.morphPlaceholder")}
                       onChange={(event) => setMorph(event.target.value)}
                     />
                   </label>
                 </div>
               </details>
+              {/* Outside the <details> so a collapsed Advanced section cannot hide it. */}
+              {morphIncomplete && (
+                <p className="strongs-morph-hint" role="status">
+                  {t("strongs.morphIncomplete")}
+                </p>
+              )}
             </div>
           )}
         </form>

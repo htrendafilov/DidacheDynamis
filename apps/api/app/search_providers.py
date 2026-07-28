@@ -31,12 +31,38 @@ from .strongs import (
 _TOKEN = re.compile(r"\w+", re.UNICODE)
 ALL_TYPES = ("bible", "commentary", "dictionary", "book", "strongs")
 PREVIEW = 5  # per-group rows in a multi-type ("All") query
+DEFINITION_EXCERPT = 240  # characters of a Strong's definition kept in an entry card
+VERSE_EXCERPT = 200  # characters of verse text kept in a Strong's occurrence row
 
 
 def fts_query(q: str) -> str | None:
     """Safe FTS5 MATCH string: AND of quoted tokens (no raw FTS syntax reaches SQLite)."""
     toks = _TOKEN.findall(q)
     return " ".join(f'"{t}"' for t in toks) if toks else None
+
+
+def _excerpt(text: str, limit: int, needle: str | None = None) -> str:
+    """Bounded, word-aligned excerpt of a longer body of text.
+
+    Strong's occurrence rows quote `verses.plain_text`, which is a whole verse rather than
+    an FTS `snippet()` window, so long verses would otherwise dominate a 50-row concordance.
+    When `needle` (the tagged surface form) is given, the window is centred on its first
+    use so the word the row is about is always visible.
+    """
+    if len(text) <= limit:
+        return text
+    start = 0
+    if needle:
+        found = text.casefold().find(needle.casefold())
+        if found > 0:
+            start = max(0, found - limit // 3)
+    excerpt = text[start : start + limit]
+    if start + limit < len(text):
+        excerpt = excerpt.rsplit(" ", 1)[0] + "…"
+    if start > 0:
+        head, _, rest = excerpt.partition(" ")
+        excerpt = "…" + (rest or head)
+    return excerpt
 
 
 def _in(col: str, values: list[str], params: list) -> str:
@@ -265,11 +291,20 @@ class StrongsSearchProvider:
         return bool(lexicon and tokens)
 
     def source_ids(self, conn: sqlite3.Connection) -> list[str]:
+        """Annotated Bible work ids, driven from `works` rather than `verse_tokens`.
+
+        `SELECT DISTINCT work_id FROM verse_tokens` reads as the obvious query but costs a
+        full index scan (~80 ms over a KJV-sized table) because the build does not ANALYZE,
+        so the planner cannot skip to the next distinct value. Iterating the handful of
+        Bible works and probing each with EXISTS seeks the verse_tokens primary key and
+        stops at the first tagged row instead.
+        """
         return [
             row[0]
             for row in conn.execute(
-                "SELECT DISTINCT work_id FROM verse_tokens "
-                "WHERE strong_id IS NOT NULL ORDER BY work_id"
+                "SELECT id FROM works WHERE type='bible' AND EXISTS("
+                "SELECT 1 FROM verse_tokens t WHERE t.work_id=works.id "
+                "AND t.strong_id IS NOT NULL) ORDER BY id"
             )
         ]
 
@@ -406,6 +441,7 @@ class StrongsSearchProvider:
                 exact,
                 None,
                 work_ids,
+                languages,
                 testament,
                 books,
                 None,
@@ -446,10 +482,7 @@ class StrongsSearchProvider:
         )
         hits: list[StrongsEntryHit] = []
         for row in rows:
-            definition = json.loads(row["definition_json"])["text"]
-            snippet = definition
-            if len(snippet) > 240:
-                snippet = snippet[:240].rsplit(" ", 1)[0] + "…"
+            snippet = _excerpt(json.loads(row["definition_json"])["text"], DEFINITION_EXCERPT)
             occurrence_count, verse_count = counts.get(row["strong_id"], (0, 0))
             hits.append(
                 StrongsEntryHit(
@@ -466,15 +499,28 @@ class StrongsSearchProvider:
             )
         return int(total), hits
 
-    def _lexical_cte(self, query: str) -> tuple[str, list[str]]:
+    def _lexical_cte(self, query: str, languages: list[str] | None) -> tuple[str, list[str]] | None:
+        """The Strong's ids an occurrence query matches, or None when none can match.
+
+        An exact id resolves without consulting `strong_lexicon`, so a valid KJV id absent
+        from the installed modules still has a concordance. Its language therefore comes
+        from the id letter rather than a lexicon row.
+        """
         exact = normalize_strong_id(query)
         if exact is not None:
+            if languages and ("grc" if exact.startswith("G") else "hbo") not in languages:
+                return None
             return "SELECT ? AS strong_id, 0 AS rank", [exact]
         predicate, predicate_params, _ = self._lexical_predicate(query)
         relevance, relevance_params = self._relevance(query)
+        params = [*relevance_params, *predicate_params]
+        if languages:
+            placeholders = ",".join("?" * len(languages))
+            predicate += f" AND l.language IN ({placeholders})"
+            params.extend(languages)
         return (
             f"SELECT l.strong_id,{relevance} AS rank FROM strong_lexicon l WHERE {predicate}",
-            [*relevance_params, *predicate_params],
+            params,
         )
 
     @staticmethod
@@ -518,6 +564,7 @@ class StrongsSearchProvider:
         query: str,
         verse_text: str | None,
         work_ids: list[str] | None,
+        languages: list[str] | None,
         testament: str | None,
         books: list[str] | None,
         morph_scheme: str | None,
@@ -526,7 +573,10 @@ class StrongsSearchProvider:
         limit: int,
         offset: int,
     ) -> tuple[int, int, list[StrongsOccurrenceHit]]:
-        lexical_sql, lexical_params = self._lexical_cte(query)
+        lexical = self._lexical_cte(query, languages)
+        if lexical is None:
+            return 0, 0, []
+        lexical_sql, lexical_params = lexical
         occurrence_where = self._occurrence_where(
             verse_text, work_ids, testament, books, morph_scheme, morph_code
         )
@@ -631,7 +681,9 @@ class StrongsSearchProvider:
                 StrongsOccurrenceHit(
                     work_id=row["work_id"],
                     title=f"{row['osis_code']} {chapter}:{verse}",
-                    snippet=row["snippet"],
+                    snippet=_excerpt(
+                        row["snippet"], VERSE_EXCERPT, surfaces[0] if surfaces else None
+                    ),
                     strong_id=row["strong_id"],
                     osis=row["osis_code"],
                     chapter=chapter,

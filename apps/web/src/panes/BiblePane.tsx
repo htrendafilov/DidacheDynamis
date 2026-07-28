@@ -71,14 +71,17 @@ export function BiblePane({ pane }: { pane: Pane }) {
       return;
     }
     const element = bodyRef.current?.querySelector<HTMLElement>(`[data-verse="${target}"]`);
+    // Consume both transient flags before the missing-element bail. A focusStrong left
+    // behind would persist with the pane and make the mobile shell re-select this pane on
+    // every later pane change.
     clearFocusVerse(pane.id);
+    if (pane.focusStrong) clearStrongFocus(pane.id);
     if (!element) return;
     const matchingWords = pane.focusStrong
       ? [...element.querySelectorAll<HTMLElement>("[data-strong-ids]")].filter((word) =>
           word.dataset.strongIds?.split(" ").includes(pane.focusStrong!),
         )
       : [];
-    if (pane.focusStrong) clearStrongFocus(pane.id);
     const scrollTarget = matchingWords[0] ?? element;
     scrollTarget.scrollIntoView?.({ behavior: "smooth", block: "center" });
     if (matchingWords.length > 0) {

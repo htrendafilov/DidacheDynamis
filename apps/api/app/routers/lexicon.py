@@ -95,6 +95,7 @@ def strong_occurrences(
         normalized,
         verse_text,
         work_filter,
+        None,
         testament,
         book_filter,
         morph_scheme,

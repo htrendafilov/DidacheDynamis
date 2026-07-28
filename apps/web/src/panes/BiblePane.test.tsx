@@ -103,4 +103,24 @@ describe("BiblePane search focus", () => {
       "verse-flash",
     );
   });
+
+  it("consumes focusStrong even when the target verse is not in the rendered passage", () => {
+    const lexicalPane: Pane = {
+      ...pane,
+      workId: "kjv",
+      focusVerse: 2, // the fixture passage only renders verse 1
+      focusStrong: "G1722",
+    };
+    passageState = passage("Gen", 1, "kjv", true);
+    useStore.setState({
+      panes: [lexicalPane],
+      settings: { ...useStore.getState().settings, strongs: "on" },
+    });
+
+    render(<BiblePane pane={lexicalPane} />);
+
+    // A retained flag would pin the mobile shell to this pane on every later pane change.
+    expect(useStore.getState().panes[0].focusStrong).toBeUndefined();
+    expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
+  });
 });

@@ -64,7 +64,9 @@ currently supported.
   number, original-language lemma, transliteration, or English definition terms. Lexical results show
   the entry and its KJV occurrence/verse counts. Add optional **Bible text** to find only verses that
   satisfy both constraints, such as `G1093` with `earth`. Advanced filters accept an exact
-  `strongMorph` (Old Testament) or `robinson` (New Testament) morphology code.
+  `strongMorph` (Old Testament) or `robinson` (New Testament) morphology code. A scheme and a code
+  only take effect together — fill in one and the search runs without the morphology filter, and
+  says so under the Advanced section.
 - **Concordance from an entry**: Every full Strong's Dictionary entry includes all tagged KJV
   occurrences below the definition, in canonical 50-verse pages. Filter them by testament or Bible
   book. Repeated uses in one verse appear once with an `×N` count. Selecting a reference opens the

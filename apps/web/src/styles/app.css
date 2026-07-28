@@ -607,6 +607,14 @@ input[type="search"] {
   gap: 0.5rem;
   margin-top: 0.4rem;
 }
+.strongs-morph-hint {
+  margin: 0.35rem 0 0;
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+.strongs-morph-fields [aria-invalid="true"] {
+  border-color: var(--accent);
+}
 .search-refine-form {
   display: flex;
   gap: 0.4rem;

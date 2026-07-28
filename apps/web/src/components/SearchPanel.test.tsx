@@ -286,6 +286,58 @@ describe("SearchPanel", () => {
     expect(onNavigate).toHaveBeenCalledWith("bible");
   });
 
+  it("never sends half a morphology pair, and says why inline", async () => {
+    search.mockResolvedValue({
+      query: "G1722",
+      sort: "relevance",
+      total: 1,
+      groups: [group("strongs", [strongEntry])],
+    });
+    render(<SearchPanel mode="docked" onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Strong's" }));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Strong's number, lemma, transliteration, or definition…",
+      ),
+      { target: { value: "G1722" } },
+    );
+    fireEvent.click(screen.getByText("Advanced lexical filters"));
+    fireEvent.change(screen.getByLabelText("Morphology scheme"), {
+      target: { value: "robinson" },
+    });
+
+    // A scheme with no code is incomplete: reported here, never sent to the API.
+    expect(
+      screen.getByText(
+        "Choose a morphology scheme and a code together, or clear both.",
+      ),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    expect(search).toHaveBeenLastCalledWith(
+      "G1722",
+      expect.objectContaining({ morphScheme: undefined, morph: undefined }),
+    );
+
+    // The same holds for filter controls, which never pass through form validation.
+    fireEvent.click(screen.getByRole("button", { name: "New Testament" }));
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        "G1722",
+        expect.objectContaining({
+          canon: "nt",
+          morphScheme: undefined,
+          morph: undefined,
+        }),
+      ),
+    );
+  });
+
   it("opens a Strong's lexical card in the Dictionary pane", async () => {
     search.mockResolvedValue({
       query: "en",
