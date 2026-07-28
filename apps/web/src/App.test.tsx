@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "./i18n";
@@ -95,5 +95,30 @@ describe("App mobile search navigation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Back to results" }));
     expect(screen.getByRole("button", { name: "Open dictionary result" })).toBeInTheDocument();
+  });
+
+  it("clears a stale Book deep-link hash when its pane is removed", async () => {
+    useStore.setState({
+      panes: [
+        { id: "bible", type: "bible", workId: "web", osis: "John", chapter: 3 },
+        {
+          id: "book",
+          type: "book",
+          workId: "baptist1689",
+          osis: "John",
+          chapter: 3,
+          sectionId: "contents",
+        },
+      ],
+    });
+    render(<App />);
+
+    await waitFor(() =>
+      expect(window.location.hash).toBe("#/book/baptist1689/contents"),
+    );
+    act(() => useStore.getState().removePane("book"));
+
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    expect(useStore.getState().panes).toHaveLength(1);
   });
 });

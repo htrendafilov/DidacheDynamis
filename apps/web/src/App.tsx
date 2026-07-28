@@ -52,6 +52,7 @@ export default function App() {
   const setSettings = useStore((s) => s.setSettings);
   const works = useWorks();
   const didInitDeepLink = useRef(false);
+  const hadBookPane = useRef(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const isNarrow = useIsNarrow();
 
@@ -124,11 +125,25 @@ export default function App() {
   // history clean (scroll-spy changes the section often) and does not fire hashchange (no loop).
   useEffect(() => {
     const bookPane = panes.find((p) => p.type === "book");
-    if (!bookPane?.sectionId) return;
-    const target = bookHash(bookPane.workId, bookPane.sectionId);
-    if (window.location.hash !== target) {
-      window.history.replaceState(null, "", target);
+    if (bookPane) {
+      hadBookPane.current = true;
+      if (!bookPane.sectionId) return;
+      const target = bookHash(bookPane.workId, bookPane.sectionId);
+      if (window.location.hash !== target) {
+        window.history.replaceState(null, "", target);
+      }
+      return;
     }
+    // Do not clear a genuine external deep link during initial hydration. Only
+    // retire a Book hash after this tab actually had a Book pane and lost it.
+    if (hadBookPane.current && parseBookHash(window.location.hash)) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    }
+    hadBookPane.current = false;
   }, [panes]);
 
   useEffect(() => {

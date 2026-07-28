@@ -96,7 +96,7 @@ describe("DictionaryPane", () => {
     });
   });
 
-  it("returns to a persisted headword after browsing through the local list", () => {
+  it("persists a headword browsed through the local list", () => {
     entry.mockImplementation((_workId: string, headword: string | null) => ({
       loading: false,
       error: false,
@@ -104,12 +104,13 @@ describe("DictionaryPane", () => {
     }));
     render(<Harness />);
 
-    // List browsing changes only the local selection, leaving pane.headword at Aaron.
+    // The selected entry is pane state, so reload restores what the user currently sees.
     fireEvent.click(screen.getByRole("button", { name: "Moses" }));
     expect(screen.getByRole("heading", { name: "Moses" })).toBeInTheDocument();
-    expect(useStore.getState().panes[0].headword).toBe("Aaron");
+    expect(useStore.getState().panes[0].headword).toBe("Moses");
+    expect(screen.getByRole("searchbox")).toHaveValue("Aa");
 
-    // The internal link must still navigate back even though updatePane writes the same value.
+    // Internal dictionary links continue to navigate in the same pane.
     fireEvent.click(screen.getByRole("button", { name: "Open dictionary entry Aaron" }));
     expect(screen.getByRole("heading", { name: "Aaron" })).toBeInTheDocument();
   });

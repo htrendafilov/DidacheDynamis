@@ -168,12 +168,18 @@ function EastonDictionaryPane({ pane, work }: { pane: Pane; work: Work | undefin
   const updatePane = useStore((state) => state.updatePane);
   const [prefix, setPrefix] = useState("");
   const [headword, setHeadword] = useState<string | null>(null);
+  const browsedHeadword = useRef<string | null>(null);
   const words = useDictionaryHeadwords(pane.workId, prefix);
   const entry = useDictionaryEntry(pane.workId, headword);
 
   // Navigate to a headword requested from search (pane.headword). Also seed the prefix so the entry
   // shows up in the list; the entry itself loads regardless of the list.
   useEffect(() => {
+    if (browsedHeadword.current === pane.headword) {
+      browsedHeadword.current = null;
+      return;
+    }
+    browsedHeadword.current = null;
     if (pane.headword) {
       setHeadword(pane.headword);
       setPrefix(pane.headword.slice(0, 2));
@@ -212,7 +218,11 @@ function EastonDictionaryPane({ pane, work }: { pane: Pane; work: Work | undefin
               type="button"
               className={word.headword === headword ? "active" : ""}
               key={word.headword}
-              onClick={() => setHeadword(word.headword)}
+              onClick={() => {
+                setHeadword(word.headword);
+                browsedHeadword.current = word.headword;
+                updatePane(pane.id, { headword: word.headword });
+              }}
             >
               {word.headword}
             </button>
