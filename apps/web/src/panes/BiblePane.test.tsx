@@ -123,4 +123,22 @@ describe("BiblePane search focus", () => {
     expect(useStore.getState().panes[0].focusStrong).toBeUndefined();
     expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
   });
+
+  it("consumes focusStrong when the passage request fails and no data ever arrives", () => {
+    const lexicalPane: Pane = {
+      ...pane,
+      workId: "kjv",
+      focusStrong: "G1722",
+    };
+    passageState = { loading: false, error: true, data: null };
+    useStore.setState({
+      panes: [lexicalPane],
+      settings: { ...useStore.getState().settings, strongs: "on" },
+    });
+
+    render(<BiblePane pane={lexicalPane} />);
+
+    expect(useStore.getState().panes[0].focusStrong).toBeUndefined();
+    expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
+  });
 });

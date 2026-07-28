@@ -286,7 +286,7 @@ describe("SearchPanel", () => {
     expect(onNavigate).toHaveBeenCalledWith("bible");
   });
 
-  it("never sends half a morphology pair, and says why inline", async () => {
+  async function strongsModeWithMorph(code: string) {
     search.mockResolvedValue({
       query: "G1722",
       sort: "relevance",
@@ -294,7 +294,6 @@ describe("SearchPanel", () => {
       groups: [group("strongs", [strongEntry])],
     });
     render(<SearchPanel mode="docked" onClose={() => {}} />);
-
     fireEvent.click(screen.getByRole("button", { name: "Strong's" }));
     fireEvent.change(
       screen.getByPlaceholderText(
@@ -306,14 +305,33 @@ describe("SearchPanel", () => {
     fireEvent.change(screen.getByLabelText("Morphology scheme"), {
       target: { value: "robinson" },
     });
+    if (code) {
+      fireEvent.change(screen.getByLabelText("Morphology code"), {
+        target: { value: code },
+      });
+    }
+  }
 
-    // A scheme with no code is incomplete: reported here, never sent to the API.
-    expect(
-      screen.getByText(
-        "Choose a morphology scheme and a code together, or clear both.",
-      ),
-    ).toBeInTheDocument();
+  it("refuses to search on a half-filled morphology pair instead of widening it", async () => {
+    await strongsModeWithMorph("");
 
+    expect(screen.getByRole("alert").textContent).toMatch(
+      /Choose a morphology scheme and a code together/,
+    );
+
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    // §10.6: ambiguous morphology fails clearly. Running without the filter would return
+    // plausible-looking results broader than the controls claim.
+    expect(search).not.toHaveBeenCalled();
+
+    // Completing the pair unblocks it and sends both halves.
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "PREP" },
+    });
     await act(async () => {
       fireEvent.submit(
         screen.getByRole("button", { name: "Search" }).closest("form")!,
@@ -321,20 +339,53 @@ describe("SearchPanel", () => {
     });
     expect(search).toHaveBeenLastCalledWith(
       "G1722",
-      expect.objectContaining({ morphScheme: undefined, morph: undefined }),
+      expect.objectContaining({ morphScheme: "robinson", morph: "PREP" }),
     );
 
-    // The same holds for filter controls, which never pass through form validation.
+    // Filter controls call execute directly and never pass through form validation, so
+    // emptying the code after a successful search must refuse there too.
+    search.mockClear();
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "New Testament" }));
     await waitFor(() =>
-      expect(search).toHaveBeenLastCalledWith(
-        "G1722",
-        expect.objectContaining({
-          canon: "nt",
-          morphScheme: undefined,
-          morph: undefined,
-        }),
+      expect(screen.getByRole("alert").textContent).toMatch(
+        /Choose a morphology scheme and a code together/,
       ),
+    );
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("names a malformed morphology code rather than letting the API 422 it", async () => {
+    await strongsModeWithMorph("N NSM");
+
+    expect(screen.getByRole("alert").textContent).toMatch(
+      /only letters, digits, and hyphens/,
+    );
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    expect(search).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Morphology code")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "N-NSM" },
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    expect(search).toHaveBeenLastCalledWith(
+      "G1722",
+      expect.objectContaining({ morphScheme: "robinson", morph: "N-NSM" }),
     );
   });
 

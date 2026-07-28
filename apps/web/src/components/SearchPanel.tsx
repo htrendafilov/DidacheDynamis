@@ -36,6 +36,20 @@ const KIND_ICON: Record<SearchKind, string> = {
   strongs: "🔤",
 };
 const PAGE = 50;
+// Mirrors the API's `morph` pattern. Syntax is checked here so a malformed code is named
+// as such instead of surfacing as a generic 422, and presence is checked because a scheme
+// without a code (or vice versa) is ambiguous — plan/search_workspace.md §10.6 requires
+// those to fail clearly rather than be searched.
+const MORPH_CODE = /^[A-Za-z0-9-]+$/;
+
+type MorphProblem = "" | "incomplete" | "malformed";
+
+function morphProblem(scheme: string, code: string): MorphProblem {
+  const trimmed = code.trim();
+  if (!scheme && !trimmed) return "";
+  if (!scheme || !trimmed) return "incomplete";
+  return MORPH_CODE.test(trimmed) ? "" : "malformed";
+}
 
 interface GroupState {
   total: number;
@@ -207,12 +221,11 @@ export function SearchPanel({
   ) {
     const effWorks = over.works ?? workFilter;
     const effBooks = over.books ?? bookFilter;
-    // The API rejects a morphology scheme without a code (and vice versa), so the pair is
-    // only ever sent complete. Half a pair is a control the user has not finished filling
-    // in — surfaced inline as morphIncomplete, never as a failed request.
+    // Callers block on morphProblem before getting here; dropping an unusable pair as well
+    // guarantees a request the API is certain to reject can never leave the client.
     const effMorphScheme = over.morphScheme ?? morphScheme;
     const effMorph = (over.morph ?? morph).trim();
-    const morphReady = Boolean(effMorphScheme) && Boolean(effMorph);
+    const morphReady = !morphProblem(effMorphScheme, effMorph) && Boolean(effMorphScheme);
     return {
       sort: over.sort ?? sort,
       refine: (over.refine ?? refine).trim() || undefined,
@@ -235,12 +248,24 @@ export function SearchPanel({
       : { ...o, verseText: undefined, morphScheme: undefined, morph: undefined };
   }
 
+  // Refuse rather than search: an unusable morphology filter must not be quietly dropped,
+  // or the user gets broader results than the controls say they asked for.
+  function blockedByMorphology(selection: Selected, problem: MorphProblem) {
+    if (selection !== "strongs" || !problem) return false;
+    setAnnouncement(
+      t(problem === "malformed" ? "strongs.morphMalformed" : "strongs.morphIncomplete"),
+    );
+    return true;
+  }
+
   async function execute(
     query: string,
     selection: Selected,
     o: ReturnType<typeof buildOpts>,
+    problem: MorphProblem,
   ) {
     if (!query) return false;
+    if (blockedByMorphology(selection, problem)) return false;
     const currentRequest = ++requestId.current;
     setLoading(true);
     setLoadingMore(false);
@@ -286,6 +311,9 @@ export function SearchPanel({
     const query = q.trim();
     if (!query) return;
     const selection: Selected = selected === "strongs" ? "strongs" : "all";
+    // Checked before any result state is cleared, so a refused search leaves the previous
+    // results on screen instead of replacing them with an empty workspace.
+    if (blockedByMorphology(selection, morphProblem(morphScheme, morph))) return;
     setSelected(selection);
     setSearched(true);
     setTabsInitialized(false);
@@ -297,7 +325,7 @@ export function SearchPanel({
       occurrenceMode && !sortTouched.current ? "canonical" : sort;
     if (effectiveSort !== sort) setSort(effectiveSort);
     const opts = buildOpts({ sort: effectiveSort });
-    if (await execute(query, selection, opts)) {
+    if (await execute(query, selection, opts, "")) {
       setHistoryOpen(false);
       remember(
         snapshot({ query, selected: selection, sort: effectiveSort }),
@@ -308,7 +336,8 @@ export function SearchPanel({
   function selectTab(next: Selected) {
     setSelected(next);
     if (searched) {
-      void execute(q.trim(), next, buildOpts()).then((ok) => {
+      const problem = morphProblem(morphScheme, morph);
+      void execute(q.trim(), next, buildOpts(), problem).then((ok) => {
         if (ok) remember(snapshot({ selected: next }));
       });
     }
@@ -361,12 +390,15 @@ export function SearchPanel({
   }
 
   function applyFilter(o: ReturnType<typeof buildOpts>, state: SearchState) {
-    if (searched) {
-      setGroups({});
-      void execute(state.query.trim(), state.selected, o).then((ok) => {
-        if (ok) remember(state);
-      });
-    }
+    if (!searched) return;
+    // `state` is the post-change snapshot, so clearing the morphology through its own chip
+    // is correctly seen as resolved rather than as the stale value still in React state.
+    const problem = morphProblem(state.morphScheme, state.morph);
+    if (blockedByMorphology(state.selected, problem)) return;
+    setGroups({});
+    void execute(state.query.trim(), state.selected, o, problem).then((ok) => {
+      if (ok) remember(state);
+    });
   }
 
   function applyCanon(value: "" | "ot" | "nt") {
@@ -497,6 +529,9 @@ export function SearchPanel({
         works,
         books: restoredBooks,
       }),
+      // History is normalized on write, so a stored pair is already complete; validate
+      // anyway rather than trust localStorage a user or an older build could have written.
+      morphProblem(entry.morphScheme, entry.morph),
     );
     if (ok) {
       setSearched(true);
@@ -508,6 +543,9 @@ export function SearchPanel({
   async function loadMore(kind: SearchKind) {
     const current = groups[kind];
     if (!current) return;
+    // The morphology fields stay editable after a search; appending a page fetched under
+    // different constraints would mix two result sets in one list.
+    if (blockedByMorphology(kind, morphProblem(morphScheme, morph))) return;
     const currentRequest = ++requestId.current;
     setLoadingMore(true);
     setError(false);
@@ -688,10 +726,9 @@ export function SearchPanel({
         .toLocaleLowerCase(i18n.language)
         .includes(normalizedBookQuery),
     ) ?? [];
-  // Exactly one half of the morphology pair filled in: not searchable, and not an error the
-  // API should be asked to produce.
-  const morphIncomplete =
-    selected === "strongs" && Boolean(morphScheme) !== Boolean(morph.trim());
+  // An unusable morphology filter blocks the search outright rather than being dropped.
+  const morphIssue: MorphProblem =
+    selected === "strongs" ? morphProblem(morphScheme, morph) : "";
   const activeFilterCount =
     (refine.trim() ? 1 : 0) +
     (selected === "strongs" && verseText.trim() ? 1 : 0) +
@@ -1067,7 +1104,7 @@ export function SearchPanel({
                     <span>{t("strongs.morphScheme")}</span>
                     <select
                       value={morphScheme}
-                      aria-invalid={morphIncomplete && !morphScheme}
+                      aria-invalid={morphIssue === "incomplete" && !morphScheme}
                       onChange={(event) =>
                         setMorphScheme(
                           event.target.value as
@@ -1087,7 +1124,10 @@ export function SearchPanel({
                     <input
                       value={morph}
                       maxLength={40}
-                      aria-invalid={morphIncomplete && !morph.trim()}
+                      aria-invalid={
+                        morphIssue === "malformed" ||
+                        (morphIssue === "incomplete" && !morph.trim())
+                      }
                       placeholder={t("strongs.morphPlaceholder")}
                       onChange={(event) => setMorph(event.target.value)}
                     />
@@ -1095,9 +1135,13 @@ export function SearchPanel({
                 </div>
               </details>
               {/* Outside the <details> so a collapsed Advanced section cannot hide it. */}
-              {morphIncomplete && (
-                <p className="strongs-morph-hint" role="status">
-                  {t("strongs.morphIncomplete")}
+              {morphIssue && (
+                <p className="strongs-morph-hint" role="alert">
+                  {t(
+                    morphIssue === "malformed"
+                      ? "strongs.morphMalformed"
+                      : "strongs.morphIncomplete",
+                  )}
                 </p>
               )}
             </div>

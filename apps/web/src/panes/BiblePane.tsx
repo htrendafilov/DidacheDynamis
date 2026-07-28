@@ -59,7 +59,16 @@ export function BiblePane({ pane }: { pane: Pane }) {
   // flag re-runs this effect, and a cleanup would cancel the pending un-flash.
   useEffect(() => {
     const target = pane.focusVerse;
-    if (!target || !data) return;
+    if (!target) return;
+    // A failed passage request is terminal for this target: usePassage resets `error` when a
+    // new work/book/chapter request starts, so no data will ever arrive to consume the flags.
+    // Drop them rather than leave focusStrong persisted on the pane forever.
+    if (error) {
+      clearFocusVerse(pane.id);
+      if (pane.focusStrong) clearStrongFocus(pane.id);
+      return;
+    }
+    if (!data) return;
     // usePassage clears stale data in an effect, so the render immediately after a pane navigation
     // can still contain the previous passage. Do not consume the target until the response and DOM
     // belong to the passage requested by the pane.
@@ -101,6 +110,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
     pane.chapter,
     pane.focusStrong,
     data,
+    error,
     pane.id,
     clearFocusVerse,
     clearStrongFocus,
