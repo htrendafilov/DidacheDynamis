@@ -20,6 +20,10 @@ describe("store", () => {
     expect(useStore.getState().settings.bookMode).toBe("paged");
   });
 
+  it("defaults Strong's word lookup to off", () => {
+    expect(useStore.getState().settings.strongs ?? "off").toBe("off");
+  });
+
   it("adds panes up to a maximum of 3", () => {
     const { addPane } = useStore.getState();
     addPane();

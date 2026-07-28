@@ -8,6 +8,7 @@ export type WordsOfChrist = "off" | "bold" | "red";
 export type Theme = "light" | "dark";
 export type UiLang = "en" | "bg";
 export type BookReadingMode = "paged" | "scroll";
+export type StrongsMode = "off" | "on";
 
 export interface Pane {
   id: string;
@@ -29,6 +30,7 @@ export interface Settings {
   uiLang: UiLang;
   sync: boolean; // sync passage across bible panes
   bookMode?: BookReadingMode;
+  strongs?: StrongsMode; // Strong's word lookup in Bible panes (off by default, M8.3)
   searchWidth?: number; // width (px) of the docked desktop search workspace
 }
 
@@ -90,6 +92,7 @@ export const useStore = create<AppState>()(
         uiLang: "bg",
         sync: true,
         bookMode: "paged",
+        strongs: "off",
       },
       noteTargetId: null,
       addPane: () =>

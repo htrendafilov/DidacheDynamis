@@ -1,7 +1,7 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.5, M8.1–M8.2 delivered; M8.3–M8.4 proposed**
-Last reviewed: 2026-07-27
+Status: **M7.1–M7.5, M8.1–M8.3 delivered; M8.4 proposed**
+Last reviewed: 2026-07-28
 
 This document records the delivered unified search foundation/workspace and proposes its remaining
 filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
@@ -679,10 +679,26 @@ Shipped:
 - `/ready` unchanged; `apps/web/src/data/api.ts` types kept in sync (`RunLemma`, `Run.lemma`,
   `StrongEntry`, `api.lexiconEntry`).
 
-**M8.3 — reader toggle.** `settings.strongs` off by default, lexicon popover, Dictionary-pane
-hand-off, EN/BG strings with the usual parity test. Exit: with the toggle off the rendered DOM is
-unchanged from today; with it on, Psalm 119 renders within budget and M7.5 focus behaviour and
-`data-verse` anchors both still pass.
+**M8.3 — reader toggle — DELIVERED 2026-07-28**
+
+Shipped:
+- `settings.strongs` (`"off" | "on"`, off by default) in the reading-settings group beside
+  `wordsOfChrist`, shown only when a lexicon work is installed; EN/BG strings with a parity test.
+- Tagged runs render as plain button elements carrying a `data-strongs` index; one delegated
+  handler set on the chapter container feeds one shared popover (no per-word components), so a
+  Psalm-119-scale chapter (~850 tagged spans) stays within the test-environment render budget.
+- The popover reuses the scripture pop-up shape (dotted-underline affordance, boundary-fitted
+  fixed card): normalized id, lemma, transliteration/pronunciation, occurrence morphology
+  labelled with its scheme, short definition, and an "Open in Dictionary pane" hand-off.
+  Valid ids with no entry (module key holes) show a clean miss, never an error.
+- Dictionary-pane hand-off: lexicon works get an id input (client-side normalization), a full
+  entry view (lemma, transliteration, pronunciation, definition, see-also links that navigate
+  in-pane and switch Greek/Hebrew attribution as needed), and the work attribution footer;
+  input lookup is debounced and Easton behaviour is unchanged.
+- Exit verified by tests: toggle off renders byte-identical DOM; both layouts keep `data-verse`
+  anchors; words-of-Christ composes with the Strong's affordance on the same run; Escape/focus
+  behaviour works; copied selections contain only visible verse text; untagged spans render
+  exactly as before.
 
 **M8.4 — search.** `StrongsSearchProvider`, Strong's search mode, lexical result cards, and combined
 text+lexical queries (§10.6).

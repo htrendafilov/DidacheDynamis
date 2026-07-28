@@ -11,6 +11,9 @@ import { TopBar } from "./TopBar";
 vi.mock("./DropboxSyncSettings", () => ({
   DropboxSyncSettings: () => <section data-testid="dropbox-settings">Dropbox</section>,
 }));
+vi.mock("../data/hooks", () => ({
+  useWorks: () => [],
+}));
 
 function AppLanguageHarness() {
   const uiLang = useStore((state) => state.settings.uiLang);

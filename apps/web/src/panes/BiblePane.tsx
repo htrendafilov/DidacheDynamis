@@ -25,6 +25,9 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const books = useBooks(pane.workId);
   const works = useWorks();
   const work = works?.find((w) => w.id === pane.workId);
+  // Strong's mode needs both the reader toggle and the lexicon works (M8.3 popover data).
+  const strongsEnabled =
+    settings.strongs === "on" && Boolean(works?.some((w) => w.type === "lexicon"));
   const { loading, error, data } = usePassage(pane.workId, pane.osis, pane.chapter);
   const xrefs = useCrossReferences(pane.osis, pane.chapter, selectedVerse, pane.workId);
 
@@ -126,6 +129,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
             headings={data.headings}
             layout={settings.verseLayout}
             wordsOfChrist={settings.wordsOfChrist}
+            strongsEnabled={strongsEnabled}
             onVerseClick={(verse) => setSelectedVerse((current) => (current === verse ? null : verse))}
           />
         )}

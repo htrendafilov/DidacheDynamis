@@ -28,6 +28,41 @@ const psalmVerse: Verse[] = [
   },
 ];
 
+// Gen 1:1 shape with lexical data (M8.3): tagged spans carry lemma, whitespace does not.
+const strongsVerse: Verse[] = [
+  {
+    verse: 1,
+    lines: [
+      {
+        kind: "p",
+        level: 1,
+        para_start: true,
+        runs: [
+          { t: "In the beginning", lemma: [{ id: "H7225" }] },
+          { t: " " },
+          { t: "God", lemma: [{ id: "H0430" }] },
+          { t: " " },
+          {
+            t: "created",
+            lemma: [{ id: "H0853" }, { id: "H1254", s: "strongMorph", m: "TH8804" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    verse: 2,
+    lines: [
+      {
+        kind: "p",
+        level: 1,
+        para_start: false,
+        runs: [{ t: "For God", wj: true, lemma: [{ id: "G2316" }] }],
+      },
+    ],
+  },
+];
+
 describe("CIRRenderer", () => {
   it("marks words of Jesus and shows the red-letter mode", () => {
     const { container } = render(
@@ -84,5 +119,126 @@ describe("CIRRenderer", () => {
       />,
     );
     expect(getByText("A Psalm by David.")).toBeInTheDocument();
+  });
+
+  it("leaves the DOM untouched when Strong's mode is off", () => {
+    const withoutProp = render(
+      <CIRRenderer verses={strongsVerse} headings={[]} layout="per-line" wordsOfChrist="off" />,
+    );
+    const explicitOff = render(
+      <CIRRenderer
+        verses={strongsVerse}
+        headings={[]}
+        layout="per-line"
+        wordsOfChrist="off"
+        strongsEnabled={false}
+      />,
+    );
+    expect(withoutProp.container.querySelector(".reader")!.innerHTML).toBe(
+      explicitOff.container.querySelector(".reader")!.innerHTML,
+    );
+    // No buttons, no data attributes, no popover: tagged runs are plain spans as before M8.3.
+    expect(withoutProp.container.querySelector("[data-strongs]")).not.toBeInTheDocument();
+    expect(withoutProp.container.querySelector(".reader button.strongs-word")).toBeNull();
+    expect(withoutProp.container.querySelector(".strongs-popover")).not.toBeInTheDocument();
+  });
+
+  it("renders tagged runs as delegated buttons when Strong's mode is on", () => {
+    const { container } = render(
+      <CIRRenderer
+        verses={strongsVerse}
+        headings={[]}
+        layout="per-line"
+        wordsOfChrist="red"
+        strongsEnabled
+      />,
+    );
+    const words = container.querySelectorAll(".strongs-word");
+    expect(words).toHaveLength(4);
+    expect(words[0]).toHaveTextContent("In the beginning");
+    expect(words[0]).toHaveAttribute("data-strongs", "0");
+    // Untagged whitespace runs stay plain spans.
+    const plainSpans = container.querySelectorAll(".verse-block .line > span");
+    expect(plainSpans[0].textContent).toBe(" ");
+    expect(plainSpans[0]).not.toHaveClass("strongs-word");
+    // Words-of-Christ styling composes with the Strong's affordance on the same run.
+    const jesus = words[3];
+    expect(jesus).toHaveTextContent("For God");
+    expect(jesus).toHaveClass("woj");
+  });
+
+  it("keeps data-verse anchors with Strong's mode on in both layouts", () => {
+    for (const layout of ["per-line", "flowing"] as const) {
+      const { container, unmount } = render(
+        <CIRRenderer
+          verses={strongsVerse}
+          headings={[]}
+          layout={layout}
+          wordsOfChrist="off"
+          strongsEnabled
+        />,
+      );
+      expect(container.querySelector('[data-verse="1"]')).toBeInTheDocument();
+      expect(container.querySelector('[data-verse="2"]')).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("copies only visible verse text when Strong's controls are enabled", () => {
+    const { container } = render(
+      <CIRRenderer
+        verses={strongsVerse}
+        headings={[]}
+        layout="per-line"
+        wordsOfChrist="off"
+        strongsEnabled
+      />,
+    );
+    const verse = container.querySelector<HTMLElement>('[data-verse="1"]')!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(verse);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    expect(selection.toString()).toContain("In the beginning God created");
+    expect(selection.toString()).not.toMatch(/[GH]\d{4}/);
+    selection.removeAllRanges();
+  });
+
+  it("renders a Psalm-119-scale chapter of plain elements with one delegated handler set", () => {
+    // ~850 tagged spans: the long-chapter budget the plan calls out. Elements must stay
+    // plain buttons; interaction lives on the container, so no per-word handlers exist.
+    const big: Verse[] = Array.from({ length: 176 }, (_, verse) => ({
+      verse: verse + 1,
+      lines: [
+        {
+          kind: "p" as const,
+          level: 1,
+          para_start: verse === 0,
+          runs: Array.from({ length: 10 }, (_, word) =>
+            word % 2 === 0
+              ? { t: `w${word}`, lemma: [{ id: `H${String(word + 1).padStart(4, "0")}` }] }
+              : { t: " " },
+          ),
+        },
+      ],
+    }));
+    const started = performance.now();
+    const { container } = render(
+      <CIRRenderer
+        verses={big}
+        headings={[]}
+        layout="per-line"
+        wordsOfChrist="off"
+        strongsEnabled
+      />,
+    );
+    const elapsed = performance.now() - started;
+    expect(container.querySelectorAll(".strongs-word")).toHaveLength(880);
+    expect(container.querySelector(".strongs-popover")).not.toBeInTheDocument();
+    // A generous test-environment budget catches accidental per-word component/data-fetch
+    // regressions without making ordinary CI variance flaky.
+    expect(elapsed).toBeLessThan(750);
   });
 });

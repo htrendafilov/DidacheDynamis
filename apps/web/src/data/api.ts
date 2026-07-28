@@ -220,9 +220,21 @@ export interface CrossReferences {
 
 const BASE = "/api/v1";
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly path: string;
+
+  constructor(status: number, statusText: string, path: string) {
+    super(`${status} ${statusText} for ${path}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.path = path;
+  }
+}
+
 async function get<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${path}`);
+  if (!res.ok) throw new ApiError(res.status, res.statusText, path);
   return (await res.json()) as T;
 }
 
