@@ -8,7 +8,7 @@ import {
   type SearchKind,
   type SearchSort,
 } from "../data/api";
-import { useBooks, useWorks } from "../data/hooks";
+import { useBooks, useStrongSources, useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
 import {
   loadSearchHistory,
@@ -19,16 +19,37 @@ import {
   type SearchHistoryEntry,
   type SearchState,
 } from "../search/history";
-import { useStore } from "../state/store";
+import { useStore, type PaneSourceType } from "../state/store";
 
-const KIND_ORDER: SearchKind[] = ["bible", "commentary", "dictionary", "book"];
+const KIND_ORDER: SearchKind[] = [
+  "bible",
+  "commentary",
+  "dictionary",
+  "book",
+  "strongs",
+];
 const KIND_ICON: Record<SearchKind, string> = {
   bible: "📖",
   commentary: "💬",
   dictionary: "📔",
   book: "📚",
+  strongs: "🔤",
 };
 const PAGE = 50;
+// Mirrors the API's `morph` pattern. Syntax is checked here so a malformed code is named
+// as such instead of surfacing as a generic 422, and presence is checked because a scheme
+// without a code (or vice versa) is ambiguous — plan/search_workspace.md §10.6 requires
+// those to fail clearly rather than be searched.
+const MORPH_CODE = /^[A-Za-z0-9-]+$/;
+
+type MorphProblem = "" | "incomplete" | "malformed";
+
+function morphProblem(scheme: string, code: string): MorphProblem {
+  const trimmed = code.trim();
+  if (!scheme && !trimmed) return "";
+  if (!scheme || !trimmed) return "incomplete";
+  return MORPH_CODE.test(trimmed) ? "" : "malformed";
+}
 
 interface GroupState {
   total: number;
@@ -64,18 +85,23 @@ export function SearchPanel({
 }: {
   mode?: "docked" | "fullscreen";
   open?: boolean;
-  onNavigate?: (kind: SearchKind) => void;
+  onNavigate?: (kind: PaneSourceType) => void;
   onClose: () => void;
   restoreResultFocus?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const works = useWorks();
+  const strongSources = useStrongSources();
+  const hasStrongs =
+    Boolean(works?.some((work) => work.type === "lexicon")) &&
+    Boolean(strongSources?.length);
   const bookWorkId = works?.find((work) => work.type === "bible")?.id ?? "web";
   const books = useBooks(bookWorkId);
   const openPassage = useStore((s) => s.openPassage);
   const openCommentary = useStore((s) => s.openCommentary);
   const openDictionary = useStore((s) => s.openDictionary);
   const openBookSection = useStore((s) => s.openBookSection);
+  const openStrongsOccurrence = useStore((s) => s.openStrongsOccurrence);
   const inputRef = useRef<HTMLInputElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDialogRef = useRef<HTMLElement>(null);
@@ -83,6 +109,7 @@ export function SearchPanel({
   const lastResultButtonRef = useRef<HTMLButtonElement | null>(null);
   const tabRefs = useRef(new Map<Selected, HTMLButtonElement>());
   const requestId = useRef(0);
+  const sortTouched = useRef(false);
 
   // Focus the query field when the workspace opens (the input stays mounted across collapse, so a
   // one-time autoFocus is not enough). Returning from a mobile result instead restores focus to
@@ -98,6 +125,11 @@ export function SearchPanel({
 
   const [q, setQ] = useState("");
   const [refine, setRefine] = useState("");
+  const [verseText, setVerseText] = useState("");
+  const [morphScheme, setMorphScheme] = useState<
+    "" | "strongMorph" | "robinson"
+  >("");
+  const [morph, setMorph] = useState("");
   const [sort, setSort] = useState<SearchSort>("relevance");
   const [canon, setCanon] = useState<"" | "ot" | "nt">("");
   const [workFilter, setWorkFilter] = useState<Set<string>>(new Set());
@@ -177,6 +209,9 @@ export function SearchPanel({
     over: {
       sort?: SearchSort;
       refine?: string;
+      verseText?: string;
+      morphScheme?: "" | "strongMorph" | "robinson";
+      morph?: string;
       canon?: "" | "ot" | "nt";
       works?: Set<string>;
       books?: Set<string>;
@@ -186,9 +221,17 @@ export function SearchPanel({
   ) {
     const effWorks = over.works ?? workFilter;
     const effBooks = over.books ?? bookFilter;
+    // Callers block on morphProblem before getting here; dropping an unusable pair as well
+    // guarantees a request the API is certain to reject can never leave the client.
+    const effMorphScheme = over.morphScheme ?? morphScheme;
+    const effMorph = (over.morph ?? morph).trim();
+    const morphReady = !morphProblem(effMorphScheme, effMorph) && Boolean(effMorphScheme);
     return {
       sort: over.sort ?? sort,
       refine: (over.refine ?? refine).trim() || undefined,
+      verseText: (over.verseText ?? verseText).trim() || undefined,
+      morphScheme: morphReady ? effMorphScheme || undefined : undefined,
+      morph: morphReady ? effMorph : undefined,
       canon: (over.canon ?? canon) || undefined,
       works: effWorks.size ? [...effWorks].join(",") : undefined,
       books: effBooks.size ? [...effBooks].join(",") : undefined,
@@ -197,20 +240,41 @@ export function SearchPanel({
     };
   }
 
+  // Bible-text and morphology constrain the Strong's provider only; every other group must
+  // be asked without them, or a lingering Strong's filter would silently narrow its results.
+  function scoped(selection: Selected, o: ReturnType<typeof buildOpts>) {
+    return selection === "strongs"
+      ? o
+      : { ...o, verseText: undefined, morphScheme: undefined, morph: undefined };
+  }
+
+  // Refuse rather than search: an unusable morphology filter must not be quietly dropped,
+  // or the user gets broader results than the controls say they asked for.
+  function blockedByMorphology(selection: Selected, problem: MorphProblem) {
+    if (selection !== "strongs" || !problem) return false;
+    setAnnouncement(
+      t(problem === "malformed" ? "strongs.morphMalformed" : "strongs.morphIncomplete"),
+    );
+    return true;
+  }
+
   async function execute(
     query: string,
     selection: Selected,
     o: ReturnType<typeof buildOpts>,
+    problem: MorphProblem,
   ) {
     if (!query) return false;
+    if (blockedByMorphology(selection, problem)) return false;
     const currentRequest = ++requestId.current;
     setLoading(true);
     setLoadingMore(false);
     setError(false);
     setAnnouncement(t("search.loading"));
     try {
+      const requestOptions = scoped(selection, o);
       if (selection === "all") {
-        const res = await api.search(query, o);
+        const res = await api.search(query, requestOptions);
         if (currentRequest !== requestId.current) return false;
         const map: Partial<Record<SearchKind, GroupState>> = {};
         res.groups.forEach((g) => (map[g.type] = merge(g)));
@@ -219,7 +283,7 @@ export function SearchPanel({
         setAnnouncement(t("search.resultsLoaded", { total: res.total }));
       } else {
         const res = await api.search(query, {
-          ...o,
+          ...requestOptions,
           types: selection,
           offset: o.offset ?? 0,
         });
@@ -246,21 +310,34 @@ export function SearchPanel({
     e.preventDefault();
     const query = q.trim();
     if (!query) return;
-    setSelected("all");
+    const selection: Selected = selected === "strongs" ? "strongs" : "all";
+    // Checked before any result state is cleared, so a refused search leaves the previous
+    // results on screen instead of replacing them with an empty workspace.
+    if (blockedByMorphology(selection, morphProblem(morphScheme, morph))) return;
+    setSelected(selection);
     setSearched(true);
     setTabsInitialized(false);
     setGroups({});
-    const opts = buildOpts();
-    if (await execute(query, "all", opts)) {
+    const occurrenceMode =
+      selection === "strongs" &&
+      Boolean(verseText.trim() || (morphScheme && morph.trim()));
+    const effectiveSort =
+      occurrenceMode && !sortTouched.current ? "canonical" : sort;
+    if (effectiveSort !== sort) setSort(effectiveSort);
+    const opts = buildOpts({ sort: effectiveSort });
+    if (await execute(query, selection, opts, "")) {
       setHistoryOpen(false);
-      remember(snapshot({ query, selected: "all" }));
+      remember(
+        snapshot({ query, selected: selection, sort: effectiveSort }),
+      );
     }
   }
 
   function selectTab(next: Selected) {
     setSelected(next);
     if (searched) {
-      void execute(q.trim(), next, buildOpts()).then((ok) => {
+      const problem = morphProblem(morphScheme, morph);
+      void execute(q.trim(), next, buildOpts(), problem).then((ok) => {
         if (ok) remember(snapshot({ selected: next }));
       });
     }
@@ -270,6 +347,9 @@ export function SearchPanel({
     over: {
       query?: string;
       refine?: string;
+      verseText?: string;
+      morphScheme?: "" | "strongMorph" | "robinson";
+      morph?: string;
       sort?: SearchSort;
       canon?: "" | "ot" | "nt";
       works?: Set<string>;
@@ -280,6 +360,9 @@ export function SearchPanel({
     return {
       query: over.query ?? q,
       refine: over.refine ?? refine,
+      verseText: over.verseText ?? verseText,
+      morphScheme: over.morphScheme ?? morphScheme,
+      morph: over.morph ?? morph,
       sort: over.sort ?? sort,
       canon: over.canon ?? canon,
       works: [...(over.works ?? workFilter)],
@@ -307,12 +390,15 @@ export function SearchPanel({
   }
 
   function applyFilter(o: ReturnType<typeof buildOpts>, state: SearchState) {
-    if (searched) {
-      setGroups({});
-      void execute(state.query.trim(), state.selected, o).then((ok) => {
-        if (ok) remember(state);
-      });
-    }
+    if (!searched) return;
+    // `state` is the post-change snapshot, so clearing the morphology through its own chip
+    // is correctly seen as resolved rather than as the stale value still in React state.
+    const problem = morphProblem(state.morphScheme, state.morph);
+    if (blockedByMorphology(state.selected, problem)) return;
+    setGroups({});
+    void execute(state.query.trim(), state.selected, o, problem).then((ok) => {
+      if (ok) remember(state);
+    });
   }
 
   function applyCanon(value: "" | "ot" | "nt") {
@@ -335,6 +421,23 @@ export function SearchPanel({
     applyFilter(buildOpts({ refine: value }), snapshot({ refine: value }));
   }
 
+  function applyVerseText(value: string) {
+    setVerseText(value);
+    applyFilter(
+      buildOpts({ verseText: value }),
+      snapshot({ verseText: value }),
+    );
+  }
+
+  function clearMorphology() {
+    setMorphScheme("");
+    setMorph("");
+    applyFilter(
+      buildOpts({ morphScheme: "", morph: "" }),
+      snapshot({ morphScheme: "", morph: "" }),
+    );
+  }
+
   function runRefinement(event: React.FormEvent) {
     event.preventDefault();
     applyRefinement(refine.trim());
@@ -345,16 +448,30 @@ export function SearchPanel({
     const emptyBooks = new Set<string>();
     setCanon("");
     setRefine("");
+    setVerseText("");
+    setMorphScheme("");
+    setMorph("");
     setWorkFilter(emptyWorks);
     setBookFilter(emptyBooks);
     applyFilter(
       buildOpts({
         refine: "",
+        verseText: "",
+        morphScheme: "",
+        morph: "",
         canon: "",
         works: emptyWorks,
         books: emptyBooks,
       }),
-      snapshot({ refine: "", canon: "", works: emptyWorks, books: emptyBooks }),
+      snapshot({
+        refine: "",
+        verseText: "",
+        morphScheme: "",
+        morph: "",
+        canon: "",
+        works: emptyWorks,
+        books: emptyBooks,
+      }),
     );
   }
 
@@ -362,7 +479,11 @@ export function SearchPanel({
     requestId.current += 1;
     setQ("");
     setRefine("");
+    setVerseText("");
+    setMorphScheme("");
+    setMorph("");
     setSort("relevance");
+    sortTouched.current = false;
     setCanon("");
     setWorkFilter(new Set());
     setBookFilter(new Set());
@@ -384,7 +505,11 @@ export function SearchPanel({
     const restoredBooks = new Set(entry.books);
     setQ(entry.query);
     setRefine(entry.refine);
+    setVerseText(entry.verseText);
+    setMorphScheme(entry.morphScheme);
+    setMorph(entry.morph);
     setSort(entry.sort);
+    sortTouched.current = true;
     setCanon(entry.canon);
     setWorkFilter(works);
     setBookFilter(restoredBooks);
@@ -396,11 +521,17 @@ export function SearchPanel({
       entry.selected,
       buildOpts({
         refine: entry.refine,
+        verseText: entry.verseText,
+        morphScheme: entry.morphScheme,
+        morph: entry.morph,
         sort: entry.sort,
         canon: entry.canon,
         works,
         books: restoredBooks,
       }),
+      // History is normalized on write, so a stored pair is already complete; validate
+      // anyway rather than trust localStorage a user or an older build could have written.
+      morphProblem(entry.morphScheme, entry.morph),
     );
     if (ok) {
       setSearched(true);
@@ -412,6 +543,9 @@ export function SearchPanel({
   async function loadMore(kind: SearchKind) {
     const current = groups[kind];
     if (!current) return;
+    // The morphology fields stay editable after a search; appending a page fetched under
+    // different constraints would mix two result sets in one list.
+    if (blockedByMorphology(kind, morphProblem(morphScheme, morph))) return;
     const currentRequest = ++requestId.current;
     setLoadingMore(true);
     setError(false);
@@ -419,7 +553,7 @@ export function SearchPanel({
     try {
       const res = await api.search(
         q.trim(),
-        buildOpts({ types: kind, offset: current.hits.length }),
+        scoped(kind, buildOpts({ types: kind, offset: current.hits.length })),
       );
       if (currentRequest !== requestId.current) return;
       const g = res.groups[0];
@@ -462,20 +596,41 @@ export function SearchPanel({
       return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}${
         hit.verse_start ? `:${hit.verse_start}` : ""
       }`;
+    if (hit.kind === "strongs_occurrence")
+      return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}:${hit.verse}`;
     return hit.title;
   }
 
   function openHit(hit: SearchHit, button: HTMLButtonElement) {
     lastResultButtonRef.current = button;
-    if (hit.kind === "bible")
+    let destination: PaneSourceType;
+    if (hit.kind === "bible") {
       openPassage(hit.work_id, hit.osis, hit.chapter, hit.verse);
-    else if (hit.kind === "commentary")
+      destination = "bible";
+    } else if (hit.kind === "commentary") {
       openCommentary(hit.work_id, hit.osis, hit.chapter);
-    else if (hit.kind === "dictionary")
+      destination = "commentary";
+    } else if (hit.kind === "dictionary") {
       openDictionary(hit.work_id, hit.headword);
-    else openBookSection(hit.work_id, hit.section_id);
+      destination = "dictionary";
+    } else if (hit.kind === "book") {
+      openBookSection(hit.work_id, hit.section_id);
+      destination = "book";
+    } else if (hit.kind === "strongs_entry") {
+      openDictionary(hit.work_id, hit.strong_id);
+      destination = "dictionary";
+    } else {
+      openStrongsOccurrence(
+        hit.work_id,
+        hit.osis,
+        hit.chapter,
+        hit.verse,
+        hit.strong_id,
+      );
+      destination = "bible";
+    }
     // Zustand actions are synchronous, so the destination pane exists before the shell selects it.
-    onNavigate?.(hit.kind);
+    onNavigate?.(destination);
     // Docked (desktop) stays open so several results can be read; full-screen (mobile) closes to
     // reveal the pane the result opened in.
     if (mode === "fullscreen") onClose();
@@ -488,7 +643,13 @@ export function SearchPanel({
       <ul className="search-results">
         {hits.map((hit) => (
           <li
-            key={`${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`}
+            key={
+              hit.kind === "strongs_entry"
+                ? `strongs-entry-${hit.strong_id}`
+                : hit.kind === "strongs_occurrence"
+                  ? `strongs-occurrence-${hit.work_id}-${hit.strong_id}-${hit.ref}`
+                  : `${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`
+            }
           >
             <button
               type="button"
@@ -501,6 +662,29 @@ export function SearchPanel({
                 {works?.find((w) => w.id === hit.work_id)?.abbrev ??
                   hit.work_id.toUpperCase()}
               </span>{" "}
+              {hit.kind === "strongs_entry" && (
+                <span className="strongs-result-count">
+                  {t("strongs.occurrenceSummary", {
+                    occurrences: t("strongs.occurrenceCount", {
+                      count: hit.occurrence_count,
+                    }),
+                    verses: t("strongs.verseCount", { count: hit.verse_count }),
+                  })}
+                </span>
+              )}
+              {hit.kind === "strongs_occurrence" && (
+                <>
+                  <span className="strongs-result-id">{hit.strong_id}</span>
+                  {hit.occurrence_count > 1 && (
+                    <span className="strongs-occurrence-multiple">
+                      ×{hit.occurrence_count}
+                    </span>
+                  )}
+                  <span className="strongs-occurrence-surfaces">
+                    {hit.surfaces.filter(Boolean).join(" · ") || hit.strong_id}
+                  </span>
+                </>
+              )}
               <span className="result-snippet">
                 <Snippet html={hit.snippet} />
               </span>
@@ -518,6 +702,15 @@ export function SearchPanel({
     searched &&
     tabsInitialized &&
     (selected === "all" || visibleKinds.length > 0);
+  const annotatedWorkIds = new Set(
+    strongSources?.map((source) => source.work_id) ?? [],
+  );
+  const selectableWorks =
+    works?.filter((work) =>
+      selected === "strongs"
+        ? annotatedWorkIds.has(work.id)
+        : ["bible", "commentary", "dictionary", "book"].includes(work.type),
+    ) ?? [];
   const selectedWorks = works?.filter((work) => workFilter.has(work.id)) ?? [];
   const selectedBooks =
     books
@@ -533,8 +726,13 @@ export function SearchPanel({
         .toLocaleLowerCase(i18n.language)
         .includes(normalizedBookQuery),
     ) ?? [];
+  // An unusable morphology filter blocks the search outright rather than being dropped.
+  const morphIssue: MorphProblem =
+    selected === "strongs" ? morphProblem(morphScheme, morph) : "";
   const activeFilterCount =
     (refine.trim() ? 1 : 0) +
+    (selected === "strongs" && verseText.trim() ? 1 : 0) +
+    (selected === "strongs" && morphScheme && morph.trim() ? 1 : 0) +
     (canon ? 1 : 0) +
     workFilter.size +
     bookFilter.size;
@@ -590,6 +788,12 @@ export function SearchPanel({
       ),
     ];
     if (entry.selected !== "all") details.push(t(`source.${entry.selected}`));
+    if (entry.verseText) {
+      details.push(t("strongs.bibleTextWith", { query: entry.verseText }));
+    }
+    if (entry.morphScheme && entry.morph) {
+      details.push(`${entry.morphScheme}:${entry.morph}`);
+    }
     if (entry.canon) {
       details.push(t(entry.canon === "ot" ? "search.testOt" : "search.testNt"));
     }
@@ -706,6 +910,7 @@ export function SearchPanel({
                 className={sort === value ? "active" : ""}
                 aria-pressed={sort === value}
                 onClick={() => {
+                  sortTouched.current = true;
                   setSort(value);
                   applyFilter(
                     buildOpts({ sort: value }),
@@ -723,18 +928,14 @@ export function SearchPanel({
           </div>
         </div>
 
-        {works && works.length > 0 && (
+        {selectableWorks.length > 1 && (
           <details className="search-works">
             <summary>
               {t("search.sources")}
               {workFilter.size > 0 ? ` (${workFilter.size})` : ""}
             </summary>
             <div className="search-works-list">
-              {works
-                .filter((work) =>
-                  KIND_ORDER.some((kind) => kind === work.type),
-                )
-                .map((work) => (
+              {selectableWorks.map((work) => (
                   <label key={work.id}>
                     <input
                       type="checkbox"
@@ -825,13 +1026,41 @@ export function SearchPanel({
             ✕
           </button>
         </div>
+        {hasStrongs && !searched && (
+          <div
+            className="search-mode"
+            role="group"
+            aria-label={t("search.mode")}
+          >
+            <button
+              type="button"
+              className={selected === "all" ? "active" : ""}
+              aria-pressed={selected === "all"}
+              onClick={() => setSelected("all")}
+            >
+              {t("search.all")}
+            </button>
+            <button
+              type="button"
+              className={selected === "strongs" ? "active" : ""}
+              aria-pressed={selected === "strongs"}
+              onClick={() => setSelected("strongs")}
+            >
+              {t("source.strongs")}
+            </button>
+          </div>
+        )}
         <form onSubmit={run} className="search-form">
           <input
             ref={inputRef}
             type="search"
             value={q}
             aria-label={t("search.query")}
-            placeholder={t("search.placeholder")}
+            placeholder={t(
+              selected === "strongs"
+                ? "strongs.searchPlaceholder"
+                : "search.placeholder",
+            )}
             onChange={(e) => setQ(e.target.value)}
           />
           <button type="submit">{t("topbar.search")}</button>
@@ -854,6 +1083,69 @@ export function SearchPanel({
           >
             <span aria-hidden>◷</span>
           </button>
+          {selected === "strongs" && (
+            <div className="strongs-search-fields">
+              <label>
+                <span>{t("strongs.bibleText")}</span>
+                <input
+                  type="search"
+                  value={verseText}
+                  placeholder={t("strongs.bibleTextPlaceholder")}
+                  onChange={(event) => setVerseText(event.target.value)}
+                />
+              </label>
+              {/* Not `required`: these live inside a <details> the user can collapse, and a
+                  hidden invalid control blocks submission with no reachable message. The
+                  incomplete pair is reported inline and simply omitted from the request. */}
+              <details>
+                <summary>{t("strongs.advanced")}</summary>
+                <div className="strongs-morph-fields">
+                  <label>
+                    <span>{t("strongs.morphScheme")}</span>
+                    <select
+                      value={morphScheme}
+                      aria-invalid={morphIssue === "incomplete" && !morphScheme}
+                      onChange={(event) =>
+                        setMorphScheme(
+                          event.target.value as
+                            | ""
+                            | "strongMorph"
+                            | "robinson",
+                        )
+                      }
+                    >
+                      <option value="">{t("strongs.anyMorphology")}</option>
+                      <option value="strongMorph">strongMorph</option>
+                      <option value="robinson">robinson</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("strongs.morphCode")}</span>
+                    <input
+                      value={morph}
+                      maxLength={40}
+                      aria-invalid={
+                        morphIssue === "malformed" ||
+                        (morphIssue === "incomplete" && !morph.trim())
+                      }
+                      placeholder={t("strongs.morphPlaceholder")}
+                      onChange={(event) => setMorph(event.target.value)}
+                    />
+                  </label>
+                </div>
+              </details>
+              {/* Outside the <details> so a collapsed Advanced section cannot hide it. */}
+              {morphIssue && (
+                <p className="strongs-morph-hint" role="alert">
+                  {t(
+                    morphIssue === "malformed"
+                      ? "strongs.morphMalformed"
+                      : "strongs.morphIncomplete",
+                  )}
+                </p>
+              )}
+            </div>
+          )}
         </form>
 
         {historyVisible && (
@@ -931,6 +1223,31 @@ export function SearchPanel({
               >
                 {t("search.refineWith", { query: refine.trim() })}{" "}
                 <span aria-hidden>×</span>
+              </button>
+            )}
+            {selected === "strongs" && verseText.trim() && (
+              <button
+                type="button"
+                onClick={() => applyVerseText("")}
+                aria-label={t("search.removeFilter", {
+                  filter: t("strongs.bibleTextWith", {
+                    query: verseText.trim(),
+                  }),
+                })}
+              >
+                {t("strongs.bibleTextWith", { query: verseText.trim() })}{" "}
+                <span aria-hidden>×</span>
+              </button>
+            )}
+            {selected === "strongs" && morphScheme && morph.trim() && (
+              <button
+                type="button"
+                onClick={clearMorphology}
+                aria-label={t("search.removeFilter", {
+                  filter: `${morphScheme}:${morph.trim()}`,
+                })}
+              >
+                {morphScheme}:{morph.trim()} <span aria-hidden>×</span>
               </button>
             )}
             {canon && (

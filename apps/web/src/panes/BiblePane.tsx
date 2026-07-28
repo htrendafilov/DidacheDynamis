@@ -19,6 +19,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const goToRef = useStore((s) => s.goToRef);
   const requestOpenNote = useStore((s) => s.requestOpenNote);
   const clearFocusVerse = useStore((s) => s.clearFocusVerse);
+  const clearStrongFocus = useStore((s) => s.clearStrongFocus);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +29,17 @@ export function BiblePane({ pane }: { pane: Pane }) {
   // Strong's mode needs both the reader toggle and the lexicon works (M8.3 popover data).
   const strongsEnabled =
     settings.strongs === "on" && Boolean(works?.some((w) => w.type === "lexicon"));
-  const { loading, error, data } = usePassage(pane.workId, pane.osis, pane.chapter);
+  const passage = usePassage(pane.workId, pane.osis, pane.chapter);
+  // Hook state survives a request-key change until its effect resets the state. Mask that
+  // previous request here so a stale error cannot consume a newly assigned search target
+  // (and stale passage/error UI cannot flash while navigation is starting).
+  const passageIsCurrent =
+    passage.workId === pane.workId &&
+    passage.osis === pane.osis &&
+    passage.chapter === pane.chapter;
+  const loading = !passageIsCurrent || passage.loading;
+  const error = passageIsCurrent && passage.error;
+  const data = passageIsCurrent ? passage.data : null;
   const xrefs = useCrossReferences(pane.osis, pane.chapter, selectedVerse, pane.workId);
 
   const { prev, next } = useMemo(() => {
@@ -58,7 +69,16 @@ export function BiblePane({ pane }: { pane: Pane }) {
   // flag re-runs this effect, and a cleanup would cancel the pending un-flash.
   useEffect(() => {
     const target = pane.focusVerse;
-    if (!target || !data) return;
+    if (!target) return;
+    // A failed passage request is terminal for this target: usePassage resets `error` when a
+    // new work/book/chapter request starts, so no data will ever arrive to consume the flags.
+    // Drop them rather than leave focusStrong persisted on the pane forever.
+    if (error) {
+      clearFocusVerse(pane.id);
+      if (pane.focusStrong) clearStrongFocus(pane.id);
+      return;
+    }
+    if (!data) return;
     // usePassage clears stale data in an effect, so the render immediately after a pane navigation
     // can still contain the previous passage. Do not consume the target until the response and DOM
     // belong to the passage requested by the pane.
@@ -70,19 +90,40 @@ export function BiblePane({ pane }: { pane: Pane }) {
       return;
     }
     const element = bodyRef.current?.querySelector<HTMLElement>(`[data-verse="${target}"]`);
+    // Consume both transient flags before the missing-element bail. A focusStrong left
+    // behind would persist with the pane and make the mobile shell re-select this pane on
+    // every later pane change.
     clearFocusVerse(pane.id);
+    if (pane.focusStrong) clearStrongFocus(pane.id);
     if (!element) return;
-    element.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    element.classList.add("verse-flash");
-    window.setTimeout(() => element.classList.remove("verse-flash"), 1600);
+    const matchingWords = pane.focusStrong
+      ? [...element.querySelectorAll<HTMLElement>("[data-strong-ids]")].filter((word) =>
+          word.dataset.strongIds?.split(" ").includes(pane.focusStrong!),
+        )
+      : [];
+    const scrollTarget = matchingWords[0] ?? element;
+    scrollTarget.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    if (matchingWords.length > 0) {
+      matchingWords.forEach((word) => word.classList.add("strongs-flash"));
+      window.setTimeout(
+        () => matchingWords.forEach((word) => word.classList.remove("strongs-flash")),
+        1600,
+      );
+    } else {
+      element.classList.add("verse-flash");
+      window.setTimeout(() => element.classList.remove("verse-flash"), 1600);
+    }
   }, [
     pane.focusVerse,
     pane.workId,
     pane.osis,
     pane.chapter,
+    pane.focusStrong,
     data,
+    error,
     pane.id,
     clearFocusVerse,
+    clearStrongFocus,
   ]);
 
   return (

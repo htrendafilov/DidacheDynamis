@@ -117,14 +117,47 @@ class BookHit(BaseModel):
     section_id: str
 
 
+class StrongMorphology(BaseModel):
+    scheme: str
+    code: str
+
+
+class StrongsEntryHit(BaseModel):
+    kind: Literal["strongs_entry"] = "strongs_entry"
+    work_id: str  # lexicon work (strongsgreek | strongshebrew)
+    title: str
+    snippet: str
+    strong_id: str
+    language: str | None
+    lemma: str | None
+    transliteration: str | None
+    occurrence_count: int
+    verse_count: int
+
+
+class StrongsOccurrenceHit(BaseModel):
+    kind: Literal["strongs_occurrence"] = "strongs_occurrence"
+    work_id: str  # annotated Bible work
+    title: str
+    snippet: str
+    strong_id: str
+    osis: str
+    chapter: int
+    verse: int
+    ref: str
+    surfaces: list[str]
+    occurrence_count: int
+    morphology: list[StrongMorphology]
+
+
 SearchHit = Annotated[
-    BibleHit | CommentaryHit | DictionaryHit | BookHit,
+    BibleHit | CommentaryHit | DictionaryHit | BookHit | StrongsEntryHit | StrongsOccurrenceHit,
     Field(discriminator="kind"),
 ]
 
 
 class SearchGroup(BaseModel):
-    type: str  # content type: bible | commentary | dictionary | book
+    type: str  # content type: bible | commentary | dictionary | book | strongs
     total: int
     offset: int
     limit: int
@@ -206,6 +239,21 @@ class StrongEntry(BaseModel):
     pronunciation: str | None
     definition: str
     see: list[str]  # cross-referenced Strong's ids, normalized
+
+
+class StrongSource(BaseModel):
+    work_id: str
+
+
+class StrongOccurrenceResponse(BaseModel):
+    strong_id: str
+    total: int  # verse rows
+    occurrence_total: int
+    offset: int
+    limit: int
+    has_more: bool
+    available_works: list[str]
+    hits: list[StrongsOccurrenceHit]
 
 
 class GeneralBookSection(BaseModel):

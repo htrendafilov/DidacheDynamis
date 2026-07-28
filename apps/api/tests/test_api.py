@@ -33,8 +33,13 @@ def raw_client(tmp_path, monkeypatch):
     src.write_text(MINI_USFX, encoding="utf-8")
     out = tmp_path / "content.sqlite"
     spec = BibleSpec(
-        work_id="web", title="World English Bible", abbrev="WEB", language="en",
-        versification="kjv", license="Public Domain", attribution="WEB is public domain.",
+        work_id="web",
+        title="World English Bible",
+        abbrev="WEB",
+        language="en",
+        versification="kjv",
+        license="Public Domain",
+        attribution="WEB is public domain.",
     )
     assert build_bible(src, spec, out, fmt="usfx").ok
     append_study_content(
@@ -135,10 +140,7 @@ def test_simultaneous_read_only_requests_use_independent_connections(client):
 
     def read_passage() -> list[int]:
         barrier.wait()
-        return [
-            client.get("/api/v1/works/web/passage/John/3").status_code
-            for _ in range(4)
-        ]
+        return [client.get("/api/v1/works/web/passage/John/3").status_code for _ in range(4)]
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         statuses = [
@@ -320,6 +322,227 @@ def test_lexicon_entry_missing_and_invalid(strongs_client):
     assert strongs_client.get("/api/v1/lexicon/X123").status_code == 400
     assert strongs_client.get("/api/v1/lexicon/strong:H0001").status_code == 400
     assert strongs_client.get(f"/api/v1/lexicon/H{'9' * 5000}").status_code == 400
+
+
+def test_strongs_sources_empty_without_annotated_bible_work(client):
+    assert client.get("/api/v1/lexicon/sources").json() == []
+
+
+def test_strongs_sources_list_annotated_bible_work(strongs_client):
+    assert strongs_client.get("/api/v1/lexicon/sources").json() == [{"work_id": "kjv"}]
+
+
+def test_strongs_entry_search_normalizes_id_and_folds_diacritics(strongs_client):
+    for query in ("g1722", "εν", "ἐν", "primary preposition"):
+        group = _group(
+            strongs_client.get(
+                "/api/v1/search",
+                params={"q": query, "types": "strongs"},
+            ).json(),
+            "strongs",
+        )
+        assert group["total"] == 1
+        hit = group["hits"][0]
+        assert hit["kind"] == "strongs_entry"
+        assert hit["strong_id"] == "G1722"
+        assert hit["lemma"] == "ἐν"
+        assert hit["occurrence_count"] == 1
+        assert hit["verse_count"] == 1
+    transliteration = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={"q": "en", "types": "strongs"},
+        ).json(),
+        "strongs",
+    )
+    assert transliteration["hits"][0]["strong_id"] == "G1722"
+
+
+def test_search_all_includes_available_strongs_group(strongs_client):
+    response = strongs_client.get(
+        "/api/v1/search",
+        params={"q": "primary preposition"},
+    ).json()
+    group = _group(response, "strongs")
+    assert group["total"] == 1
+    assert group["hits"][0]["strong_id"] == "G1722"
+
+
+def test_strongs_exact_missing_lexicon_entry_still_reports_occurrences(strongs_client):
+    group = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={"q": "G3588", "types": "strongs"},
+        ).json(),
+        "strongs",
+    )
+    assert group["total"] == 1
+    hit = group["hits"][0]
+    assert hit["strong_id"] == "G3588"
+    assert hit["lemma"] is None
+    assert hit["occurrence_count"] == 9
+    assert hit["verse_count"] == 2
+
+
+def test_strongs_combined_text_and_morphology_search(strongs_client):
+    combined = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={
+                "q": "G1722",
+                "types": "strongs",
+                "verse_text": "beginning",
+                "morph_scheme": "robinson",
+                "morph": "prep",
+            },
+        ).json(),
+        "strongs",
+    )
+    assert combined["total"] == 1
+    hit = combined["hits"][0]
+    assert hit["kind"] == "strongs_occurrence"
+    assert hit["ref"] == "John.1.1"
+    assert hit["surfaces"] == ["In"]
+    assert hit["morphology"] == [{"scheme": "robinson", "code": "PREP"}]
+    assert hit["occurrence_count"] == 1
+
+    no_match = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={"q": "G1722", "types": "strongs", "verse_text": "earth"},
+        ).json(),
+        "strongs",
+    )
+    assert no_match["total"] == 0
+
+
+def test_strongs_occurrence_snippet_is_a_bounded_excerpt_around_the_surface():
+    from app.search_providers import VERSE_EXCERPT, _excerpt
+
+    short = "In the beginning was the Word."
+    assert _excerpt(short, VERSE_EXCERPT, "Word") == short
+
+    long_verse = "alpha " * 60 + "TARGET " + "omega " * 60
+    windowed = _excerpt(long_verse, VERSE_EXCERPT, "TARGET")
+    assert "TARGET" in windowed
+    assert len(windowed) <= VERSE_EXCERPT + 2  # the two ellipsis characters
+    assert windowed.startswith("…")
+    assert windowed.endswith("…")
+
+    head = _excerpt(long_verse, VERSE_EXCERPT, None)
+    assert head.startswith("alpha")
+    assert head.endswith("…")
+
+
+def test_strongs_language_filter_applies_to_occurrences_as_well_as_entries(strongs_client):
+    excluded = (
+        {"q": "G1722", "types": "strongs", "verse_text": "beginning", "languages": "hbo"},
+        {"q": "primary preposition", "types": "strongs", "languages": "hbo"},
+    )
+    for params in excluded:
+        group = _group(strongs_client.get("/api/v1/search", params=params).json(), "strongs")
+        assert group["total"] == 0, params
+    included = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={
+                "q": "G1722",
+                "types": "strongs",
+                "verse_text": "beginning",
+                "languages": "grc",
+            },
+        ).json(),
+        "strongs",
+    )
+    assert included["total"] == 1
+    assert included["hits"][0]["kind"] == "strongs_occurrence"
+
+
+def test_strongs_occurrences_group_repeats_and_paginate_canonically(strongs_client):
+    first = strongs_client.get(
+        "/api/v1/lexicon/g3588/occurrences",
+        params={"limit": 1},
+    ).json()
+    assert first["strong_id"] == "G3588"
+    assert first["total"] == 2
+    assert first["occurrence_total"] == 9
+    assert first["has_more"] is True
+    assert first["available_works"] == ["kjv"]
+    assert first["hits"][0]["ref"] == "John.1.1"
+    assert first["hits"][0]["occurrence_count"] == 4
+    assert first["hits"][0]["surfaces"] == ["the Word", "the Word", "God", "the Word"]
+
+    second = strongs_client.get(
+        "/api/v1/lexicon/G3588/occurrences",
+        params={"limit": 1, "offset": 1},
+    ).json()
+    assert second["has_more"] is False
+    assert [hit["ref"] for hit in second["hits"]] == ["John.3.16"]
+    assert second["hits"][0]["occurrence_count"] == 5
+
+
+def test_strongs_occurrence_filters_and_validation(strongs_client):
+    assert (
+        strongs_client.get(
+            "/api/v1/lexicon/G3588/occurrences",
+            params={"works": "web"},
+        ).json()["total"]
+        == 0
+    )
+    assert (
+        strongs_client.get(
+            "/api/v1/lexicon/G3588/occurrences",
+            params={"works": "kjv", "canon": "nt", "books": "John"},
+        ).json()["total"]
+        == 2
+    )
+    assert (
+        strongs_client.get(
+            "/api/v1/lexicon/G3588/occurrences",
+            params={"canon": "ot"},
+        ).json()["total"]
+        == 0
+    )
+    assert (
+        strongs_client.get(
+            "/api/v1/search",
+            params={"q": "G1722", "types": "strongs", "morph": "PREP"},
+        ).status_code
+        == 400
+    )
+
+
+@pytest.mark.parametrize("sort", ["canonical", "relevance"])
+def test_strongs_entry_pagination_is_stable(strongs_client, sort):
+    common = {
+        "q": "greek",
+        "types": "strongs",
+        "sort": sort,
+        "limit": 1,
+    }
+    first = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={**common, "offset": 0},
+        ).json(),
+        "strongs",
+    )
+    second = _group(
+        strongs_client.get(
+            "/api/v1/search",
+            params={**common, "offset": 1},
+        ).json(),
+        "strongs",
+    )
+    assert first["total"] == second["total"] == 2
+    assert first["has_more"] is True
+    assert second["has_more"] is False
+    assert len({first["hits"][0]["strong_id"], second["hits"][0]["strong_id"]}) == 2
+    if sort == "canonical":
+        assert [
+            first["hits"][0]["strong_id"],
+            second["hits"][0]["strong_id"],
+        ] == ["G0001", "G1722"]
 
 
 def _group(res: dict, type_: str) -> dict:
@@ -580,7 +803,7 @@ def test_search_multi_type_selection_keeps_order_and_group_metadata(client):
 @pytest.mark.parametrize(
     ("param", "count", "detail"),
     [
-        ("types", 5, "too many types values"),
+        ("types", 6, "too many types values"),
         ("works", 21, "too many works values"),
         ("books", 67, "too many books values"),
         ("languages", 11, "too many languages values"),
@@ -631,10 +854,13 @@ def test_search_caps_offset_without_hiding_current_corpus(client):
         params={"q": "shepherd", "types": "bible", "offset": 100_000},
     )
     assert at_cap.status_code == 200
-    assert client.get(
-        "/api/v1/search",
-        params={"q": "shepherd", "types": "bible", "offset": 100_001},
-    ).status_code == 422
+    assert (
+        client.get(
+            "/api/v1/search",
+            params={"q": "shepherd", "types": "bible", "offset": 100_001},
+        ).status_code
+        == 422
+    )
 
 
 def test_cache_headers_and_304(client):

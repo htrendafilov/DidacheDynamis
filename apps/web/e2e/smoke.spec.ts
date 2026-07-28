@@ -67,6 +67,34 @@ test("search finds a verse and opens it in the reader", async ({ page }) => {
   await expect(page.locator(".reader").getByText(/shepherd/i).first()).toBeVisible();
 });
 
+test("Strong's search opens an entry and a highlighted Bible occurrence", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Strong's" }).click();
+  const input = page.getByPlaceholder(
+    "Strong's number, lemma, transliteration, or definition…",
+  );
+  await input.fill("G1722");
+  await input.press("Enter");
+
+  await page.getByRole("button", { name: /G1722 ·/ }).click();
+  const dictionary = page.locator(".dictionary-pane");
+  await expect(dictionary.getByRole("heading", { name: /G1722/ })).toBeVisible();
+  await expect(
+    dictionary.getByRole("heading", { name: "Occurrences in the Bible" }),
+  ).toBeVisible();
+  // Singular and plural are both valid: an id used once reads "1 occurrence in 1 verse".
+  await expect(
+    dictionary.getByText(/\d+ occurrences? in \d+ verses?/),
+  ).toBeVisible();
+
+  await dictionary.locator(".strongs-occurrence-list button").first().click();
+  await expect(page.locator(".reader .strongs-flash").first()).toBeVisible();
+  await expect(dictionary).toBeVisible();
+});
+
 test("search filters by an individual Bible book and exposes a removable chip", async ({
   page,
 }) => {

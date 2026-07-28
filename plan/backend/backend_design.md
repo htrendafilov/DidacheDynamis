@@ -16,7 +16,7 @@ This split is what keeps the server stateless and portable.
 ```sql
 works(id, type, language, title, abbrev, direction, versification,
       license, attribution, source_url, source_version, checksum)
-      -- type ∈ {bible, commentary, dictionary, xref, book}
+      -- type ∈ {bible, commentary, dictionary, xref, book, lexicon}
 
 books(work_id, osis_code, name, sort_order, chapter_count)   -- localized names per work
 
@@ -39,7 +39,8 @@ xrefs(osis_code, chapter, verse, target_ref, votes)          -- TSK; translation
 verse_tokens(work_id, osis_code, chapter, verse, position, ordinal,
              surface, normalized, strong_id, morph_scheme, morph_code,
              PRIMARY KEY(work_id, osis_code, chapter, verse, position, ordinal))
-strong_lexicon(strong_id, language, lemma, transliteration, pronunciation, definition_json)
+strong_lexicon(strong_id, language, lemma, transliteration, pronunciation, definition_json,
+               lemma_search, transliteration_search, definition_search) -- folded M8.4 search text
 
 -- Ordinary FTS5 virtual tables storing indexed content directly
 -- (selected locator/sort columns shown; these do not use content='' or external content):
@@ -85,10 +86,13 @@ GET /api/v1/works/{id}/passage/{osis}/{chapter}?verses=16|1-19
 GET /api/v1/commentary/{id}/{osis}/{chapter}?verse=
 GET /api/v1/dictionary/{id}/entries?prefix=&limit=
 GET /api/v1/dictionary/{id}/entry/{headword}
+GET /api/v1/lexicon/sources
+GET /api/v1/lexicon/{strong_id}
+GET /api/v1/lexicon/{strong_id}/occurrences
 GET /api/v1/books
 GET /api/v1/book/{id}
 GET /api/v1/xref/{osis}/{chapter}/{verse}?preview_work=
-GET /api/v1/search?q=&refine=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=
+GET /api/v1/search?q=&refine=&verse_text=&morph_scheme=&morph=&types=&works=&canon=&books=&languages=&sort=&limit=&offset=
 ```
 
 - **Caching:** API responses use `ETag` plus

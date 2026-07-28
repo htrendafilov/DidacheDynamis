@@ -19,7 +19,7 @@ The app provides fast passage lookup, high-speed Full-Text Search (FTS5), and Tr
 Open **Search** from the top bar to reveal the **Search Workspace** — a drawer docked to the right of
 your panes on the desktop (drag its left edge to resize), or a full-screen view on a phone. Enter one
 or more words and submit. Results are grouped with tabs and true counts for Bible, Commentary,
-Dictionary, and Books. You can:
+Dictionary, Books, and Strong's lexical entries. You can:
 
 - select one or more installed sources;
 - limit Bible/commentary results to the Old or New Testament;
@@ -59,8 +59,19 @@ currently supported.
   Strong's number, original-language form when available, occurrence morphology, pronunciation, and
   a short definition. Choose **Open in Dictionary pane** for the complete Greek or Hebrew lexicon
   entry, attribution, and see-also links. Some identifiers are absent from the source lexicon; their
-  occurrence morphology remains available even when no definition exists. Strong's search is planned
-  for M8.4 and is not part of the general Search Workspace yet.
+  occurrence morphology remains available even when no definition exists.
+- **Strong's search**: Open Search and choose the **Strong's** mode. The main field accepts a Strong's
+  number, original-language lemma, transliteration, or English definition terms. Lexical results show
+  the entry and its KJV occurrence/verse counts. Add optional **Bible text** to find only verses that
+  satisfy both constraints, such as `G1093` with `earth`. Advanced filters accept an exact
+  `strongMorph` (Old Testament) or `robinson` (New Testament) morphology code. The scheme and the
+  code only work together: fill in just one, or type a code containing anything but letters, digits,
+  and hyphens, and the search stops and says why instead of quietly running without the filter.
+- **Concordance from an entry**: Every full Strong's Dictionary entry includes all tagged KJV
+  occurrences below the definition, in canonical 50-verse pages. Filter them by testament or Bible
+  book. Repeated uses in one verse appear once with an `×N` count. Selecting a reference opens the
+  KJV at that verse, enables Strong's display, and briefly highlights every matching translated
+  span. Entries absent from the source lexicon can still expose their KJV occurrences.
 
 ### Known limitation: repeated headwords
 

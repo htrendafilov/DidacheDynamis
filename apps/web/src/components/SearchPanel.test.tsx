@@ -17,6 +17,7 @@ vi.mock("../data/hooks", () => ({
     { osis: "Exod", name: "Exodus", order: 2, chapter_count: 40 },
     { osis: "Matt", name: "Matthew", order: 40, chapter_count: 28 },
   ],
+  useStrongSources: () => [{ work_id: "web" }],
   useWorks: () => [
     { id: "web", abbrev: "WEB", type: "bible", title: "World English Bible" },
     { id: "mhc", abbrev: "MHC", type: "commentary", title: "Matthew Henry" },
@@ -61,6 +62,32 @@ const book: SearchHit = {
   title: "Chapter 1 › 1",
   snippet: "<b>scripture</b>",
   section_id: "chapter-1-scripture.1",
+};
+const strongEntry: SearchHit = {
+  kind: "strongs_entry",
+  work_id: "strongsgreek",
+  title: "G1722 · ἐν",
+  snippet: "a primary preposition denoting position",
+  strong_id: "G1722",
+  language: "grc",
+  lemma: "ἐν",
+  transliteration: "en",
+  occurrence_count: 12,
+  verse_count: 10,
+};
+const strongOccurrence: SearchHit = {
+  kind: "strongs_occurrence",
+  work_id: "web",
+  title: "John 1:1",
+  snippet: "In the beginning was the Word.",
+  strong_id: "G1722",
+  osis: "John",
+  chapter: 1,
+  verse: 1,
+  ref: "John.1.1",
+  surfaces: ["In"],
+  occurrence_count: 1,
+  morphology: [{ scheme: "robinson", code: "PREP" }],
 };
 
 function group(type: string, hits: SearchHit[], total = hits.length, has_more = false) {
@@ -197,6 +224,200 @@ describe("SearchPanel", () => {
     expect(screen.queryByRole("button", { name: /Genesis 1:1/ })).not.toBeInTheDocument();
   });
 
+  it("runs the dedicated Strong's mode with Bible text and exact morphology", async () => {
+    search.mockResolvedValue({
+      query: "G1722",
+      sort: "canonical",
+      total: 1,
+      groups: [group("strongs", [strongOccurrence])],
+    });
+    const onNavigate = vi.fn();
+    render(
+      <SearchPanel
+        mode="docked"
+        onNavigate={onNavigate}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Strong's" }));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Strong's number, lemma, transliteration, or definition…",
+      ),
+      { target: { value: "G1722" } },
+    );
+    fireEvent.change(screen.getByLabelText("Bible text"), {
+      target: { value: "beginning" },
+    });
+    fireEvent.click(screen.getByText("Advanced lexical filters"));
+    fireEvent.change(screen.getByLabelText("Morphology scheme"), {
+      target: { value: "robinson" },
+    });
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "PREP" },
+    });
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+
+    await waitFor(() =>
+      expect(search).toHaveBeenCalledWith(
+        "G1722",
+        expect.objectContaining({
+          types: "strongs",
+          verseText: "beginning",
+          morphScheme: "robinson",
+          morph: "PREP",
+          sort: "canonical",
+        }),
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /John 1:1/ }));
+    expect(useStore.getState().settings.strongs).toBe("on");
+    expect(useStore.getState().panes[0]).toMatchObject({
+      osis: "John",
+      chapter: 1,
+      focusVerse: 1,
+      focusStrong: "G1722",
+    });
+    expect(onNavigate).toHaveBeenCalledWith("bible");
+  });
+
+  async function strongsModeWithMorph(code: string) {
+    search.mockResolvedValue({
+      query: "G1722",
+      sort: "relevance",
+      total: 1,
+      groups: [group("strongs", [strongEntry])],
+    });
+    render(<SearchPanel mode="docked" onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Strong's" }));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Strong's number, lemma, transliteration, or definition…",
+      ),
+      { target: { value: "G1722" } },
+    );
+    fireEvent.click(screen.getByText("Advanced lexical filters"));
+    fireEvent.change(screen.getByLabelText("Morphology scheme"), {
+      target: { value: "robinson" },
+    });
+    if (code) {
+      fireEvent.change(screen.getByLabelText("Morphology code"), {
+        target: { value: code },
+      });
+    }
+  }
+
+  it("refuses to search on a half-filled morphology pair instead of widening it", async () => {
+    await strongsModeWithMorph("");
+
+    expect(screen.getByRole("alert").textContent).toMatch(
+      /Choose a morphology scheme and a code together/,
+    );
+
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    // §10.6: ambiguous morphology fails clearly. Running without the filter would return
+    // plausible-looking results broader than the controls claim.
+    expect(search).not.toHaveBeenCalled();
+
+    // Completing the pair unblocks it and sends both halves.
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "PREP" },
+    });
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    expect(search).toHaveBeenLastCalledWith(
+      "G1722",
+      expect.objectContaining({ morphScheme: "robinson", morph: "PREP" }),
+    );
+
+    // Filter controls call execute directly and never pass through form validation, so
+    // emptying the code after a successful search must refuse there too.
+    search.mockClear();
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "New Testament" }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toMatch(
+        /Choose a morphology scheme and a code together/,
+      ),
+    );
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("names a malformed morphology code rather than letting the API 422 it", async () => {
+    await strongsModeWithMorph("N NSM");
+
+    expect(screen.getByRole("alert").textContent).toMatch(
+      /only letters, digits, and hyphens/,
+    );
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    expect(search).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Morphology code")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+
+    fireEvent.change(screen.getByLabelText("Morphology code"), {
+      target: { value: "N-NSM" },
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+    expect(search).toHaveBeenLastCalledWith(
+      "G1722",
+      expect.objectContaining({ morphScheme: "robinson", morph: "N-NSM" }),
+    );
+  });
+
+  it("opens a Strong's lexical card in the Dictionary pane", async () => {
+    search.mockResolvedValue({
+      query: "en",
+      sort: "relevance",
+      total: 1,
+      groups: [group("strongs", [strongEntry])],
+    });
+    render(<SearchPanel mode="docked" onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Strong's" }));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Strong's number, lemma, transliteration, or definition…",
+      ),
+      { target: { value: "en" } },
+    );
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Search" }).closest("form")!,
+      );
+    });
+
+    expect(await screen.findByText("12 occurrences in 10 verses")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /G1722 · ἐν/ }));
+    expect(useStore.getState().panes.find((pane) => pane.type === "dictionary")).toMatchObject({
+      workId: "strongsgreek",
+      headword: "G1722",
+    });
+  });
+
   it("re-queries with the testament filter", async () => {
     search.mockResolvedValue(allRes());
     await runSearch();
@@ -271,6 +492,9 @@ describe("SearchPanel", () => {
         {
           query: "earth",
           refine: "created",
+          verseText: "",
+          morphScheme: "",
+          morph: "",
           sort: "canonical",
           canon: "nt",
           works: ["web"],

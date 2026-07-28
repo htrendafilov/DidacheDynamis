@@ -159,6 +159,15 @@ export default function App() {
   const activeIndex = Math.min(activeMobile, panes.length - 1);
   const activePane = panes[activeIndex];
 
+  // Dictionary concordance navigation does not pass through SearchDrawer's shell
+  // callback. On mobile, select the Bible pane carrying the transient Strong's
+  // target so the occurrence is visible immediately.
+  useEffect(() => {
+    if (!isNarrow) return;
+    const destination = panes.findIndex((pane) => Boolean(pane.focusStrong));
+    if (destination >= 0) setActiveMobile(destination);
+  }, [isNarrow, panes]);
+
   const paneLabel = (p: Pane) =>
     p.type === "bible" || p.type === "commentary"
       ? `${bookName(p.osis, i18nInstance.language, p.osis)} ${p.chapter}`

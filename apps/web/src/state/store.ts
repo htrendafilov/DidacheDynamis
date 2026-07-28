@@ -20,6 +20,7 @@ export interface Pane {
   headword?: string; // current entry for a dictionary pane
   bookTocOpen?: boolean;
   focusVerse?: number; // transient: verse to scroll to and briefly flash (e.g. a search result)
+  focusStrong?: string; // transient: Strong's id whose matching spans should flash
 }
 
 export interface Settings {
@@ -46,6 +47,15 @@ interface AppState {
   goToRef: (osis: string, chapter: number, fromPaneId?: string) => void;
   openPassage: (workId: string, osis: string, chapter: number, verse?: number) => void;
   clearFocusVerse: (paneId: string) => void;
+  openStrongsOccurrence: (
+    workId: string,
+    osis: string,
+    chapter: number,
+    verse: number,
+    strongId: string,
+    preservePaneId?: string,
+  ) => void;
+  clearStrongFocus: (paneId: string) => void;
   openCommentary: (workId: string, osis: string, chapter: number) => void;
   openDictionary: (workId: string, headword: string) => void;
   openBookSection: (workId: string, sectionId: string) => void;
@@ -61,6 +71,7 @@ const newId = () => `pane-${Date.now()}-${seq++}`;
 function placePane(
   panes: Pane[],
   patch: Partial<Pane> & { type: PaneSourceType; workId: string },
+  preservePaneId?: string,
 ): Pane[] {
   const existing = panes.find((p) => p.type === patch.type);
   if (existing) return panes.map((p) => (p.id === existing.id ? { ...p, ...patch } : p));
@@ -68,8 +79,10 @@ function placePane(
     const base: Pane = { id: newId(), osis: "John", chapter: 3, ...patch };
     return [...panes, base];
   }
-  const lastId = panes[panes.length - 1].id;
-  return panes.map((p) => (p.id === lastId ? { ...p, ...patch } : p));
+  const replacement =
+    [...panes].reverse().find((pane) => pane.id !== preservePaneId) ??
+    panes[panes.length - 1];
+  return panes.map((p) => (p.id === replacement.id ? { ...p, ...patch } : p));
 }
 
 const defaultPane = (): Pane => ({
@@ -136,6 +149,35 @@ export const useStore = create<AppState>()(
       clearFocusVerse: (paneId) =>
         set((s) => ({
           panes: s.panes.map((p) => (p.id === paneId ? { ...p, focusVerse: undefined } : p)),
+        })),
+      openStrongsOccurrence: (
+        workId,
+        osis,
+        chapter,
+        verse,
+        strongId,
+        preservePaneId,
+      ) =>
+        set((s) => ({
+          panes: placePane(
+            s.panes,
+            {
+              type: "bible",
+              workId,
+              osis,
+              chapter,
+              focusVerse: verse,
+              focusStrong: strongId,
+            },
+            preservePaneId,
+          ),
+          settings: { ...s.settings, strongs: "on" },
+        })),
+      clearStrongFocus: (paneId) =>
+        set((s) => ({
+          panes: s.panes.map((p) =>
+            p.id === paneId ? { ...p, focusStrong: undefined } : p,
+          ),
         })),
       openCommentary: (workId, osis, chapter) =>
         set((s) => ({ panes: placePane(s.panes, { type: "commentary", workId, osis, chapter }) })),

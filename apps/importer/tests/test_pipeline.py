@@ -54,9 +54,7 @@ def test_build_populates_fts(tmp_path):
 def test_headings_written(tmp_path):
     db = build(tmp_path)
     c = sqlite3.connect(db)
-    row = c.execute(
-        "SELECT kind,text FROM headings WHERE osis_code='Ps' AND chapter=23"
-    ).fetchone()
+    row = c.execute("SELECT kind,text FROM headings WHERE osis_code='Ps' AND chapter=23").fetchone()
     assert row == ("title", "A Psalm by David.")
 
 
@@ -86,9 +84,7 @@ def test_append_bible_adds_a_second_read_only_work(tmp_path):
             base_checksum=source_sha256(FIXTURE),
             source_checksum=source_sha256(kjv_source),
             missing_in_other=frozenset({("Ps", 23, 1)}),
-            missing_in_base=frozenset(
-                {("Gen", 1, 1), ("1John", 1, 1), ("Rev", 1, 1)}
-            ),
+            missing_in_base=frozenset({("Gen", 1, 1), ("1John", 1, 1), ("Rev", 1, 1)}),
         ),
     )
     diag = append_bible(kjv_source, kjv_spec, db)
@@ -111,8 +107,7 @@ def test_append_bible_with_exact_alignment_needs_no_allow_list(tmp_path):
     db = build(tmp_path)
     source = tmp_path / "matching.imp"
     source.write_text(
-        "$$$Psalms 23:1\nThe LORD is my shepherd.\n"
-        "$$$John 3:16\nFor God so loved the world.\n",
+        "$$$Psalms 23:1\nThe LORD is my shepherd.\n$$$John 3:16\nFor God so loved the world.\n",
         encoding="utf-8",
     )
     diag = append_bible(
@@ -138,9 +133,9 @@ def test_append_bible_with_exact_alignment_needs_no_allow_list(tmp_path):
 
 def test_unexpected_alignment_blocks_append_without_changing_database(tmp_path):
     db = build(tmp_path)
-    before = sqlite3.connect(db).execute(
-        "SELECT id,type,checksum FROM works ORDER BY id"
-    ).fetchall()
+    before = (
+        sqlite3.connect(db).execute("SELECT id,type,checksum FROM works ORDER BY id").fetchall()
+    )
     diag = append_bible(
         Path(__file__).parent / "fixtures" / "mini_kjv.imp",
         BibleSpec(
@@ -291,11 +286,14 @@ def test_append_strongs_writes_lexicon_and_works(tmp_path):
         ("strongshebrew", "lexicon", "Public Domain"),
     ]
     alpha = conn.execute(
-        "SELECT language,lemma,transliteration,pronunciation,definition_json "
+        "SELECT language,lemma,transliteration,pronunciation,definition_json,"
+        "lemma_search,transliteration_search,definition_search "
         "FROM strong_lexicon WHERE strong_id='G0001'"
     ).fetchone()
     assert alpha[:4] == ("grc", "ἄλφα", "a", "al'-fah")
     assert "G0427" in alpha[4]
+    assert alpha[5:7] == ("αλφα", "a")
+    assert "first letter of the alphabet" in alpha[7]
     ab = conn.execute(
         "SELECT language,lemma,transliteration FROM strong_lexicon WHERE strong_id='H0001'"
     ).fetchone()
@@ -314,8 +312,10 @@ def test_token_lexicon_join_on_normalized_ids(tmp_path):
     conn = sqlite3.connect(db)
     conn.execute(
         "INSERT INTO strong_lexicon"
-        "(strong_id,language,lemma,transliteration,pronunciation,definition_json) "
-        "VALUES('H7225','hbo','re-shiyth',NULL,'ray-sheeth','{\"text\": \"beginning\"}')"
+        "(strong_id,language,lemma,transliteration,pronunciation,definition_json,"
+        "lemma_search,transliteration_search,definition_search) "
+        "VALUES('H7225','hbo','re-shiyth',NULL,'ray-sheeth',"
+        "'{\"text\": \"beginning\"}','re-shiyth',NULL,'beginning')"
     )
     joined = conn.execute(
         "SELECT t.surface,l.lemma FROM verse_tokens t JOIN strong_lexicon l "

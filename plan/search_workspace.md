@@ -1,10 +1,10 @@
 # M7 Search Workspace and M8 Strong's Search
 
-Status: **M7.1–M7.5, M8.1–M8.3 delivered; M8.4 proposed**
+Status: **M7.1–M7.5 and M8.1–M8.4 delivered**
 Last reviewed: 2026-07-28
 
-This document records the delivered unified search foundation/workspace and proposes its remaining
-filtering, history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
+This document records the delivered unified search foundation/workspace and its filtering,
+history/refinement, and Strong's extensions. M7.1/M7.2 expose commentary, dictionary, and
 General Book indexes, true totals, stable 50-result pagination, type tabs/counts, work/testament
 filters, and relevance/canonical ordering. M7.3 delivers the persistent docked/full-screen workspace.
 M7.4 adds granular book filters, a mobile filter sheet, filter/refinement chips, local recent/pinned
@@ -546,11 +546,92 @@ Constraints this must not break — all are shipped behaviour with tests:
 
 Strong's results are gated on lexical works being present, per §4 — the tab stays hidden otherwise.
 
+#### M8.4 search contract
+
+The confirmed Search Workspace interaction is:
+
+- A dedicated **Strong's** tab is available only when at least one lexicon and one annotated Bible
+  work are installed. The tab's primary lexical field accepts a normalized or unpadded Strong's
+  number, Hebrew/Greek lemma, transliteration, or English definition terms.
+- Lexical-only searches return lexicon-entry cards with the Strong's number, lemma,
+  transliteration, short definition, annotated-Bible occurrence count, and verse count. Exact ids
+  rank first, then exact/prefix lemma and transliteration matches, then definition matches.
+- An optional **Bible text** field combines a lexical constraint with the complete Bible FTS corpus,
+  e.g. lexical `G1093` plus Bible text `earth`. Supplying Bible text or morphology switches the
+  Strong's group to occurrence cards.
+- Morphology is an Advanced filter with an explicit `strongMorph` (OT) or `robinson` (NT) scheme and
+  an exact code. A code without a scheme is rejected rather than searched ambiguously.
+- Lemma/transliteration matching is case- and diacritic-insensitive. Strong's ids use the canonical
+  normalization from §10.2. Definition terms use AND semantics and stay safely parameterized.
+- General **All** searches include matching Strong's lexicon entries alongside the other content
+  groups. The Strong's-specific Bible-text and morphology controls apply only in Strong's mode.
+- Lexical-entry results default to relevance order. Occurrence results default to deterministic
+  canonical order; the existing relevance/canonical control remains available.
+- Strong's history records and deduplicates the lexical query, optional Bible text, morphology
+  scheme/code, testament/books/annotated works, sort, and selected group.
+
+The unified endpoint adds `types=strongs` and these bounded optional parameters:
+
+```http
+GET /api/v1/search
+    ?q=G1093
+    &types=strongs
+    &verse_text=earth
+    &morph_scheme=robinson
+    &morph=N-NSF
+    &canon=nt
+    &books=Matt,John
+    &works=kjv
+    &sort=canonical
+    &limit=50
+    &offset=0
+```
+
+`verse_text` and morphology affect only `StrongsSearchProvider`. With neither present, its hits are
+`strongs_entry`; with either present, they are `strongs_occurrence`. Occurrence hits group by
+annotated work + Strong's id + verse. A repeated id in one verse produces one row carrying both the
+occurrence count and every matching surface form, so pagination is stable and the UI can show `×N`.
+
+M8.4 adds diacritic-folded search columns to `strong_lexicon` and bumps `SCHEMA_VERSION` to 3. These
+columns are populated offline from the already parsed lemma, transliteration, and plain definition;
+the runtime remains read-only and never parses source markup. The corpus is small enough for bounded
+structured `LIKE` matching, so lexical data is not duplicated into the general Bible FTS index.
+
+#### Lexicon-entry concordance
+
+The full Strong's entry in the Dictionary pane must also expose **every place where that identifier
+occurs in an annotated Bible work**. This is part of M8.4, not a separate future concordance feature.
+
+- Show the occurrence count and verse count; never silently cap the list.
+- Fetch occurrences through the same `StrongsSearchProvider` used by the Search Workspace, exposed
+  as `GET /api/v1/lexicon/{strong_id}/occurrences`, rather than maintaining a second lookup
+  implementation.
+- Present the first 50 verse rows inline in deterministic canonical order with **Load 50 more**.
+  Testament and book controls filter the list. The annotated-work selector stays hidden while only
+  KJV is installed, but the endpoint accepts `works=` for future annotated translations.
+- Each result identifies the annotated Bible work, canonical reference, translated surface form,
+  occurrence count, and a safely rendered verse excerpt. Repeated occurrences in one verse render as
+  one row with an `×N` indicator.
+- Selecting an occurrence opens or reuses the annotated Bible pane at the exact verse, enables the
+  Strong's affordance, and briefly highlights every span carrying the selected id. It does not open
+  another popover because the full Dictionary entry remains visible on desktop. Mobile uses the
+  existing **Back to results** restoration behaviour.
+- A lexicon entry with no tagged Bible occurrence remains readable and shows a clear zero-occurrence
+  state. Valid KJV identifiers missing from the installed lexicon can still appear as occurrence
+  search results with their surface form and morphology.
+
+`GET /api/v1/lexicon/sources` exposes annotated Bible work ids for availability gating and future
+source selection. The occurrence endpoint returns `total` verse rows, `occurrence_total`, pagination
+metadata, and the same `strongs_occurrence` hit shape as unified search. Normalization, filters,
+counts, pagination, and navigation have shared tests so an entry's count cannot disagree with the
+corresponding Strong's search.
+
 ### 10.7 Delivery notes
 
-- Adding `verse_tokens` and `strong_lexicon` bumps `SCHEMA_VERSION`. The deploy is the standard
-  ordered one: rebuild `content.sqlite` to a temporary path, atomically rename, restart the API, then
-  deploy the SPA. Restarting first returns `503 schema-outdated` on every `/api/v1` request.
+- M8.1 added `verse_tokens`/`strong_lexicon` as schema v2. M8.4's normalized lexicon-search columns
+  bump `SCHEMA_VERSION` to 3. The deploy is the standard ordered one: rebuild `content.sqlite` to a
+  temporary path, atomically rename, restart the API, then deploy the SPA. Restarting first returns
+  `503 schema-outdated` on every `/api/v1` request.
 - The KJV rebuild reparses an already-committed source, so the diff to verify is `verse_tokens` row
   counts per book, not new content. Gate the build on a token count for a known verse (Gen 1:1 has
   six spans and seven Strong's numbers) the way the Easton import gates on its entry count.
@@ -700,8 +781,11 @@ Shipped:
   behaviour works; copied selections contain only visible verse text; untagged spans render
   exactly as before.
 
-**M8.4 — search.** `StrongsSearchProvider`, Strong's search mode, lexical result cards, and combined
-text+lexical queries (§10.6).
+**M8.4 — search and concordance — delivered 2026-07-28.** `StrongsSearchProvider`, the gated
+Strong's search mode, lexical result cards, combined text+lexical/morphology queries, schema-v3
+diacritic-folded lexicon search columns, and a complete paged/filterable occurrence list from every
+full Strong's Dictionary entry (§10.6). Occurrence navigation keeps the Dictionary open, enables the
+reader's Strong's affordance, and highlights every matching span in the target verse.
 
 ## 12. Acceptance scenarios
 
@@ -719,6 +803,29 @@ M7 is complete when all of the following pass:
 9. Search history survives reload, deduplicates entries, restores filters, and can be cleared.
 10. Desktop result navigation leaves Search open; mobile Back to results restores position.
 11. All new controls pass keyboard and automated accessibility checks.
+
+M8.4 is complete when all of the following pass:
+
+1. A normalized or unpadded Strong's id and case/diacritic-insensitive lemma, transliteration, or
+   definition term find the expected lexical entries.
+2. An **All** search includes matching Strong's entries when annotated Bible and lexicon works are
+   installed; installations without both keep the Strong's mode hidden.
+3. Adding Bible text converts lexical cards to occurrence cards and applies the constraint to the
+   complete annotated corpus.
+4. Morphology search requires an explicit scheme and exact code; malformed or ambiguous requests
+   fail clearly.
+5. Work, testament, and book filters apply server-side, canonical/relevance ordering is stable, and
+   every occurrence page is reachable without duplicates or gaps.
+6. Every Strong's Dictionary entry shows total occurrence and verse counts and a first page of
+   occurrence rows; **Load more** reaches the complete concordance.
+7. Repeated uses of an id in one verse produce one row labelled `×N`, while totals retain both the
+   verse count and occurrence count.
+8. Opening an occurrence preserves the Dictionary pane, opens the annotated Bible source, enables
+   Strong's display, and highlights every matching word span without opening a popover.
+9. A valid id present in the annotated Bible but absent from the lexicon still exposes its
+   concordance as a clean missing-entry state.
+10. Strong's history restores all lexical filters, EN/BG strings remain in parity, and unit,
+    full-source, browser, and accessibility checks pass.
 
 ## 13. Effort and sequencing
 

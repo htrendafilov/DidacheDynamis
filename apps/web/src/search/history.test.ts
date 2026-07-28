@@ -13,6 +13,9 @@ import {
 const base: SearchState = {
   query: "earth",
   refine: "",
+  verseText: "",
+  morphScheme: "",
+  morph: "",
   sort: "relevance",
   canon: "",
   works: [],
@@ -66,5 +69,24 @@ describe("search history", () => {
     expect(entries).toHaveLength(2);
     expect(entries[0]).toMatchObject(scoped);
     expect(removeSearch(entries, entries[0].id)).toEqual([entries[1]]);
+  });
+
+  it("includes Strong's text and morphology in the effective search", () => {
+    const lexical: SearchState = {
+      ...base,
+      query: "G1093",
+      verseText: "earth",
+      morphScheme: "robinson",
+      morph: "N-NSF",
+      selected: "strongs",
+    };
+    const changed = { ...lexical, morph: "N-ASM" };
+    const entries = rememberSearch(
+      rememberSearch([], lexical, 10),
+      changed,
+      20,
+    );
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject(changed);
   });
 });

@@ -82,8 +82,9 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
   recent/pinned search history with complete scope restoration. ✅
 - **M7.5** — keyboard/focus behavior, screen-reader search announcements, mobile Back to results,
   EN/BG string parity, full provider/filter/pagination tests, and current search/privacy docs. ✅
-- **M8 planned** — licensed Strong's lexical data, word-level annotations, and structured
-  Strong-number/lemma search through the M7 search-provider architecture.
+- **M8.1–M8.4** — licensed Strong's lexical data, word-level reader lookup, Greek/Hebrew Dictionary
+  entries, structured lexical + combined Bible-text/morphology search, and complete per-entry KJV
+  concordances. ✅
 - **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference
   pop-ups (structured `ref` runs → hover/tap passage preview), and an embeddable `embed.js` widget for
   external sites (CORS-enabled read API). ✅ (fallback auto-linkifier deferred)

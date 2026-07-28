@@ -11,12 +11,15 @@ import {
   type GeneralBook,
   type Passage,
   type StrongEntry,
+  type StrongSource,
   type Work,
 } from "./api";
 
 const booksCache = new Map<string, Book[]>();
 let worksCache: Work[] | undefined;
 let worksRequest: Promise<Work[]> | null = null;
+let strongSourcesCache: StrongSource[] | undefined;
+let strongSourcesRequest: Promise<StrongSource[]> | null = null;
 
 function loadWorks(): Promise<Work[]> {
   if (worksCache !== undefined) return Promise.resolve(worksCache);
@@ -38,6 +41,39 @@ function loadWorks(): Promise<Work[]> {
 export function clearWorksCache(): void {
   worksCache = undefined;
   worksRequest = null;
+  strongSourcesCache = undefined;
+  strongSourcesRequest = null;
+}
+
+export function useStrongSources(): StrongSource[] | null {
+  const [sources, setSources] = useState<StrongSource[] | null>(
+    () => strongSourcesCache ?? null,
+  );
+  useEffect(() => {
+    if (strongSourcesCache !== undefined) {
+      setSources(strongSourcesCache);
+      return;
+    }
+    if (strongSourcesRequest === null) {
+      strongSourcesRequest = api
+        .lexiconSources()
+        .then((loaded) => {
+          strongSourcesCache = loaded;
+          return loaded;
+        })
+        .finally(() => {
+          strongSourcesRequest = null;
+        });
+    }
+    let alive = true;
+    strongSourcesRequest
+      .then((loaded) => alive && setSources(loaded))
+      .catch(() => alive && setSources([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return sources;
 }
 
 export function useWorks(): Work[] | null {
@@ -82,20 +118,49 @@ export function useBooks(workId: string): Book[] | null {
 }
 
 export interface PassageState {
+  workId: string;
+  osis: string;
+  chapter: number;
   loading: boolean;
   error: boolean;
   data: Passage | null;
 }
 
 export function usePassage(workId: string, osis: string, chapter: number): PassageState {
-  const [state, setState] = useState<PassageState>({ loading: true, error: false, data: null });
+  const [state, setState] = useState<PassageState>({
+    workId,
+    osis,
+    chapter,
+    loading: true,
+    error: false,
+    data: null,
+  });
   useEffect(() => {
     let alive = true;
-    setState({ loading: true, error: false, data: null });
+    const request = { workId, osis, chapter };
+    setState({ ...request, loading: true, error: false, data: null });
     api
       .passage(workId, osis, chapter)
-      .then((data) => alive && setState({ loading: false, error: false, data }))
-      .catch(() => alive && setState({ loading: false, error: true, data: null }));
+      .then(
+        (data) =>
+          alive &&
+          setState({
+            ...request,
+            loading: false,
+            error: false,
+            data,
+          }),
+      )
+      .catch(
+        () =>
+          alive &&
+          setState({
+            ...request,
+            loading: false,
+            error: true,
+            data: null,
+          }),
+      );
     return () => {
       alive = false;
     };
