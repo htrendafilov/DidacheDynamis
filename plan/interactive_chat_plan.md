@@ -170,14 +170,15 @@ Use raw `fetch` and hand-parse SSE. Do **not** add an SDK: the OpenAI/Anthropic 
 |---|---|---|---|---|---|
 | **OpenRouter** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <key>` | optional `HTTP-Referer`, `X-Title` (attribution) | ✅ Works today; browser BYOK is a documented use case | **Ship in M9.2** |
 | **Anthropic** | `https://api.anthropic.com/v1` | `Authorization: Bearer <key>` | `anthropic-dangerous-direct-browser-access: true` | ✅ Officially supported since Aug 2024 | **Ship in M9.2** |
-| **Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer <key>` | none — keep the header set minimal | ⚠️ Undocumented. Community reports it works from a browser **only** when SDK `x-stainless-*` headers are omitted; there is no official Google statement | **Gated on the M9.0 spike** |
-| **OpenAI direct** | `https://api.openai.com/v1` | — | — | ❌ `api.openai.com` returns no `Access-Control-Allow-Origin`. A browser cannot call it, with any key | **Out of scope — reach OpenAI models via OpenRouter instead** |
+| **Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer <key>` | none — keep the header set minimal | ✅ Verified working with raw `fetch`. Undocumented by Google, so keep the registry row easy to drop | **Ship in M9.2** |
+| **OpenAI direct** | `https://api.openai.com/v1` | — | — | ❌ The **preflight** succeeds and echoes the origin, but the actual `POST /chat/completions` response carries no `Access-Control-Allow-Origin`, so the browser blocks it | **Out of scope — reach OpenAI models via OpenRouter instead** |
 
-Notes on the two subtleties:
+Notes on the subtleties, all confirmed in [`chat/m9.0-findings.md`](chat/m9.0-findings.md):
 
 - The Anthropic header is named "dangerous" because it enables the anti-pattern of a *developer* shipping *their* key in client code. That is not what this is: the user supplies their own key, in their own browser, for their own account. Say so in the settings UI so the header name does not alarm anyone reading the network tab.
-- Anthropic's OpenAI-compatibility layer covers `/chat/completions`. Whether `GET /v1/models` works through the same layer with `Authorization: Bearer` (rather than native `x-api-key` + `anthropic-version`) is **unverified — check in M9.0**. If it does not, ship a small static model list for Anthropic and label it as such.
+- Anthropic's `GET /v1/models` **does** work through the OpenAI-compatibility layer with `Authorization: Bearer`. No static model list is needed.
 - OpenRouter's `GET /api/v1/models` needs no auth, so the model picker can populate before the user connects. Use that for the first-run experience.
+- **OpenAI's CORS support is endpoint-inconsistent**, which makes it a trap: `GET /v1/models` is browser-readable and the completions preflight returns 200 with the origin echoed, so a curl-only test reports success. Only the actual POST response reveals the missing header. Re-test with a real browser, not curl, if this is ever revisited.
 
 ### 5.3 Privacy routing
 
@@ -194,10 +195,12 @@ Only OpenRouter exposes routing-level privacy controls. Request them by default:
 
 ### 5.4 Free-tier reality (OpenRouter)
 
-- `openrouter/free` is a real router (launched Feb 2026) that picks a free model at random, filtered by the capabilities the request needs.
-- Free-tier limits are roughly **20 requests/minute and 50 requests/day** without account credit (higher with credit). Verify current numbers at M9.0.
-- Requesting tool-calling **shrinks the free pool**. This is a direct reason M9.4 uses deterministic query expansion rather than tool calls (§10).
-- Free endpoints are the ones most likely to train on inputs, which collides head-on with §5.3. See the M9.0 privacy branch.
+Measured 2026-07-29 ([`chat/m9.0-findings.md`](chat/m9.0-findings.md) §4):
+
+- `openrouter/free` is a real router that picks a free model at random, filtered by the capabilities the request needs. 200k context, zero-priced.
+- Free-tier limits: **20 requests/minute**, **50 requests/day** without credit, **1,000/day** once $10 in credits has ever been purchased.
+- Tool support is **not** a meaningful constraint on the free pool: 14 of the 15 free entries advertise `tools`, including `openrouter/free` itself. Do not use this as an argument for anything.
+- Free endpoints are the ones most likely to train on inputs, which collides head-on with §5.3. See the M9.0 privacy branch — this remains unresolved and needs a key.
 
 ### 5.5 Deferred
 
@@ -402,7 +405,7 @@ Open-ended questions ("What does the Bible say about resurrection?") need retrie
 3. Hits become normal `StudySource` records under the §8.3 budget.
 4. A second call produces the grounded answer.
 
-Why not tool calls: it works on models that lack tool support (which includes much of the OpenRouter free pool — §5.4), it is deterministic and testable, it caps network access structurally rather than by policy, and it costs ~2 days instead of ~4.5.
+Why not tool calls: it is deterministic and testable, it caps network access structurally rather than by policy, and it costs ~2 days instead of ~4.5. (An earlier draft also argued that free models lack tool support; M9.0 measured that and it is false — 14 of 15 free models advertise `tools`. The remaining reasons stand on their own.)
 
 The final answer must identify expansion as **query expansion over English content**, not as a Bulgarian Bible search. The expanded terms are shown to the user.
 
@@ -686,8 +689,8 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 | Prompt injection in imported prose | Sources marked as untrusted data; no model-driven tools before M9.6; safe renderer; adversarial tests from M9.3 |
 | Browser credential theft through XSS | Session-only storage, dedicated spend-limited keys, strict CSP, no raw HTML, no third-party scripts or SDKs |
 | Provider sees personal or licensed text | Pre-send context display, note opt-in, importer-owned licence gate |
-| Gemini CORS turns out to be unusable | Gated on M9.0; ship OpenRouter + Anthropic and drop the row. Gemini models remain reachable through OpenRouter |
-| OpenAI models wanted | Reached through OpenRouter. `api.openai.com` sends no CORS headers; no browser can call it, and adding a proxy is a separate ADR |
+| Gemini's undocumented browser CORS is withdrawn | Verified working at M9.0 but never documented by Google. Keep the registry row trivially removable; Gemini models stay reachable through OpenRouter |
+| OpenAI models wanted | Reached through OpenRouter. `api.openai.com` answers the preflight but omits the header on the actual completions response, so no browser can read it; adding a proxy is a separate ADR |
 | Free model disappears or is rate-limited | Live catalogue, actual-model label, clear retry/model-change UI, published rate limits; no uptime promise |
 | No model satisfies the ZDR default | Written decision at M9.0 (§15), not at build time. The constraint is not weakened to make a default available |
 | The user's own provider account logs prompts | Cannot be detected or overridden by the SPA. Disclosed in the privacy notice (§5.3) |
