@@ -33,14 +33,24 @@ export function StrongsPopover({
 }) {
   const { t } = useTranslation();
   const openDictionary = useStore((state) => state.openDictionary);
-  const [entries, setEntries] = useState<(StrongEntry | null)[] | null>(null);
+  const [results, setResults] = useState<
+    { entry: StrongEntry | null; error: boolean }[] | null
+  >(null);
   const popoverRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     let alive = true;
-    setEntries(null);
-    void Promise.all(lemmas.map((lemma) => strongEntry(lemma.id))).then((results) => {
-      if (alive) setEntries(results);
+    setResults(null);
+    void Promise.all(
+      lemmas.map(async (lemma) => {
+        try {
+          return { entry: await strongEntry(lemma.id), error: false };
+        } catch {
+          return { entry: null, error: true };
+        }
+      }),
+    ).then((loaded) => {
+      if (alive) setResults(loaded);
     });
     return () => {
       alive = false;
@@ -102,7 +112,7 @@ export function StrongsPopover({
       window.visualViewport?.removeEventListener("scroll", schedule);
       observer?.disconnect();
     };
-  }, [anchor, entries]);
+  }, [anchor, results]);
 
   const title = lemmas.map((lemma) => lemma.id).join(", ");
   return (
@@ -113,27 +123,29 @@ export function StrongsPopover({
       className="strongs-popover"
       style={{ visibility: "hidden" }}
     >
-      {entries === null && <span className="muted">{t("reader.loading")}</span>}
-      {entries?.map((entry, index) => {
+      {results === null && <span className="muted">{t("reader.loading")}</span>}
+      {results?.map((result, index) => {
         const lemma = lemmas[index];
+        const { entry, error } = result;
         return (
           <span className="strongs-entry" key={`${lemma.id}-${index}`}>
             <span className="strongs-id">{lemma.id}</span>
-            {!entry && <span className="muted">{t("strongs.noEntry")}</span>}
+            {error && <span className="muted">{t("strongs.error")}</span>}
+            {!error && !entry && <span className="muted">{t("strongs.noEntry")}</span>}
+            {lemma.m && (
+              <span className="strongs-morph muted">
+                {lemma.s
+                  ? t("strongs.morphology", { scheme: lemma.s })
+                  : t("strongs.morphologyPlain")}
+                : {lemma.m}
+              </span>
+            )}
             {entry && (
               <>
                 <span className="strongs-lemma">{entry.lemma}</span>
                 {(entry.transliteration || entry.pronunciation) && (
                   <span className="strongs-forms muted">
                     {[entry.transliteration, entry.pronunciation].filter(Boolean).join(" · ")}
-                  </span>
-                )}
-                {lemma.m && (
-                  <span className="strongs-morph muted">
-                    {lemma.s
-                      ? t("strongs.morphology", { scheme: lemma.s })
-                      : t("strongs.morphologyPlain")}
-                    : {lemma.m}
                   </span>
                 )}
                 <span className="strongs-definition">{shortDefinition(entry.definition)}</span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  ApiError,
   api,
   type Book,
   type CommentaryPassage,
@@ -183,7 +184,13 @@ const strongEntryCache = new Map<string, Promise<StrongEntry | null>>();
 export function strongEntry(strongId: string): Promise<StrongEntry | null> {
   let cached = strongEntryCache.get(strongId);
   if (!cached) {
-    cached = api.lexiconEntry(strongId).catch(() => null);
+    cached = api.lexiconEntry(strongId).catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 404) return null;
+      // A transient/network/server failure must be retryable, not poisoned into a
+      // session-long "missing entry" cache result.
+      strongEntryCache.delete(strongId);
+      throw error;
+    });
     strongEntryCache.set(strongId, cached);
   }
   return cached;
@@ -208,16 +215,19 @@ export function useStrongEntry(strongId: string | null) {
     }
     let alive = true;
     setState({ loading: true, notFound: false, error: false, data: null });
-    api
-      .lexiconEntry(strongId)
+    strongEntry(strongId)
       .then((data) => {
-        if (alive) setState({ loading: false, notFound: false, error: false, data });
-      })
-      .catch((err: unknown) => {
         if (!alive) return;
-        // A 404 (valid id, module key hole) is a clean miss, not a failure.
-        const notFound = err instanceof Error && err.message.startsWith("404");
-        setState({ loading: false, notFound, error: !notFound, data: null });
+        setState({
+          loading: false,
+          notFound: data === null,
+          error: false,
+          data,
+        });
+      })
+      .catch(() => {
+        if (!alive) return;
+        setState({ loading: false, notFound: false, error: true, data: null });
       });
     return () => {
       alive = false;

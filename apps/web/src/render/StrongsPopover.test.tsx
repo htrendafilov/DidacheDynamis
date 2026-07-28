@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "../i18n";
-import { api, type StrongEntry, type Verse } from "../data/api";
+import { ApiError, api, type StrongEntry, type Verse } from "../data/api";
 import { clearStrongEntryCache } from "../data/hooks";
 import { useStore } from "../state/store";
 import { CIRRenderer } from "./CIRRenderer";
@@ -43,6 +43,11 @@ const verse: Verse[] = [
           {
             t: "created",
             lemma: [{ id: "H0853" }, { id: "H1254", s: "strongMorph", m: "TH8804" }],
+          },
+          { t: " " },
+          {
+            t: "these",
+            lemma: [{ id: "G3778", s: "robinson", m: "D-NPN" }],
           },
         ],
       },
@@ -95,7 +100,9 @@ describe("StrongsPopover", () => {
 
   it("shows every id of a multi-id word with occurrence morphology", async () => {
     vi.spyOn(api, "lexiconEntry").mockImplementation((id: string) =>
-      id === "H1254" ? Promise.resolve(h1254) : Promise.reject(new Error("404 not found")),
+      id === "H1254"
+        ? Promise.resolve(h1254)
+        : Promise.reject(new ApiError(404, "Not Found", `/lexicon/${id}`)),
     );
     renderReader();
     fireEvent.mouseOver(screen.getByRole("button", { name: "created" }));
@@ -105,6 +112,36 @@ describe("StrongsPopover", () => {
     expect(popover).toHaveTextContent("No lexicon entry for this identifier.");
     expect(popover).toHaveTextContent("bara'");
     expect(popover).toHaveTextContent("Morphology (strongMorph): TH8804");
+  });
+
+  it("keeps occurrence morphology visible when the lexicon entry is missing", async () => {
+    vi.spyOn(api, "lexiconEntry").mockRejectedValue(
+      new ApiError(404, "Not Found", "/lexicon/G3778"),
+    );
+    renderReader();
+    fireEvent.mouseOver(screen.getByRole("button", { name: "these" }));
+
+    const popover = await screen.findByRole("group", { name: "G3778" });
+    await screen.findByText("No lexicon entry for this identifier.");
+    expect(popover).toHaveTextContent("Morphology (robinson): D-NPN");
+  });
+
+  it("shows transient failures as errors and retries instead of caching a miss", async () => {
+    const lookup = vi
+      .spyOn(api, "lexiconEntry")
+      .mockRejectedValueOnce(new ApiError(503, "Service Unavailable", "/lexicon/G2316"))
+      .mockResolvedValue(g2316);
+    const { container } = renderReader();
+    const word = screen.getByRole("button", { name: "God" });
+
+    fireEvent.mouseOver(word);
+    await screen.findByText("Could not load this lexicon entry.");
+    expect(screen.queryByText("No lexicon entry for this identifier.")).not.toBeInTheDocument();
+
+    fireEvent.click(container.querySelector(".line > span")!);
+    fireEvent.mouseOver(word);
+    await screen.findByText("a deity; God.");
+    expect(lookup).toHaveBeenCalledTimes(2);
   });
 
   it("stays open when a tapped word fires mouseover before click (touch path)", async () => {

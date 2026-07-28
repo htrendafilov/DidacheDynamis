@@ -146,6 +146,8 @@
   "workInfo.language": "Language",
   "workInfo.language.en": "English",
   "workInfo.language.bg": "Bulgarian",
+  "workInfo.language.grc": "Ancient Greek",
+  "workInfo.language.hbo": "Ancient Hebrew",
   "workInfo.abbreviation": "Abbreviation",
   "workInfo.versification": "Versification",
   "workInfo.edition": "Edition",

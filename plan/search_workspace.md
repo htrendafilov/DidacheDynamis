@@ -686,17 +686,19 @@ Shipped:
   `wordsOfChrist`, shown only when a lexicon work is installed; EN/BG strings with a parity test.
 - Tagged runs render as plain button elements carrying a `data-strongs` index; one delegated
   handler set on the chapter container feeds one shared popover (no per-word components), so a
-  Psalm-119-scale chapter (~850 tagged spans) stays within budget — covered by a scale test.
+  Psalm-119-scale chapter (~850 tagged spans) stays within the test-environment render budget.
 - The popover reuses the scripture pop-up shape (dotted-underline affordance, boundary-fitted
   fixed card): normalized id, lemma, transliteration/pronunciation, occurrence morphology
   labelled with its scheme, short definition, and an "Open in Dictionary pane" hand-off.
   Valid ids with no entry (module key holes) show a clean miss, never an error.
 - Dictionary-pane hand-off: lexicon works get an id input (client-side normalization), a full
   entry view (lemma, transliteration, pronunciation, definition, see-also links that navigate
-  in-pane), and the work attribution footer; Easton behaviour is unchanged.
+  in-pane and switch Greek/Hebrew attribution as needed), and the work attribution footer;
+  input lookup is debounced and Easton behaviour is unchanged.
 - Exit verified by tests: toggle off renders byte-identical DOM; both layouts keep `data-verse`
   anchors; words-of-Christ composes with the Strong's affordance on the same run; Escape/focus
-  behaviour works; untagged spans render exactly as before.
+  behaviour works; copied selections contain only visible verse text; untagged spans render
+  exactly as before.
 
 **M8.4 — search.** `StrongsSearchProvider`, Strong's search mode, lexical result cards, and combined
 text+lexical queries (§10.6).

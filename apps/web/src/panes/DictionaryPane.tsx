@@ -9,7 +9,7 @@ import {
   useStrongEntry,
   useWorks,
 } from "../data/hooks";
-import { normalizeStrongId } from "../data/strongs";
+import { normalizeStrongId, strongLexiconWorkId } from "../data/strongs";
 import type { StrongEntry, Work } from "../data/api";
 import { DocumentRenderer } from "../render/DocumentRenderer";
 import { useStore, type Pane } from "../state/store";
@@ -17,6 +17,8 @@ import { useStore, type Pane } from "../state/store";
 // The Dictionary pane is the app's one reference-lookup surface: Easton headwords for
 // type="dictionary" works, Strong's entries for type="lexicon" works (M8.3 hand-off from
 // the reader popover and from see-also links inside an entry).
+const LEXICON_INPUT_DEBOUNCE_MS = 250;
+
 export function DictionaryPane({ pane }: { pane: Pane }) {
   const works = useWorks();
   const work = works?.find((item) => item.id === pane.workId);
@@ -43,12 +45,25 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
     setDraft(pane.headword ?? "");
   }, [pane.headword]);
 
-  const navigate = (value: string) => {
-    const normalized = normalizeStrongId(value);
-    if (normalized && normalized !== pane.headword) {
+  // Normalize only after the user pauses: typing g1722 should issue one lookup,
+  // not requests for G0001, G0017, and G0172 on the way there.
+  useEffect(() => {
+    const normalized = normalizeStrongId(draft);
+    if (!normalized) return;
+    const workId = strongLexiconWorkId(normalized);
+    if (normalized === pane.headword && workId === pane.workId) return;
+    const timer = window.setTimeout(() => {
       selfNav.current = true;
-      updatePane(pane.id, { headword: normalized });
-    }
+      updatePane(pane.id, { workId, headword: normalized });
+    }, LEXICON_INPUT_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [draft, pane.headword, pane.id, pane.workId, updatePane]);
+
+  const navigateToEntry = (strongId: string) => {
+    updatePane(pane.id, {
+      workId: strongLexiconWorkId(strongId),
+      headword: strongId,
+    });
   };
 
   return (
@@ -60,10 +75,7 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
           value={draft}
           aria-label={t("dictionary.search")}
           placeholder={t("strongs.idPlaceholder")}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            navigate(event.target.value);
-          }}
+          onChange={(event) => setDraft(event.target.value)}
         />
       </div>
       <div className="pane-body dictionary-entry">
@@ -74,7 +86,7 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
         {entry.data && (
           <StrongEntryView
             entry={entry.data}
-            onSee={(id) => updatePane(pane.id, { headword: id })}
+            onSee={navigateToEntry}
           />
         )}
       </div>

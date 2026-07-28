@@ -53,7 +53,14 @@ currently supported.
 - **Easton's Dictionary**: Open a Dictionary pane, filter the headword list, and select an entry.
   Bible citations inside an entry open the standard passage pop-up, and references to other
   headwords open that entry in the same pane.
-  Automatic lookup from highlighted Bible words is not implemented.
+  Automatic Easton's lookup from highlighted Bible words is not implemented.
+- **Strong's word lookup**: Select the KJV, open **Settings**, and turn **Strong's numbers** on.
+  Tagged words receive a dotted underline. Hover, focus, or tap a tagged word to see its normalized
+  Strong's number, original-language form when available, occurrence morphology, pronunciation, and
+  a short definition. Choose **Open in Dictionary pane** for the complete Greek or Hebrew lexicon
+  entry, attribution, and see-also links. Some identifiers are absent from the source lexicon; their
+  occurrence morphology remains available even when no definition exists. Strong's search is planned
+  for M8.4 and is not part of the general Search Workspace yet.
 
 ### Known limitation: repeated headwords
 

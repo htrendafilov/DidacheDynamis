@@ -184,6 +184,28 @@ describe("CIRRenderer", () => {
     }
   });
 
+  it("copies only visible verse text when Strong's controls are enabled", () => {
+    const { container } = render(
+      <CIRRenderer
+        verses={strongsVerse}
+        headings={[]}
+        layout="per-line"
+        wordsOfChrist="off"
+        strongsEnabled
+      />,
+    );
+    const verse = container.querySelector<HTMLElement>('[data-verse="1"]')!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(verse);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    expect(selection.toString()).toContain("In the beginning God created");
+    expect(selection.toString()).not.toMatch(/[GH]\d{4}/);
+    selection.removeAllRanges();
+  });
+
   it("renders a Psalm-119-scale chapter of plain elements with one delegated handler set", () => {
     // ~850 tagged spans: the long-chapter budget the plan calls out. Elements must stay
     // plain buttons; interaction lives on the container, so no per-word handlers exist.
@@ -202,6 +224,7 @@ describe("CIRRenderer", () => {
         },
       ],
     }));
+    const started = performance.now();
     const { container } = render(
       <CIRRenderer
         verses={big}
@@ -211,7 +234,11 @@ describe("CIRRenderer", () => {
         strongsEnabled
       />,
     );
+    const elapsed = performance.now() - started;
     expect(container.querySelectorAll(".strongs-word")).toHaveLength(880);
     expect(container.querySelector(".strongs-popover")).not.toBeInTheDocument();
+    // A generous test-environment budget catches accidental per-word component/data-fetch
+    // regressions without making ordinary CI variance flaky.
+    expect(elapsed).toBeLessThan(750);
   });
 });

@@ -11,7 +11,9 @@ describe("Strong's translations", () => {
           (key) =>
             key.startsWith("strongs.") ||
             key.startsWith("settings.strongs") ||
-            key === "workInfo.type.lexicon",
+            key === "workInfo.type.lexicon" ||
+            key === "workInfo.language.grc" ||
+            key === "workInfo.language.hbo",
         )
         .sort();
 
