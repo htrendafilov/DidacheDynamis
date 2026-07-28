@@ -9,6 +9,9 @@ export type SearchSelection = "all" | SearchKind;
 export interface SearchState {
   query: string;
   refine: string;
+  verseText: string;
+  morphScheme: "" | "strongMorph" | "robinson";
+  morph: string;
   sort: SearchSort;
   canon: "" | "ot" | "nt";
   works: string[];
@@ -53,12 +56,20 @@ function normalizeState(value: Partial<SearchState>): SearchState | null {
     value.selected === "bible" ||
     value.selected === "commentary" ||
     value.selected === "dictionary" ||
-    value.selected === "book"
+    value.selected === "book" ||
+    value.selected === "strongs"
       ? value.selected
       : "all";
+  const morphScheme =
+    value.morphScheme === "strongMorph" || value.morphScheme === "robinson"
+      ? value.morphScheme
+      : "";
   return {
     query,
     refine: normalizeText(value.refine),
+    verseText: normalizeText(value.verseText),
+    morphScheme,
+    morph: morphScheme ? normalizeText(value.morph).slice(0, 40) : "",
     sort,
     canon,
     works: stringList(value.works, 20),
@@ -94,6 +105,9 @@ function effectiveKey(state: SearchState): string {
   return JSON.stringify({
     query: state.query.toLocaleLowerCase(),
     refine: state.refine.toLocaleLowerCase(),
+    verseText: state.verseText.toLocaleLowerCase(),
+    morphScheme: state.morphScheme,
+    morph: state.morph.toLocaleUpperCase(),
     sort: state.sort,
     canon: state.canon,
     works: [...state.works].sort(),

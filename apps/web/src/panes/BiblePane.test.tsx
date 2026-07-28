@@ -13,7 +13,7 @@ vi.mock("../data/hooks", () => ({
     { osis: "Gen", name: "Genesis", order: 1, chapter_count: 50 },
     { osis: "John", name: "John", order: 43, chapter_count: 21 },
   ],
-  useWorks: () => [],
+  useWorks: () => [{ id: "strongsgreek", type: "lexicon" }],
   usePassage: () => passageState,
   useCrossReferences: () => null,
 }));
@@ -27,18 +27,35 @@ const pane: Pane = {
   focusVerse: 1,
 };
 
-const passage = (osis: string, chapter: number): PassageState => ({
+const passage = (
+  osis: string,
+  chapter: number,
+  workId = "web",
+  lemma = false,
+): PassageState => ({
   loading: false,
   error: false,
   data: {
-    work_id: "web",
+    work_id: workId,
     osis,
     chapter,
     headings: [],
     verses: [
       {
         verse: 1,
-        lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: `${osis} ${chapter}:1` }] }],
+        lines: [
+          {
+            kind: "p",
+            level: 1,
+            para_start: true,
+            runs: [
+              {
+                t: `${osis} ${chapter}:1`,
+                ...(lemma ? { lemma: [{ id: "G1722" }] } : {}),
+              },
+            ],
+          },
+        ],
       },
     ],
   },
@@ -62,5 +79,28 @@ describe("BiblePane search focus", () => {
 
     expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
     expect(container.querySelector('[data-verse="1"]')).toHaveClass("verse-flash");
+  });
+
+  it("enables Strong's and flashes the exact matching translated span", () => {
+    const lexicalPane: Pane = {
+      ...pane,
+      workId: "kjv",
+      focusStrong: "G1722",
+    };
+    passageState = passage("Gen", 1, "kjv", true);
+    useStore.setState({
+      panes: [lexicalPane],
+      settings: { ...useStore.getState().settings, strongs: "on" },
+    });
+
+    const { container } = render(<BiblePane pane={lexicalPane} />);
+
+    expect(useStore.getState().panes[0].focusStrong).toBeUndefined();
+    expect(container.querySelector('[data-strong-ids="G1722"]')).toHaveClass(
+      "strongs-flash",
+    );
+    expect(container.querySelector('[data-verse="1"]')).not.toHaveClass(
+      "verse-flash",
+    );
   });
 });

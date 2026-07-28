@@ -14,7 +14,7 @@ flowchart TD
     PanelGroup --> Host[panes/PaneHost.tsx]
     Host --> Bible[BiblePane]
     Host --> Commentary[CommentaryPane]
-    Host --> Dictionary[DictionaryPane]
+    Host --> Dictionary[DictionaryPane / StrongOccurrences]
     Host --> Book[BookPane]
     Host --> Notes[NotesPane, lazy]
     Notes --> Editor[RichTextEditor, lazy]
@@ -32,7 +32,9 @@ flowchart TD
   Search workspace and mobile Back-to-results state, Dropbox initialization, build-update notice,
   and validated hash deep links.
 - `src/panes/PaneHost.tsx`: routes each persisted pane record to its pane component; lazy-loads Notes.
-- `src/render/CIRRenderer.tsx`: Bible verse CIR, verse layouts, poetry, headings, and words of Christ.
+- `src/render/CIRRenderer.tsx`: Bible verse CIR, verse layouts, poetry, headings, words of Christ,
+  Strong's word controls, and machine-readable Strong's span identifiers used for occurrence
+  highlighting.
 - `src/render/DocumentRenderer.tsx`: shared study-document CIR for commentary, dictionary, and books.
 - `src/state/store.ts`: Zustand pane and reading settings state, persisted as `bible-app` in
   `localStorage`.
@@ -41,7 +43,11 @@ flowchart TD
 - `src/components/SearchDrawer.tsx`: persistent desktop drawer/full-screen mobile shell and
   pointer/keyboard resizing.
 - `src/components/SearchPanel.tsx`: grouped results, filters, refinement, accessible tabs, live
-  announcements, result navigation, and retained result focus.
+  announcements, result navigation, retained result focus, and structured Strong's
+  lexical/text/morphology search.
+- `src/panes/StrongOccurrences.tsx`: the paged, filterable concordance below each Strong's
+  Dictionary entry. Opening a row enables Strong's display and highlights every matching span in the
+  target verse without replacing the Dictionary pane.
 - `src/search/history.ts`: versioned recent/pinned search history in `localStorage`
   (`bible-search-v1`), independent of pane state and Dropbox note sync.
 - `src/i18n/en.json`, `src/i18n/bg.json`: interface strings; `src/i18n/bookNames.ts` localizes canonical
@@ -84,3 +90,8 @@ preserve loaded pages and scroll. Only recent/pinned history is persisted. Resul
 focus with Left/Right/Home/End keys; the resize separator supports pointer and keyboard operation;
 the mobile filter sheet traps and restores focus. A polite live region announces loading, total
 counts, appended pages, and failures, while failures are also visible alerts.
+
+The Strong's mode persists its lexical query, optional Bible text, exact morphology scheme/code, and
+ordinary source/canon/book filters in the same versioned history model. Lexical-only results open a
+Dictionary entry; combined text or morphology results open an annotated Bible verse. The latter
+enables the reader's Strong's affordance and briefly highlights all matching word spans.

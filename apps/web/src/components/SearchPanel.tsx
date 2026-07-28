@@ -8,7 +8,7 @@ import {
   type SearchKind,
   type SearchSort,
 } from "../data/api";
-import { useBooks, useWorks } from "../data/hooks";
+import { useBooks, useStrongSources, useWorks } from "../data/hooks";
 import { bookName } from "../i18n/bookNames";
 import {
   loadSearchHistory,
@@ -19,14 +19,21 @@ import {
   type SearchHistoryEntry,
   type SearchState,
 } from "../search/history";
-import { useStore } from "../state/store";
+import { useStore, type PaneSourceType } from "../state/store";
 
-const KIND_ORDER: SearchKind[] = ["bible", "commentary", "dictionary", "book"];
+const KIND_ORDER: SearchKind[] = [
+  "bible",
+  "commentary",
+  "dictionary",
+  "book",
+  "strongs",
+];
 const KIND_ICON: Record<SearchKind, string> = {
   bible: "📖",
   commentary: "💬",
   dictionary: "📔",
   book: "📚",
+  strongs: "🔤",
 };
 const PAGE = 50;
 
@@ -64,18 +71,23 @@ export function SearchPanel({
 }: {
   mode?: "docked" | "fullscreen";
   open?: boolean;
-  onNavigate?: (kind: SearchKind) => void;
+  onNavigate?: (kind: PaneSourceType) => void;
   onClose: () => void;
   restoreResultFocus?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const works = useWorks();
+  const strongSources = useStrongSources();
+  const hasStrongs =
+    Boolean(works?.some((work) => work.type === "lexicon")) &&
+    Boolean(strongSources?.length);
   const bookWorkId = works?.find((work) => work.type === "bible")?.id ?? "web";
   const books = useBooks(bookWorkId);
   const openPassage = useStore((s) => s.openPassage);
   const openCommentary = useStore((s) => s.openCommentary);
   const openDictionary = useStore((s) => s.openDictionary);
   const openBookSection = useStore((s) => s.openBookSection);
+  const openStrongsOccurrence = useStore((s) => s.openStrongsOccurrence);
   const inputRef = useRef<HTMLInputElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDialogRef = useRef<HTMLElement>(null);
@@ -83,6 +95,7 @@ export function SearchPanel({
   const lastResultButtonRef = useRef<HTMLButtonElement | null>(null);
   const tabRefs = useRef(new Map<Selected, HTMLButtonElement>());
   const requestId = useRef(0);
+  const sortTouched = useRef(false);
 
   // Focus the query field when the workspace opens (the input stays mounted across collapse, so a
   // one-time autoFocus is not enough). Returning from a mobile result instead restores focus to
@@ -98,6 +111,11 @@ export function SearchPanel({
 
   const [q, setQ] = useState("");
   const [refine, setRefine] = useState("");
+  const [verseText, setVerseText] = useState("");
+  const [morphScheme, setMorphScheme] = useState<
+    "" | "strongMorph" | "robinson"
+  >("");
+  const [morph, setMorph] = useState("");
   const [sort, setSort] = useState<SearchSort>("relevance");
   const [canon, setCanon] = useState<"" | "ot" | "nt">("");
   const [workFilter, setWorkFilter] = useState<Set<string>>(new Set());
@@ -177,6 +195,9 @@ export function SearchPanel({
     over: {
       sort?: SearchSort;
       refine?: string;
+      verseText?: string;
+      morphScheme?: "" | "strongMorph" | "robinson";
+      morph?: string;
       canon?: "" | "ot" | "nt";
       works?: Set<string>;
       books?: Set<string>;
@@ -189,6 +210,9 @@ export function SearchPanel({
     return {
       sort: over.sort ?? sort,
       refine: (over.refine ?? refine).trim() || undefined,
+      verseText: (over.verseText ?? verseText).trim() || undefined,
+      morphScheme: (over.morphScheme ?? morphScheme) || undefined,
+      morph: (over.morph ?? morph).trim() || undefined,
       canon: (over.canon ?? canon) || undefined,
       works: effWorks.size ? [...effWorks].join(",") : undefined,
       books: effBooks.size ? [...effBooks].join(",") : undefined,
@@ -209,8 +233,17 @@ export function SearchPanel({
     setError(false);
     setAnnouncement(t("search.loading"));
     try {
+      const requestOptions =
+        selection === "strongs"
+          ? o
+          : {
+              ...o,
+              verseText: undefined,
+              morphScheme: undefined,
+              morph: undefined,
+            };
       if (selection === "all") {
-        const res = await api.search(query, o);
+        const res = await api.search(query, requestOptions);
         if (currentRequest !== requestId.current) return false;
         const map: Partial<Record<SearchKind, GroupState>> = {};
         res.groups.forEach((g) => (map[g.type] = merge(g)));
@@ -219,7 +252,7 @@ export function SearchPanel({
         setAnnouncement(t("search.resultsLoaded", { total: res.total }));
       } else {
         const res = await api.search(query, {
-          ...o,
+          ...requestOptions,
           types: selection,
           offset: o.offset ?? 0,
         });
@@ -246,14 +279,23 @@ export function SearchPanel({
     e.preventDefault();
     const query = q.trim();
     if (!query) return;
-    setSelected("all");
+    const selection: Selected = selected === "strongs" ? "strongs" : "all";
+    setSelected(selection);
     setSearched(true);
     setTabsInitialized(false);
     setGroups({});
-    const opts = buildOpts();
-    if (await execute(query, "all", opts)) {
+    const occurrenceMode =
+      selection === "strongs" &&
+      Boolean(verseText.trim() || (morphScheme && morph.trim()));
+    const effectiveSort =
+      occurrenceMode && !sortTouched.current ? "canonical" : sort;
+    if (effectiveSort !== sort) setSort(effectiveSort);
+    const opts = buildOpts({ sort: effectiveSort });
+    if (await execute(query, selection, opts)) {
       setHistoryOpen(false);
-      remember(snapshot({ query, selected: "all" }));
+      remember(
+        snapshot({ query, selected: selection, sort: effectiveSort }),
+      );
     }
   }
 
@@ -270,6 +312,9 @@ export function SearchPanel({
     over: {
       query?: string;
       refine?: string;
+      verseText?: string;
+      morphScheme?: "" | "strongMorph" | "robinson";
+      morph?: string;
       sort?: SearchSort;
       canon?: "" | "ot" | "nt";
       works?: Set<string>;
@@ -280,6 +325,9 @@ export function SearchPanel({
     return {
       query: over.query ?? q,
       refine: over.refine ?? refine,
+      verseText: over.verseText ?? verseText,
+      morphScheme: over.morphScheme ?? morphScheme,
+      morph: over.morph ?? morph,
       sort: over.sort ?? sort,
       canon: over.canon ?? canon,
       works: [...(over.works ?? workFilter)],
@@ -335,6 +383,23 @@ export function SearchPanel({
     applyFilter(buildOpts({ refine: value }), snapshot({ refine: value }));
   }
 
+  function applyVerseText(value: string) {
+    setVerseText(value);
+    applyFilter(
+      buildOpts({ verseText: value }),
+      snapshot({ verseText: value }),
+    );
+  }
+
+  function clearMorphology() {
+    setMorphScheme("");
+    setMorph("");
+    applyFilter(
+      buildOpts({ morphScheme: "", morph: "" }),
+      snapshot({ morphScheme: "", morph: "" }),
+    );
+  }
+
   function runRefinement(event: React.FormEvent) {
     event.preventDefault();
     applyRefinement(refine.trim());
@@ -345,16 +410,30 @@ export function SearchPanel({
     const emptyBooks = new Set<string>();
     setCanon("");
     setRefine("");
+    setVerseText("");
+    setMorphScheme("");
+    setMorph("");
     setWorkFilter(emptyWorks);
     setBookFilter(emptyBooks);
     applyFilter(
       buildOpts({
         refine: "",
+        verseText: "",
+        morphScheme: "",
+        morph: "",
         canon: "",
         works: emptyWorks,
         books: emptyBooks,
       }),
-      snapshot({ refine: "", canon: "", works: emptyWorks, books: emptyBooks }),
+      snapshot({
+        refine: "",
+        verseText: "",
+        morphScheme: "",
+        morph: "",
+        canon: "",
+        works: emptyWorks,
+        books: emptyBooks,
+      }),
     );
   }
 
@@ -362,7 +441,11 @@ export function SearchPanel({
     requestId.current += 1;
     setQ("");
     setRefine("");
+    setVerseText("");
+    setMorphScheme("");
+    setMorph("");
     setSort("relevance");
+    sortTouched.current = false;
     setCanon("");
     setWorkFilter(new Set());
     setBookFilter(new Set());
@@ -384,7 +467,11 @@ export function SearchPanel({
     const restoredBooks = new Set(entry.books);
     setQ(entry.query);
     setRefine(entry.refine);
+    setVerseText(entry.verseText);
+    setMorphScheme(entry.morphScheme);
+    setMorph(entry.morph);
     setSort(entry.sort);
+    sortTouched.current = true;
     setCanon(entry.canon);
     setWorkFilter(works);
     setBookFilter(restoredBooks);
@@ -396,6 +483,9 @@ export function SearchPanel({
       entry.selected,
       buildOpts({
         refine: entry.refine,
+        verseText: entry.verseText,
+        morphScheme: entry.morphScheme,
+        morph: entry.morph,
         sort: entry.sort,
         canon: entry.canon,
         works,
@@ -462,20 +552,41 @@ export function SearchPanel({
       return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}${
         hit.verse_start ? `:${hit.verse_start}` : ""
       }`;
+    if (hit.kind === "strongs_occurrence")
+      return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}:${hit.verse}`;
     return hit.title;
   }
 
   function openHit(hit: SearchHit, button: HTMLButtonElement) {
     lastResultButtonRef.current = button;
-    if (hit.kind === "bible")
+    let destination: PaneSourceType;
+    if (hit.kind === "bible") {
       openPassage(hit.work_id, hit.osis, hit.chapter, hit.verse);
-    else if (hit.kind === "commentary")
+      destination = "bible";
+    } else if (hit.kind === "commentary") {
       openCommentary(hit.work_id, hit.osis, hit.chapter);
-    else if (hit.kind === "dictionary")
+      destination = "commentary";
+    } else if (hit.kind === "dictionary") {
       openDictionary(hit.work_id, hit.headword);
-    else openBookSection(hit.work_id, hit.section_id);
+      destination = "dictionary";
+    } else if (hit.kind === "book") {
+      openBookSection(hit.work_id, hit.section_id);
+      destination = "book";
+    } else if (hit.kind === "strongs_entry") {
+      openDictionary(hit.work_id, hit.strong_id);
+      destination = "dictionary";
+    } else {
+      openStrongsOccurrence(
+        hit.work_id,
+        hit.osis,
+        hit.chapter,
+        hit.verse,
+        hit.strong_id,
+      );
+      destination = "bible";
+    }
     // Zustand actions are synchronous, so the destination pane exists before the shell selects it.
-    onNavigate?.(hit.kind);
+    onNavigate?.(destination);
     // Docked (desktop) stays open so several results can be read; full-screen (mobile) closes to
     // reveal the pane the result opened in.
     if (mode === "fullscreen") onClose();
@@ -488,7 +599,13 @@ export function SearchPanel({
       <ul className="search-results">
         {hits.map((hit) => (
           <li
-            key={`${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`}
+            key={
+              hit.kind === "strongs_entry"
+                ? `strongs-entry-${hit.strong_id}`
+                : hit.kind === "strongs_occurrence"
+                  ? `strongs-occurrence-${hit.work_id}-${hit.strong_id}-${hit.ref}`
+                  : `${kind}-${hit.work_id}-${label(hit)}-${hit.snippet.slice(0, 12)}`
+            }
           >
             <button
               type="button"
@@ -501,6 +618,27 @@ export function SearchPanel({
                 {works?.find((w) => w.id === hit.work_id)?.abbrev ??
                   hit.work_id.toUpperCase()}
               </span>{" "}
+              {hit.kind === "strongs_entry" && (
+                <span className="strongs-result-count">
+                  {t("strongs.occurrenceSummary", {
+                    occurrences: hit.occurrence_count,
+                    verses: hit.verse_count,
+                  })}
+                </span>
+              )}
+              {hit.kind === "strongs_occurrence" && (
+                <>
+                  <span className="strongs-result-id">{hit.strong_id}</span>
+                  {hit.occurrence_count > 1 && (
+                    <span className="strongs-occurrence-multiple">
+                      ×{hit.occurrence_count}
+                    </span>
+                  )}
+                  <span className="strongs-occurrence-surfaces">
+                    {hit.surfaces.filter(Boolean).join(" · ") || hit.strong_id}
+                  </span>
+                </>
+              )}
               <span className="result-snippet">
                 <Snippet html={hit.snippet} />
               </span>
@@ -518,6 +656,15 @@ export function SearchPanel({
     searched &&
     tabsInitialized &&
     (selected === "all" || visibleKinds.length > 0);
+  const annotatedWorkIds = new Set(
+    strongSources?.map((source) => source.work_id) ?? [],
+  );
+  const selectableWorks =
+    works?.filter((work) =>
+      selected === "strongs"
+        ? annotatedWorkIds.has(work.id)
+        : ["bible", "commentary", "dictionary", "book"].includes(work.type),
+    ) ?? [];
   const selectedWorks = works?.filter((work) => workFilter.has(work.id)) ?? [];
   const selectedBooks =
     books
@@ -535,6 +682,8 @@ export function SearchPanel({
     ) ?? [];
   const activeFilterCount =
     (refine.trim() ? 1 : 0) +
+    (selected === "strongs" && verseText.trim() ? 1 : 0) +
+    (selected === "strongs" && morphScheme && morph.trim() ? 1 : 0) +
     (canon ? 1 : 0) +
     workFilter.size +
     bookFilter.size;
@@ -590,6 +739,12 @@ export function SearchPanel({
       ),
     ];
     if (entry.selected !== "all") details.push(t(`source.${entry.selected}`));
+    if (entry.verseText) {
+      details.push(t("strongs.bibleTextWith", { query: entry.verseText }));
+    }
+    if (entry.morphScheme && entry.morph) {
+      details.push(`${entry.morphScheme}:${entry.morph}`);
+    }
     if (entry.canon) {
       details.push(t(entry.canon === "ot" ? "search.testOt" : "search.testNt"));
     }
@@ -706,6 +861,7 @@ export function SearchPanel({
                 className={sort === value ? "active" : ""}
                 aria-pressed={sort === value}
                 onClick={() => {
+                  sortTouched.current = true;
                   setSort(value);
                   applyFilter(
                     buildOpts({ sort: value }),
@@ -723,18 +879,14 @@ export function SearchPanel({
           </div>
         </div>
 
-        {works && works.length > 0 && (
+        {selectableWorks.length > 1 && (
           <details className="search-works">
             <summary>
               {t("search.sources")}
               {workFilter.size > 0 ? ` (${workFilter.size})` : ""}
             </summary>
             <div className="search-works-list">
-              {works
-                .filter((work) =>
-                  KIND_ORDER.some((kind) => kind === work.type),
-                )
-                .map((work) => (
+              {selectableWorks.map((work) => (
                   <label key={work.id}>
                     <input
                       type="checkbox"
@@ -825,13 +977,41 @@ export function SearchPanel({
             ✕
           </button>
         </div>
+        {hasStrongs && !searched && (
+          <div
+            className="search-mode"
+            role="group"
+            aria-label={t("search.mode")}
+          >
+            <button
+              type="button"
+              className={selected === "all" ? "active" : ""}
+              aria-pressed={selected === "all"}
+              onClick={() => setSelected("all")}
+            >
+              {t("search.all")}
+            </button>
+            <button
+              type="button"
+              className={selected === "strongs" ? "active" : ""}
+              aria-pressed={selected === "strongs"}
+              onClick={() => setSelected("strongs")}
+            >
+              {t("source.strongs")}
+            </button>
+          </div>
+        )}
         <form onSubmit={run} className="search-form">
           <input
             ref={inputRef}
             type="search"
             value={q}
             aria-label={t("search.query")}
-            placeholder={t("search.placeholder")}
+            placeholder={t(
+              selected === "strongs"
+                ? "strongs.searchPlaceholder"
+                : "search.placeholder",
+            )}
             onChange={(e) => setQ(e.target.value)}
           />
           <button type="submit">{t("topbar.search")}</button>
@@ -854,6 +1034,54 @@ export function SearchPanel({
           >
             <span aria-hidden>◷</span>
           </button>
+          {selected === "strongs" && (
+            <div className="strongs-search-fields">
+              <label>
+                <span>{t("strongs.bibleText")}</span>
+                <input
+                  type="search"
+                  value={verseText}
+                  placeholder={t("strongs.bibleTextPlaceholder")}
+                  onChange={(event) => setVerseText(event.target.value)}
+                />
+              </label>
+              <details>
+                <summary>{t("strongs.advanced")}</summary>
+                <div className="strongs-morph-fields">
+                  <label>
+                    <span>{t("strongs.morphScheme")}</span>
+                    <select
+                      value={morphScheme}
+                      required={Boolean(morph)}
+                      onChange={(event) =>
+                        setMorphScheme(
+                          event.target.value as
+                            | ""
+                            | "strongMorph"
+                            | "robinson",
+                        )
+                      }
+                    >
+                      <option value="">{t("strongs.anyMorphology")}</option>
+                      <option value="strongMorph">strongMorph</option>
+                      <option value="robinson">robinson</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("strongs.morphCode")}</span>
+                    <input
+                      value={morph}
+                      maxLength={40}
+                      pattern="[A-Za-z0-9-]+"
+                      required={Boolean(morphScheme)}
+                      placeholder={t("strongs.morphPlaceholder")}
+                      onChange={(event) => setMorph(event.target.value)}
+                    />
+                  </label>
+                </div>
+              </details>
+            </div>
+          )}
         </form>
 
         {historyVisible && (
@@ -931,6 +1159,31 @@ export function SearchPanel({
               >
                 {t("search.refineWith", { query: refine.trim() })}{" "}
                 <span aria-hidden>×</span>
+              </button>
+            )}
+            {selected === "strongs" && verseText.trim() && (
+              <button
+                type="button"
+                onClick={() => applyVerseText("")}
+                aria-label={t("search.removeFilter", {
+                  filter: t("strongs.bibleTextWith", {
+                    query: verseText.trim(),
+                  }),
+                })}
+              >
+                {t("strongs.bibleTextWith", { query: verseText.trim() })}{" "}
+                <span aria-hidden>×</span>
+              </button>
+            )}
+            {selected === "strongs" && morphScheme && morph.trim() && (
+              <button
+                type="button"
+                onClick={clearMorphology}
+                aria-label={t("search.removeFilter", {
+                  filter: `${morphScheme}:${morph.trim()}`,
+                })}
+              >
+                {morphScheme}:{morph.trim()} <span aria-hidden>×</span>
               </button>
             )}
             {canon && (

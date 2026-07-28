@@ -213,6 +213,10 @@ input[type="search"] {
   animation: verse-flash 1.6s ease-out;
   border-radius: 3px;
 }
+.strongs-word.strongs-flash {
+  animation: verse-flash 1.6s ease-out;
+  border-radius: 3px;
+}
 @keyframes verse-flash {
   0%,
   35% {
@@ -565,11 +569,43 @@ input[type="search"] {
 /* Search */
 .search-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 .search-form input[type="search"] {
   flex: 1;
   min-width: 0;
+}
+.search-mode {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-bottom: 0.55rem;
+}
+.search-mode button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.strongs-search-fields {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 0.45rem;
+}
+.strongs-search-fields label,
+.strongs-morph-fields label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.strongs-search-fields input,
+.strongs-search-fields select {
+  width: 100%;
+}
+.strongs-morph-fields {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.4rem;
 }
 .search-refine-form {
   display: flex;
@@ -901,6 +937,24 @@ input[type="search"] {
 }
 .result-snippet b {
   background: var(--mark);
+}
+.strongs-result-count,
+.strongs-occurrence-surfaces,
+.search-results .result-snippet {
+  display: block;
+  margin-top: 0.25rem;
+}
+.strongs-result-count,
+.strongs-occurrence-surfaces {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.strongs-result-id,
+.strongs-occurrence-multiple {
+  margin-left: 0.35rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 .muted {
   color: var(--muted);
@@ -1596,4 +1650,41 @@ button.danger {
 }
 .strongs-lexicon-entry .scripture-ref {
   margin-right: 0.4rem;
+}
+.strongs-occurrences {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.strongs-occurrences h4 {
+  margin: 0 0 0.65rem;
+}
+.strongs-occurrence-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.strongs-occurrence-filters label {
+  display: grid;
+  min-width: 8rem;
+  flex: 1;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.strongs-occurrence-list {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.strongs-occurrence-list > li > button {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.2rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }

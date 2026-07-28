@@ -9,7 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .books import BY_OSIS
-from .canonical import BookMeta, HeadingRow, TokenRow, VerseRow, WorkMeta
+from .canonical import (
+    BookMeta,
+    HeadingRow,
+    TokenRow,
+    VerseRow,
+    WorkMeta,
+    normalize_lexical_search,
+)
 from .formats import genbook, strongs_lexicon, study, sword_bible, sword_dictionary, usfx
 from .schema import create_schema
 from .validation import Diagnostics, align_versification, validate
@@ -198,10 +205,18 @@ def build_bible(
         return diag  # do not write a broken DB
 
     meta = WorkMeta(
-        id=spec.work_id, type="bible", language=spec.language, title=spec.title,
-        abbrev=spec.abbrev, direction=spec.direction, versification=spec.versification,
-        license=spec.license, attribution=spec.attribution, source_url=spec.source_url,
-        source_version=spec.source_version, checksum=source_sha256(source),
+        id=spec.work_id,
+        type="bible",
+        language=spec.language,
+        title=spec.title,
+        abbrev=spec.abbrev,
+        direction=spec.direction,
+        versification=spec.versification,
+        license=spec.license,
+        attribution=spec.attribution,
+        source_url=spec.source_url,
+        source_version=spec.source_version,
+        checksum=source_sha256(source),
     )
 
     out_db.parent.mkdir(parents=True, exist_ok=True)
@@ -406,8 +421,10 @@ def append_study_content(
         conn.executemany(
             "INSERT INTO dictionary_fts(text,headword_text,work_id,headword,sort_key) "
             "VALUES(?,?,?,?,?)",
-            [(row.plain_text, row.headword, easton.id, row.headword, row.sort_key)
-             for row in dictionary],
+            [
+                (row.plain_text, row.headword, easton.id, row.headword, row.sort_key)
+                for row in dictionary
+            ],
         )
         conn.executemany(
             "INSERT INTO xrefs(osis_code,chapter,verse,target_ref,votes) VALUES(?,?,?,?,?)",
@@ -538,10 +555,7 @@ def append_bible(
                 "base_checksum": base_work[1],
                 "source_checksum": source_checksum,
                 "actual": alignment,
-                "expected": {
-                    side: sorted(refs)
-                    for side, refs in allowed.items()
-                },
+                "expected": {side: sorted(refs) for side, refs in allowed.items()},
                 "unexpected": unexpected,
                 "expected_but_absent": no_longer_present,
             }
@@ -565,9 +579,7 @@ def append_bible(
                         f"{len(no_longer_present[side])} expected refs are now absent"
                     )
         elif expected.base_work_id:
-            diag.errors.append(
-                f"reviewed base Bible {expected.base_work_id!r} is not present"
-            )
+            diag.errors.append(f"reviewed base Bible {expected.base_work_id!r} is not present")
 
         # Alignment and checksum validation must finish before the write transaction begins.
         if not diag.ok:
@@ -665,8 +677,9 @@ def append_strongs(
             _insert_work(conn, meta)
         conn.executemany(
             "INSERT INTO strong_lexicon"
-            "(strong_id,language,lemma,transliteration,pronunciation,definition_json) "
-            "VALUES(?,?,?,?,?,?)",
+            "(strong_id,language,lemma,transliteration,pronunciation,definition_json,"
+            "lemma_search,transliteration_search,definition_search) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
             [
                 (
                     row.strong_id,
@@ -675,6 +688,13 @@ def append_strongs(
                     row.transliteration,
                     row.pronunciation,
                     json.dumps(row.definition, ensure_ascii=False),
+                    normalize_lexical_search(row.lemma),
+                    (
+                        normalize_lexical_search(row.transliteration)
+                        if row.transliteration
+                        else None
+                    ),
+                    normalize_lexical_search(row.plain_text),
                 )
                 for row in (*greek, *hebrew)
             ],

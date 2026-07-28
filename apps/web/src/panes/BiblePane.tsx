@@ -19,6 +19,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const goToRef = useStore((s) => s.goToRef);
   const requestOpenNote = useStore((s) => s.requestOpenNote);
   const clearFocusVerse = useStore((s) => s.clearFocusVerse);
+  const clearStrongFocus = useStore((s) => s.clearStrongFocus);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -72,17 +73,34 @@ export function BiblePane({ pane }: { pane: Pane }) {
     const element = bodyRef.current?.querySelector<HTMLElement>(`[data-verse="${target}"]`);
     clearFocusVerse(pane.id);
     if (!element) return;
-    element.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    element.classList.add("verse-flash");
-    window.setTimeout(() => element.classList.remove("verse-flash"), 1600);
+    const matchingWords = pane.focusStrong
+      ? [...element.querySelectorAll<HTMLElement>("[data-strong-ids]")].filter((word) =>
+          word.dataset.strongIds?.split(" ").includes(pane.focusStrong!),
+        )
+      : [];
+    if (pane.focusStrong) clearStrongFocus(pane.id);
+    const scrollTarget = matchingWords[0] ?? element;
+    scrollTarget.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    if (matchingWords.length > 0) {
+      matchingWords.forEach((word) => word.classList.add("strongs-flash"));
+      window.setTimeout(
+        () => matchingWords.forEach((word) => word.classList.remove("strongs-flash")),
+        1600,
+      );
+    } else {
+      element.classList.add("verse-flash");
+      window.setTimeout(() => element.classList.remove("verse-flash"), 1600);
+    }
   }, [
     pane.focusVerse,
     pane.workId,
     pane.osis,
     pane.chapter,
+    pane.focusStrong,
     data,
     pane.id,
     clearFocusVerse,
+    clearStrongFocus,
   ]);
 
   return (

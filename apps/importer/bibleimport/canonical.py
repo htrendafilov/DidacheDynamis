@@ -19,6 +19,7 @@ Only the node kinds WEB actually produces are modelled here. Additional inline k
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 _WS = re.compile(r"\s+")
@@ -44,6 +45,18 @@ def normalize_strong_id(value: str) -> str | None:
     number = int(match.group("number"))
     suffix = match.group("suffix").upper()
     return f"{letter}{number:04d}{suffix}"
+
+
+def normalize_lexical_search(value: str) -> str:
+    """Case/diacritic-fold text for M8.4 structured lexicon search.
+
+    Greek accents and Hebrew niqqud are combining marks after NFKD decomposition.
+    Removing them and case-folding gives the API deterministic searchable shadow
+    values without parsing or normalizing source content at runtime.
+    """
+    decomposed = unicodedata.normalize("NFKD", value)
+    folded = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
+    return norm_ws(folded.casefold()).strip()
 
 
 @dataclass

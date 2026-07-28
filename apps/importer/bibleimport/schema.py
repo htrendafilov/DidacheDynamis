@@ -11,7 +11,8 @@ import sqlite3
 # Increment this whenever an API-visible schema change is made. The API keeps a matching
 # CONTENT_SCHEMA_VERSION constant and refuses to serve an incompatible database.
 # v2: verse_tokens + strong_lexicon (M8.1 Strong's lexical data).
-SCHEMA_VERSION = 2
+# v3: diacritic-folded structured search columns on strong_lexicon (M8.4).
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
@@ -129,12 +130,15 @@ CREATE INDEX idx_verse_tokens_strong
     ON verse_tokens(strong_id, work_id, osis_code, chapter, verse);
 
 CREATE TABLE strong_lexicon (
-    strong_id       TEXT PRIMARY KEY,
-    language        TEXT NOT NULL,  -- 'grc' | 'hbo'
-    lemma           TEXT NOT NULL,
-    transliteration TEXT,
-    pronunciation   TEXT,
-    definition_json TEXT NOT NULL
+    strong_id              TEXT PRIMARY KEY,
+    language               TEXT NOT NULL,  -- 'grc' | 'hbo'
+    lemma                  TEXT NOT NULL,
+    transliteration        TEXT,
+    pronunciation          TEXT,
+    definition_json        TEXT NOT NULL,
+    lemma_search           TEXT NOT NULL,  -- case/diacritic-folded; M8.4 structured search
+    transliteration_search TEXT,
+    definition_search      TEXT NOT NULL
 );
 
 -- Full-text search (contentless FTS5 mirroring plain_text / body). UNINDEXED columns carry the

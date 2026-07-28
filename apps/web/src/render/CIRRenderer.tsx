@@ -45,6 +45,7 @@ function Runs({
               key={i}
               type="button"
               data-strongs={strongsIdx}
+              data-strong-ids={r.lemma!.map((value) => value.id).join(" ")}
               className={r.wj ? "strongs-word woj" : "strongs-word"}
               aria-expanded={strongsIdx === activeStrongIdx}
               aria-controls={strongsIdx === activeStrongIdx ? popoverId : undefined}

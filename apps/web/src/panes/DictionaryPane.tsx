@@ -13,6 +13,7 @@ import { normalizeStrongId, strongLexiconWorkId } from "../data/strongs";
 import type { StrongEntry, Work } from "../data/api";
 import { DocumentRenderer } from "../render/DocumentRenderer";
 import { useStore, type Pane } from "../state/store";
+import { StrongOccurrences } from "./StrongOccurrences";
 
 // The Dictionary pane is the app's one reference-lookup surface: Easton headwords for
 // type="dictionary" works, Strong's entries for type="lexicon" works (M8.3 hand-off from
@@ -100,12 +101,21 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
       <div className="pane-body dictionary-entry">
         {!pane.headword && <p className="muted">{t("strongs.choose")}</p>}
         {pane.headword && entry.loading && <p className="muted">{t("reader.loading")}</p>}
-        {pane.headword && entry.notFound && <p className="muted">{t("strongs.noEntry")}</p>}
+        {pane.headword && entry.notFound && (
+          <>
+            <p className="muted">{t("strongs.noEntry")}</p>
+            <StrongOccurrences
+              strongId={pane.headword}
+              preservePaneId={pane.id}
+            />
+          </>
+        )}
         {pane.headword && entry.error && <p className="muted">{t("strongs.error")}</p>}
         {entry.data && (
           <StrongEntryView
             entry={entry.data}
             onSee={navigateToEntry}
+            paneId={pane.id}
           />
         )}
       </div>
@@ -117,9 +127,11 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
 function StrongEntryView({
   entry,
   onSee,
+  paneId,
 }: {
   entry: StrongEntry;
   onSee: (strongId: string) => void;
+  paneId: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -158,6 +170,10 @@ function StrongEntryView({
           ))}
         </p>
       )}
+      <StrongOccurrences
+        strongId={entry.strong_id}
+        preservePaneId={paneId}
+      />
     </article>
   );
 }

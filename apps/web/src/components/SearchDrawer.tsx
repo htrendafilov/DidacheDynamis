@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SearchKind } from "../data/api";
+import type { PaneSourceType } from "../state/store";
 import { SearchPanel } from "./SearchPanel";
 
 export const SEARCH_MIN_WIDTH = 320;
@@ -29,7 +29,7 @@ export function SearchDrawer({
   fullscreen: boolean;
   width: number;
   onWidthChange: (width: number) => void;
-  onNavigate?: (kind: SearchKind) => void;
+  onNavigate?: (kind: PaneSourceType) => void;
   onClose: () => void;
   restoreResultFocus?: boolean;
 }) {

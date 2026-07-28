@@ -63,7 +63,12 @@ export interface Passage {
 }
 
 export type SearchSort = "relevance" | "canonical";
-export type SearchKind = "bible" | "commentary" | "dictionary" | "book";
+export type SearchKind =
+  | "bible"
+  | "commentary"
+  | "dictionary"
+  | "book"
+  | "strongs";
 
 export interface BibleHit {
   kind: "bible";
@@ -103,7 +108,46 @@ export interface BookHit {
   section_id: string;
 }
 
-export type SearchHit = BibleHit | CommentaryHit | DictionaryHit | BookHit;
+export interface StrongMorphology {
+  scheme: "strongMorph" | "robinson";
+  code: string;
+}
+
+export interface StrongsEntryHit {
+  kind: "strongs_entry";
+  work_id: string;
+  title: string;
+  snippet: string;
+  strong_id: string;
+  language: string | null;
+  lemma: string | null;
+  transliteration: string | null;
+  occurrence_count: number;
+  verse_count: number;
+}
+
+export interface StrongsOccurrenceHit {
+  kind: "strongs_occurrence";
+  work_id: string;
+  title: string;
+  snippet: string;
+  strong_id: string;
+  osis: string;
+  chapter: number;
+  verse: number;
+  ref: string;
+  surfaces: string[];
+  occurrence_count: number;
+  morphology: StrongMorphology[];
+}
+
+export type SearchHit =
+  | BibleHit
+  | CommentaryHit
+  | DictionaryHit
+  | BookHit
+  | StrongsEntryHit
+  | StrongsOccurrenceHit;
 
 export interface SearchGroup {
   type: SearchKind;
@@ -188,6 +232,21 @@ export interface StrongEntry {
   see: string[]; // cross-referenced Strong's ids, normalized
 }
 
+export interface StrongSource {
+  work_id: string;
+}
+
+export interface StrongOccurrenceResponse {
+  strong_id: string;
+  total: number;
+  occurrence_total: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  available_works: string[];
+  hits: StrongsOccurrenceHit[];
+}
+
 export interface GeneralBookSection {
   section_id: string;
   title: string;
@@ -261,6 +320,34 @@ export const api = {
     get<DictionaryEntry>(`/dictionary/${workId}/entry/${encodeURIComponent(headword)}`),
   lexiconEntry: (strongId: string) =>
     get<StrongEntry>(`/lexicon/${encodeURIComponent(strongId)}`),
+  lexiconSources: () => get<StrongSource[]>("/lexicon/sources"),
+  strongOccurrences: (
+    strongId: string,
+    opts: {
+      verseText?: string;
+      works?: string;
+      canon?: "ot" | "nt";
+      books?: string;
+      morphScheme?: "strongMorph" | "robinson";
+      morph?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.verseText) params.set("verse_text", opts.verseText);
+    if (opts.works) params.set("works", opts.works);
+    if (opts.canon) params.set("canon", opts.canon);
+    if (opts.books) params.set("books", opts.books);
+    if (opts.morphScheme) params.set("morph_scheme", opts.morphScheme);
+    if (opts.morph) params.set("morph", opts.morph);
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+    if (opts.offset != null) params.set("offset", String(opts.offset));
+    const query = params.size ? `?${params.toString()}` : "";
+    return get<StrongOccurrenceResponse>(
+      `/lexicon/${encodeURIComponent(strongId)}/occurrences${query}`,
+    );
+  },
   generalBooks: () => get<Work[]>("/books"),
   generalBook: (workId: string) => get<GeneralBook>(`/book/${encodeURIComponent(workId)}`),
   crossReferences: (osis: string, chapter: number, verse: number, previewWork = "web") =>
@@ -271,6 +358,9 @@ export const api = {
     q: string,
     opts: {
       refine?: string;
+      verseText?: string;
+      morphScheme?: "strongMorph" | "robinson";
+      morph?: string;
       types?: string;
       works?: string;
       canon?: "ot" | "nt";
@@ -283,6 +373,9 @@ export const api = {
   ) => {
     const params = new URLSearchParams({ q });
     if (opts.refine) params.set("refine", opts.refine);
+    if (opts.verseText) params.set("verse_text", opts.verseText);
+    if (opts.morphScheme) params.set("morph_scheme", opts.morphScheme);
+    if (opts.morph) params.set("morph", opts.morph);
     if (opts.types) params.set("types", opts.types);
     if (opts.works) params.set("works", opts.works);
     if (opts.canon) params.set("canon", opts.canon);

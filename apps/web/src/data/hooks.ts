@@ -11,12 +11,15 @@ import {
   type GeneralBook,
   type Passage,
   type StrongEntry,
+  type StrongSource,
   type Work,
 } from "./api";
 
 const booksCache = new Map<string, Book[]>();
 let worksCache: Work[] | undefined;
 let worksRequest: Promise<Work[]> | null = null;
+let strongSourcesCache: StrongSource[] | undefined;
+let strongSourcesRequest: Promise<StrongSource[]> | null = null;
 
 function loadWorks(): Promise<Work[]> {
   if (worksCache !== undefined) return Promise.resolve(worksCache);
@@ -38,6 +41,39 @@ function loadWorks(): Promise<Work[]> {
 export function clearWorksCache(): void {
   worksCache = undefined;
   worksRequest = null;
+  strongSourcesCache = undefined;
+  strongSourcesRequest = null;
+}
+
+export function useStrongSources(): StrongSource[] | null {
+  const [sources, setSources] = useState<StrongSource[] | null>(
+    () => strongSourcesCache ?? null,
+  );
+  useEffect(() => {
+    if (strongSourcesCache !== undefined) {
+      setSources(strongSourcesCache);
+      return;
+    }
+    if (strongSourcesRequest === null) {
+      strongSourcesRequest = api
+        .lexiconSources()
+        .then((loaded) => {
+          strongSourcesCache = loaded;
+          return loaded;
+        })
+        .finally(() => {
+          strongSourcesRequest = null;
+        });
+    }
+    let alive = true;
+    strongSourcesRequest
+      .then((loaded) => alive && setSources(loaded))
+      .catch(() => alive && setSources([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return sources;
 }
 
 export function useWorks(): Work[] | null {

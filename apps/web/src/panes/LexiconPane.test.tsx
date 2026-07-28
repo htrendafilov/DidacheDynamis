@@ -40,6 +40,11 @@ vi.mock("../data/hooks", () => ({
   useDictionaryHeadwords: () => [],
   useDictionaryEntry: () => ({ loading: false, error: false, data: null }),
 }));
+vi.mock("./StrongOccurrences", () => ({
+  StrongOccurrences: ({ strongId }: { strongId: string }) => (
+    <div>Occurrences for {strongId}</div>
+  ),
+}));
 
 const g0001: StrongEntry = {
   strong_id: "G0001",
@@ -86,6 +91,7 @@ describe("LexiconPane (Strong's dictionary work)", () => {
       screen.getByText("of Hebrew origin; the first letter of the alphabet."),
     ).toBeInTheDocument();
     expect(entry).toHaveBeenCalledWith("G0001");
+    expect(screen.getByText("Occurrences for G0001")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Info/ }));
     expect(screen.getByText("Ancient Greek")).toBeInTheDocument();
@@ -180,5 +186,6 @@ describe("LexiconPane (Strong's dictionary work)", () => {
     render(<Harness />);
 
     expect(screen.getByText("No lexicon entry for this identifier.")).toBeInTheDocument();
+    expect(screen.getByText("Occurrences for G0001")).toBeInTheDocument();
   });
 });

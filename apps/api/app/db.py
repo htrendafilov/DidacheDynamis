@@ -11,7 +11,7 @@ from . import settings
 
 # Keep this in sync with bibleimport.schema.SCHEMA_VERSION. It is intentionally duplicated because
 # the production API package does not depend on the offline importer package.
-CONTENT_SCHEMA_VERSION = 2
+CONTENT_SCHEMA_VERSION = 3
 
 
 class DatabaseStatus(TypedDict):

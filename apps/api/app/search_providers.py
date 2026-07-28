@@ -8,13 +8,28 @@ type join. bm25() weights the indexed headword/title columns above body text.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 
-from .models import BibleHit, BookHit, CommentaryHit, DictionaryHit
+from .models import (
+    BibleHit,
+    BookHit,
+    CommentaryHit,
+    DictionaryHit,
+    StrongMorphology,
+    StrongsEntryHit,
+    StrongsOccurrenceHit,
+)
+from .strongs import (
+    WORK_BY_LETTER,
+    lexical_tokens,
+    normalize_lexical_search,
+    normalize_strong_id,
+)
 
 _TOKEN = re.compile(r"\w+", re.UNICODE)
-ALL_TYPES = ("bible", "commentary", "dictionary", "book")
+ALL_TYPES = ("bible", "commentary", "dictionary", "book", "strongs")
 PREVIEW = 5  # per-group rows in a multi-type ("All") query
 
 
@@ -67,7 +82,9 @@ class _Provider:
         if work_ids is not None and not work_ids:
             return 0
         where, params = self._where(match, work_ids, testament, books)
-        return conn.execute(f"SELECT count(*) FROM {self.table} WHERE {where}", params).fetchone()[0]
+        return conn.execute(f"SELECT count(*) FROM {self.table} WHERE {where}", params).fetchone()[
+            0
+        ]
 
     def _rows(self, conn, match, work_ids, testament, books, select, sort, limit, offset):
         if work_ids is not None and not work_ids:
@@ -165,14 +182,14 @@ class _DictionaryProvider(_Provider):
     _bm25 = "bm25(dictionary_fts, 1.0, 5.0)"  # weight the headword column above the body
 
     def page(self, conn, match, work_ids, testament, books, sort, limit, offset):
-        select = (
-            "work_id, headword, snippet(dictionary_fts, 0, '<b>', '</b>', '…', 12) AS snip"
-        )
+        select = "work_id, headword, snippet(dictionary_fts, 0, '<b>', '</b>', '…', 12) AS snip"
         return [
             DictionaryHit(
                 work_id=r["work_id"], title=r["headword"], snippet=r["snip"], headword=r["headword"]
             )
-            for r in self._rows(conn, match, work_ids, testament, books, select, sort, limit, offset)
+            for r in self._rows(
+                conn, match, work_ids, testament, books, select, sort, limit, offset
+            )
         ]
 
 
@@ -183,9 +200,7 @@ class _BookProvider(_Provider):
     _bm25 = "bm25(book_fts, 1.0, 5.0)"  # weight the title column above the body
 
     def page(self, conn, match, work_ids, testament, books, sort, limit, offset):
-        select = (
-            "work_id, section_id, snippet(book_fts, 0, '<b>', '</b>', '…', 12) AS snip"
-        )
+        select = "work_id, section_id, snippet(book_fts, 0, '<b>', '</b>', '…', 12) AS snip"
         rows = self._rows(conn, match, work_ids, testament, books, select, sort, limit, offset)
         breadcrumbs = _book_breadcrumbs(conn, {r["work_id"] for r in rows})
         return [
@@ -227,5 +242,407 @@ def _book_breadcrumbs(conn, work_ids: set[str]) -> dict[tuple[str, str], str]:
 
 
 PROVIDERS: dict[str, _Provider] = {
-    p.type: p for p in (_BibleProvider(), _CommentaryProvider(), _DictionaryProvider(), _BookProvider())
+    p.type: p
+    for p in (_BibleProvider(), _CommentaryProvider(), _DictionaryProvider(), _BookProvider())
 }
+
+
+class StrongsSearchProvider:
+    """Structured Strong's entry and occurrence search (M8.4).
+
+    Lexicon text is searched through importer-populated, case/diacritic-folded shadow
+    columns. Occurrences stay grouped by Strong's id + verse so total/offset pagination
+    cannot split repeated uses of an id inside one verse.
+    """
+
+    type = "strongs"
+
+    def available(self, conn: sqlite3.Connection) -> bool:
+        lexicon = conn.execute("SELECT EXISTS(SELECT 1 FROM strong_lexicon)").fetchone()[0]
+        tokens = conn.execute(
+            "SELECT EXISTS(SELECT 1 FROM verse_tokens WHERE strong_id IS NOT NULL)"
+        ).fetchone()[0]
+        return bool(lexicon and tokens)
+
+    def source_ids(self, conn: sqlite3.Connection) -> list[str]:
+        return [
+            row[0]
+            for row in conn.execute(
+                "SELECT DISTINCT work_id FROM verse_tokens "
+                "WHERE strong_id IS NOT NULL ORDER BY work_id"
+            )
+        ]
+
+    def _lexical_predicate(self, query: str, alias: str = "l") -> tuple[str, list[str], str | None]:
+        exact = normalize_strong_id(query)
+        if exact is not None:
+            return f"{alias}.strong_id = ?", [exact], exact
+        tokens = lexical_tokens(query)
+        if not tokens:
+            return "0", [], None
+        clauses: list[str] = []
+        params: list[str] = []
+        for token in tokens:
+            clauses.append(
+                f"(instr({alias}.lemma_search, ?) > 0 "
+                f"OR instr(COALESCE({alias}.transliteration_search, ''), ?) > 0 "
+                f"OR instr({alias}.definition_search, ?) > 0)"
+            )
+            params.extend((token, token, token))
+        return " AND ".join(clauses), params, None
+
+    def _relevance(self, query: str, alias: str = "l") -> tuple[str, list[str]]:
+        folded = normalize_lexical_search(query)
+        exact = normalize_strong_id(query)
+        if exact is not None:
+            return f"CASE WHEN {alias}.strong_id = ? THEN 0 ELSE 6 END", [exact]
+        expression = (
+            "CASE "
+            f"WHEN {alias}.lemma_search = ? THEN 1 "
+            f"WHEN COALESCE({alias}.transliteration_search, '') = ? THEN 2 "
+            f"WHEN instr({alias}.lemma_search, ?) = 1 THEN 3 "
+            f"WHEN instr(COALESCE({alias}.transliteration_search, ''), ?) = 1 THEN 4 "
+            "ELSE 5 END"
+        )
+        return expression, [folded, folded, folded, folded]
+
+    @staticmethod
+    def _token_scope(
+        work_ids: list[str] | None,
+        testament: str | None,
+        books: list[str] | None,
+    ) -> tuple[str, str, list[str]]:
+        joins = ""
+        clauses: list[str] = []
+        params: list[str] = []
+        if work_ids is not None:
+            if not work_ids:
+                clauses.append("0")
+            else:
+                placeholders = ",".join("?" * len(work_ids))
+                clauses.append(f"t.work_id IN ({placeholders})")
+                params.extend(work_ids)
+        if testament:
+            joins = (
+                "JOIN books scope_book ON scope_book.work_id=t.work_id "
+                "AND scope_book.osis_code=t.osis_code "
+            )
+            clauses.append(
+                "scope_book.sort_order <= 39" if testament == "OT" else "scope_book.sort_order > 39"
+            )
+        if books:
+            placeholders = ",".join("?" * len(books))
+            clauses.append(f"t.osis_code IN ({placeholders})")
+            params.extend(books)
+        return joins, " AND ".join(clauses), params
+
+    def _entry_counts(
+        self,
+        conn: sqlite3.Connection,
+        strong_ids: list[str],
+        work_ids: list[str] | None,
+        testament: str | None,
+        books: list[str] | None,
+    ) -> dict[str, tuple[int, int]]:
+        if not strong_ids:
+            return {}
+        joins, scope, scope_params = self._token_scope(work_ids, testament, books)
+        placeholders = ",".join("?" * len(strong_ids))
+        where = f"t.strong_id IN ({placeholders})"
+        if scope:
+            where += f" AND {scope}"
+        rows = conn.execute(
+            "SELECT strong_id,SUM(occurrence_count),COUNT(*) FROM ("
+            "SELECT t.strong_id,COUNT(*) AS occurrence_count FROM verse_tokens t "
+            f"{joins}WHERE {where} "
+            "GROUP BY t.strong_id,t.work_id,t.osis_code,t.chapter,t.verse"
+            ") GROUP BY strong_id",
+            [*strong_ids, *scope_params],
+        ).fetchall()
+        return {row[0]: (int(row[1]), int(row[2])) for row in rows}
+
+    def entry_page(
+        self,
+        conn: sqlite3.Connection,
+        query: str,
+        work_ids: list[str] | None,
+        languages: list[str] | None,
+        testament: str | None,
+        books: list[str] | None,
+        sort: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[int, list[StrongsEntryHit]]:
+        predicate, predicate_params, exact = self._lexical_predicate(query)
+        where = predicate
+        where_params: list[str] = list(predicate_params)
+        if languages:
+            placeholders = ",".join("?" * len(languages))
+            where += f" AND l.language IN ({placeholders})"
+            where_params.extend(languages)
+        source_restricted = work_ids is not None or testament is not None or bool(books)
+        restriction = ""
+        scope_params: list[str] = []
+        if source_restricted:
+            scope_joins, scope, scope_params = self._token_scope(work_ids, testament, books)
+            restriction = (
+                " AND EXISTS(SELECT 1 FROM verse_tokens t "
+                f"{scope_joins}WHERE t.strong_id=l.strong_id"
+                f"{f' AND {scope}' if scope else ''})"
+            )
+        total = conn.execute(
+            f"SELECT count(*) FROM strong_lexicon l WHERE {where}{restriction}",
+            [*where_params, *scope_params],
+        ).fetchone()[0]
+
+        # A valid KJV id can be absent from the lexicon module. Preserve direct-id
+        # occurrence discovery with a synthetic entry card instead of reporting no result.
+        if total == 0 and exact is not None:
+            language = "grc" if exact.startswith("G") else "hbo"
+            if languages and language not in languages:
+                return 0, []
+            verse_total, occurrence_total, _ = self.occurrence_page(
+                conn,
+                exact,
+                None,
+                work_ids,
+                testament,
+                books,
+                None,
+                None,
+                "canonical",
+                1,
+                0,
+            )
+            if occurrence_total == 0:
+                return 0, []
+            hit = StrongsEntryHit(
+                work_id=WORK_BY_LETTER[exact[0]],
+                title=exact,
+                snippet="",
+                strong_id=exact,
+                language=None,
+                lemma=None,
+                transliteration=None,
+                occurrence_count=occurrence_total,
+                verse_count=verse_total,
+            )
+            return (1, [hit] if offset == 0 else [])
+
+        relevance, relevance_params = self._relevance(query)
+        order = "l.strong_id" if sort == "canonical" else "rank, l.strong_id"
+        rows = conn.execute(
+            "SELECT l.strong_id,l.language,l.lemma,l.transliteration,l.definition_json,"
+            f"{relevance} AS rank FROM strong_lexicon l WHERE {where}{restriction} "
+            f"ORDER BY {order} LIMIT ? OFFSET ?",
+            [*relevance_params, *where_params, *scope_params, limit, offset],
+        ).fetchall()
+        counts = self._entry_counts(
+            conn,
+            [row["strong_id"] for row in rows],
+            work_ids,
+            testament,
+            books,
+        )
+        hits: list[StrongsEntryHit] = []
+        for row in rows:
+            definition = json.loads(row["definition_json"])["text"]
+            snippet = definition
+            if len(snippet) > 240:
+                snippet = snippet[:240].rsplit(" ", 1)[0] + "…"
+            occurrence_count, verse_count = counts.get(row["strong_id"], (0, 0))
+            hits.append(
+                StrongsEntryHit(
+                    work_id=WORK_BY_LETTER[row["strong_id"][0]],
+                    title=f"{row['strong_id']} · {row['lemma']}",
+                    snippet=snippet,
+                    strong_id=row["strong_id"],
+                    language=row["language"],
+                    lemma=row["lemma"],
+                    transliteration=row["transliteration"],
+                    occurrence_count=occurrence_count,
+                    verse_count=verse_count,
+                )
+            )
+        return int(total), hits
+
+    def _lexical_cte(self, query: str) -> tuple[str, list[str]]:
+        exact = normalize_strong_id(query)
+        if exact is not None:
+            return "SELECT ? AS strong_id, 0 AS rank", [exact]
+        predicate, predicate_params, _ = self._lexical_predicate(query)
+        relevance, relevance_params = self._relevance(query)
+        return (
+            f"SELECT l.strong_id,{relevance} AS rank FROM strong_lexicon l WHERE {predicate}",
+            [*relevance_params, *predicate_params],
+        )
+
+    @staticmethod
+    def _occurrence_where(
+        verse_text: str | None,
+        work_ids: list[str] | None,
+        testament: str | None,
+        books: list[str] | None,
+        morph_scheme: str | None,
+        morph_code: str | None,
+    ) -> tuple[str, list[str]] | None:
+        clauses = ["t.strong_id IS NOT NULL"]
+        params: list[str] = []
+        if verse_text:
+            match = fts_query(verse_text)
+            if match is None:
+                return None
+            clauses.append("bible_fts MATCH ?")
+            params.append(match)
+        if work_ids is not None:
+            if not work_ids:
+                clauses.append("0")
+            else:
+                placeholders = ",".join("?" * len(work_ids))
+                clauses.append(f"t.work_id IN ({placeholders})")
+                params.extend(work_ids)
+        if testament:
+            clauses.append("b.sort_order <= 39" if testament == "OT" else "b.sort_order > 39")
+        if books:
+            placeholders = ",".join("?" * len(books))
+            clauses.append(f"t.osis_code IN ({placeholders})")
+            params.extend(books)
+        if morph_scheme and morph_code:
+            clauses.extend(("t.morph_scheme = ?", "upper(t.morph_code) = upper(?)"))
+            params.extend((morph_scheme, morph_code))
+        return " AND ".join(clauses), params
+
+    def occurrence_page(
+        self,
+        conn: sqlite3.Connection,
+        query: str,
+        verse_text: str | None,
+        work_ids: list[str] | None,
+        testament: str | None,
+        books: list[str] | None,
+        morph_scheme: str | None,
+        morph_code: str | None,
+        sort: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[int, int, list[StrongsOccurrenceHit]]:
+        lexical_sql, lexical_params = self._lexical_cte(query)
+        occurrence_where = self._occurrence_where(
+            verse_text, work_ids, testament, books, morph_scheme, morph_code
+        )
+        if occurrence_where is None:
+            return 0, 0, []
+        where, where_params = occurrence_where
+        fts_join = ""
+        if verse_text:
+            fts_join = (
+                "JOIN bible_fts ON bible_fts.work_id=t.work_id "
+                "AND bible_fts.osis=t.osis_code "
+                "AND CAST(bible_fts.chapter AS INTEGER)=t.chapter "
+                "AND CAST(bible_fts.verse AS INTEGER)=t.verse "
+            )
+        from_sql = (
+            "FROM lexical JOIN verse_tokens t ON t.strong_id=lexical.strong_id "
+            "JOIN verses v ON v.work_id=t.work_id AND v.osis_code=t.osis_code "
+            "AND v.chapter=t.chapter AND v.verse=t.verse "
+            "JOIN books b ON b.work_id=t.work_id AND b.osis_code=t.osis_code "
+            f"{fts_join}"
+            f"WHERE {where}"
+        )
+        grouped = (
+            "SELECT COUNT(*) AS occurrence_count "
+            f"{from_sql} GROUP BY t.work_id,t.strong_id,t.osis_code,t.chapter,t.verse"
+        )
+        totals = conn.execute(
+            f"WITH lexical AS ({lexical_sql}) "
+            f"SELECT count(*),COALESCE(sum(occurrence_count),0) FROM ({grouped})",
+            [*lexical_params, *where_params],
+        ).fetchone()
+        total, occurrence_total = int(totals[0]), int(totals[1])
+        if total == 0:
+            return 0, 0, []
+
+        canonical = "b.sort_order,t.chapter,t.verse,t.work_id,t.strong_id"
+        order = canonical if sort == "canonical" else f"MIN(lexical.rank),{canonical}"
+        rows = conn.execute(
+            f"WITH lexical AS ({lexical_sql}) "
+            "SELECT t.work_id,t.strong_id,t.osis_code,t.chapter,t.verse,"
+            "MIN(v.plain_text) AS snippet,COUNT(*) AS occurrence_count "
+            f"{from_sql} "
+            "GROUP BY t.work_id,t.strong_id,t.osis_code,t.chapter,t.verse,"
+            f"b.sort_order ORDER BY {order} LIMIT ? OFFSET ?",
+            [*lexical_params, *where_params, limit, offset],
+        ).fetchall()
+
+        details: dict[tuple[str, str, str, int, int], tuple[list[str], list[StrongMorphology]]] = {}
+        if rows:
+            key_clauses: list[str] = []
+            detail_params: list[str | int] = []
+            for row in rows:
+                key_clauses.append(
+                    "(work_id=? AND strong_id=? AND osis_code=? AND chapter=? AND verse=?)"
+                )
+                detail_params.extend(
+                    (
+                        row["work_id"],
+                        row["strong_id"],
+                        row["osis_code"],
+                        int(row["chapter"]),
+                        int(row["verse"]),
+                    )
+                )
+            detail_where = f"({' OR '.join(key_clauses)})"
+            if morph_scheme and morph_code:
+                detail_where += " AND morph_scheme=? AND upper(morph_code)=upper(?)"
+                detail_params.extend((morph_scheme, morph_code))
+            for token in conn.execute(
+                "SELECT work_id,strong_id,osis_code,chapter,verse,surface,"
+                "morph_scheme,morph_code FROM verse_tokens "
+                f"WHERE {detail_where} ORDER BY work_id,osis_code,chapter,verse,"
+                "strong_id,position,ordinal",
+                detail_params,
+            ):
+                key = (
+                    token["work_id"],
+                    token["strong_id"],
+                    token["osis_code"],
+                    int(token["chapter"]),
+                    int(token["verse"]),
+                )
+                surfaces, morphology = details.setdefault(key, ([], []))
+                surfaces.append(token["surface"])
+                if token["morph_scheme"] and token["morph_code"]:
+                    value = StrongMorphology(scheme=token["morph_scheme"], code=token["morph_code"])
+                    if value not in morphology:
+                        morphology.append(value)
+
+        hits: list[StrongsOccurrenceHit] = []
+        for row in rows:
+            chapter, verse = int(row["chapter"]), int(row["verse"])
+            key = (
+                row["work_id"],
+                row["strong_id"],
+                row["osis_code"],
+                chapter,
+                verse,
+            )
+            surfaces, morphology = details.get(key, ([], []))
+            hits.append(
+                StrongsOccurrenceHit(
+                    work_id=row["work_id"],
+                    title=f"{row['osis_code']} {chapter}:{verse}",
+                    snippet=row["snippet"],
+                    strong_id=row["strong_id"],
+                    osis=row["osis_code"],
+                    chapter=chapter,
+                    verse=verse,
+                    ref=f"{row['osis_code']}.{chapter}.{verse}",
+                    surfaces=surfaces,
+                    occurrence_count=int(row["occurrence_count"]),
+                    morphology=morphology,
+                )
+            )
+        return total, occurrence_total, hits
+
+
+STRONGS_PROVIDER = StrongsSearchProvider()
