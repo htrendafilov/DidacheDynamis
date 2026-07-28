@@ -33,6 +33,9 @@ const passage = (
   workId = "web",
   lemma = false,
 ): PassageState => ({
+  workId,
+  osis,
+  chapter,
   loading: false,
   error: false,
   data: {
@@ -72,7 +75,7 @@ describe("BiblePane search focus", () => {
     const { container, rerender } = render(<BiblePane pane={pane} />);
 
     expect(useStore.getState().panes[0].focusVerse).toBe(1);
-    expect(container.querySelector('[data-verse="1"]')).not.toHaveClass("verse-flash");
+    expect(container.querySelector('[data-verse="1"]')).not.toBeInTheDocument();
 
     passageState = passage("Gen", 1);
     rerender(<BiblePane pane={pane} />);
@@ -130,7 +133,14 @@ describe("BiblePane search focus", () => {
       workId: "kjv",
       focusStrong: "G1722",
     };
-    passageState = { loading: false, error: true, data: null };
+    passageState = {
+      workId: "kjv",
+      osis: "Gen",
+      chapter: 1,
+      loading: false,
+      error: true,
+      data: null,
+    };
     useStore.setState({
       panes: [lexicalPane],
       settings: { ...useStore.getState().settings, strongs: "on" },
@@ -140,5 +150,41 @@ describe("BiblePane search focus", () => {
 
     expect(useStore.getState().panes[0].focusStrong).toBeUndefined();
     expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
+  });
+
+  it("does not let an error from the previous passage consume a new occurrence target", () => {
+    const lexicalPane: Pane = {
+      ...pane,
+      workId: "kjv",
+      focusStrong: "G1722",
+    };
+    passageState = {
+      workId: "web",
+      osis: "John",
+      chapter: 3,
+      loading: false,
+      error: true,
+      data: null,
+    };
+    useStore.setState({
+      panes: [lexicalPane],
+      settings: { ...useStore.getState().settings, strongs: "on" },
+    });
+
+    const { container, rerender } = render(<BiblePane pane={lexicalPane} />);
+
+    expect(useStore.getState().panes[0]).toMatchObject({
+      focusVerse: 1,
+      focusStrong: "G1722",
+    });
+
+    passageState = passage("Gen", 1, "kjv", true);
+    rerender(<BiblePane pane={lexicalPane} />);
+
+    expect(useStore.getState().panes[0].focusStrong).toBeUndefined();
+    expect(useStore.getState().panes[0].focusVerse).toBeUndefined();
+    expect(container.querySelector('[data-strong-ids="G1722"]')).toHaveClass(
+      "strongs-flash",
+    );
   });
 });

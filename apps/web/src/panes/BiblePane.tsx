@@ -29,7 +29,17 @@ export function BiblePane({ pane }: { pane: Pane }) {
   // Strong's mode needs both the reader toggle and the lexicon works (M8.3 popover data).
   const strongsEnabled =
     settings.strongs === "on" && Boolean(works?.some((w) => w.type === "lexicon"));
-  const { loading, error, data } = usePassage(pane.workId, pane.osis, pane.chapter);
+  const passage = usePassage(pane.workId, pane.osis, pane.chapter);
+  // Hook state survives a request-key change until its effect resets the state. Mask that
+  // previous request here so a stale error cannot consume a newly assigned search target
+  // (and stale passage/error UI cannot flash while navigation is starting).
+  const passageIsCurrent =
+    passage.workId === pane.workId &&
+    passage.osis === pane.osis &&
+    passage.chapter === pane.chapter;
+  const loading = !passageIsCurrent || passage.loading;
+  const error = passageIsCurrent && passage.error;
+  const data = passageIsCurrent ? passage.data : null;
   const xrefs = useCrossReferences(pane.osis, pane.chapter, selectedVerse, pane.workId);
 
   const { prev, next } = useMemo(() => {

@@ -118,20 +118,49 @@ export function useBooks(workId: string): Book[] | null {
 }
 
 export interface PassageState {
+  workId: string;
+  osis: string;
+  chapter: number;
   loading: boolean;
   error: boolean;
   data: Passage | null;
 }
 
 export function usePassage(workId: string, osis: string, chapter: number): PassageState {
-  const [state, setState] = useState<PassageState>({ loading: true, error: false, data: null });
+  const [state, setState] = useState<PassageState>({
+    workId,
+    osis,
+    chapter,
+    loading: true,
+    error: false,
+    data: null,
+  });
   useEffect(() => {
     let alive = true;
-    setState({ loading: true, error: false, data: null });
+    const request = { workId, osis, chapter };
+    setState({ ...request, loading: true, error: false, data: null });
     api
       .passage(workId, osis, chapter)
-      .then((data) => alive && setState({ loading: false, error: false, data }))
-      .catch(() => alive && setState({ loading: false, error: true, data: null }));
+      .then(
+        (data) =>
+          alive &&
+          setState({
+            ...request,
+            loading: false,
+            error: false,
+            data,
+          }),
+      )
+      .catch(
+        () =>
+          alive &&
+          setState({
+            ...request,
+            loading: false,
+            error: true,
+            data: null,
+          }),
+      );
     return () => {
       alive = false;
     };
