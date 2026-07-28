@@ -200,7 +200,9 @@ Measured 2026-07-29 ([`chat/m9.0-findings.md`](chat/m9.0-findings.md) §4):
 - `openrouter/free` is a real router that picks a free model at random, filtered by the capabilities the request needs. 200k context, zero-priced.
 - Free-tier limits: **20 requests/minute**, **50 requests/day** without credit, **1,000/day** once $10 in credits has ever been purchased.
 - Tool support is **not** a meaningful constraint on the free pool: 14 of the 15 free entries advertise `tools`, including `openrouter/free` itself. Do not use this as an argument for anything.
-- Free endpoints are the ones most likely to train on inputs, which collides head-on with §5.3. See the M9.0 privacy branch — this remains unresolved and needs a key.
+- **The privacy branch resolved in favour of row 1**: `openrouter/free` satisfies `zdr: true` + `data_collection: "deny"`. Most *individually named* free models do not — they return HTTP 404 "no endpoints found matching your data policy" — because the router filters to compliant endpoints and its constituents do not. Expect that 404 to be a common, user-visible path.
+- **Free-model output quality is a separate problem from privacy, and it is serious.** Four identical Bulgarian requests routed to four different models: one produced gibberish, one was a content-safety classifier that replied `"User"`, two were good. Passing the privacy gate does not make a model usable for a Bulgarian Bible reader. See §18 and [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §7 — the default-model choice is an open owner decision.
+- **Hidden reasoning silently consumes the output budget.** `openrouter/free` at `max_tokens: 160` returned 160 chunks and an empty answer. Requests must send `reasoning: {enabled: false}` (not `exclude`, which only hides the output while still spending the budget), and Gemini needs its thinking budget disabled too. See `chat/m9.2-workspace-and-provider.md` §4b.
 
 ### 5.5 Deferred
 
@@ -692,7 +694,9 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 | Gemini's undocumented browser CORS is withdrawn | Verified working at M9.0 but never documented by Google. Keep the registry row trivially removable; Gemini models stay reachable through OpenRouter |
 | OpenAI models wanted | Reached through OpenRouter. `api.openai.com` answers the preflight but omits the header on the actual completions response, so no browser can read it; adding a proxy is a separate ADR |
 | Free model disappears or is rate-limited | Live catalogue, actual-model label, clear retry/model-change UI, published rate limits; no uptime promise |
-| No model satisfies the ZDR default | Written decision at M9.0 (§15), not at build time. The constraint is not weakened to make a default available |
+| No model satisfies the ZDR default | **Resolved at M9.0**: `openrouter/free` satisfies both constraints, so the default does not have to be weakened |
+| A privacy-compliant default produces unusable Bulgarian | Measured, not hypothetical: half the sampled free-router responses were unusable. Default-model choice is an owner decision recorded in `chat/m9.0-findings.md` §7; the answer-quality axis is independent of the privacy axis and needs its own call |
+| Hidden reasoning tokens consume the whole answer budget | `reasoning: {enabled: false}` on OpenRouter, thinking disabled on Gemini, a typed `emptyAnswer` error, and `total_tokens` (not prompt+completion) for cost display |
 | The user's own provider account logs prompts | Cannot be detected or overridden by the SPA. Disclosed in the privacy notice (§5.3) |
 | `ai_context_policy` restart ordered before the rebuild | M9.1 ships schema + rebuild as one unit. Reversing the order returns `503 schema-outdated` on every request and pages the monitor |
 | **Licensed BG text forbids AI use** | Ask ББД explicitly, now, before signing (§8.6). Otherwise the flagship feature quotes English to Bulgarian readers |
