@@ -14,14 +14,17 @@ before shipping, and store that evidence with the work.
 | Matthew Henry's Complete Commentary | Commentary | EN | Public domain | CrossWire MHC 2.2 module; exported with official SWORD tools. |
 | Easton's Bible Dictionary | Dictionary | EN | Public domain | CrossWire Easton module; exported with official SWORD tools. |
 | Treasury of Scripture Knowledge-derived mapping | Cross-refs | — | CC BY 4.0 | CrossReferences.org KJV mapping; explicit attribution stored and shown. |
-| Baptist Confession of Faith of 1689 | General Book | EN | Public domain | CrossWire `BaptistConfession1689` 1.0.2; exported with official SWORD tools. |
+| Baptist Confession of Faith of 1689 | General Book | EN | Public domain | CrossWire `BaptistConfession1689` 1.0.2 plus documented editorial revision 1; the unaltered export is retained as the provenance base. |
 
 **v1 is English-only.** The pane system and canonical addressing already support additional
 translations, so Bulgarian can be added later with no rework once its rights are cleared.
 
 Production does not republish CCEL's downloadable XML editions: CCEL's policy asks users to contact
-them before republishing CCEL works. CrossWire's MHC and Easton module pages explicitly mark their
-distributions **Public Domain—Copy Freely**, which is the recorded basis for the committed exports.
+them before republishing CCEL works. Its near-facsimile 1677 Confession transcription is used only
+as a comparison aid for the CrossWire-based editorial revision, not as the shipped source.
+CrossWire's MHC and Easton module pages explicitly mark their distributions **Public Domain—Copy
+Freely**, and the Baptist Confession module metadata declares `DistributionLicense=Public Domain`;
+those declarations are the recorded basis for the committed exports.
 
 CrossWire's KJV 3.1 page expressly grants a general public license to use its KJV2003 Project text
 for any purpose and lists the module distribution license as GPL. It also states that rights to the
