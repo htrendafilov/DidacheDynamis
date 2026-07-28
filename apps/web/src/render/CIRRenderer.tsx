@@ -8,6 +8,7 @@
 // toggle off the rendered DOM is byte-for-byte what it was before M8.3.
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -24,10 +25,14 @@ function Runs({
   runs,
   strongsEnabled,
   lemmaIndex,
+  activeStrongIdx,
+  popoverId,
 }: {
   runs: Run[];
   strongsEnabled: boolean;
   lemmaIndex: WeakMap<Run, number>;
+  activeStrongIdx: number | null;
+  popoverId: string;
 }) {
   return (
     <>
@@ -41,6 +46,8 @@ function Runs({
               type="button"
               data-strongs={strongsIdx}
               className={r.wj ? "strongs-word woj" : "strongs-word"}
+              aria-expanded={strongsIdx === activeStrongIdx}
+              aria-controls={strongsIdx === activeStrongIdx ? popoverId : undefined}
             >
               {r.t}
             </button>
@@ -82,7 +89,12 @@ function headingMap(headings: Heading[]): Map<number, Heading[]> {
   return m;
 }
 
-type RunProps = { strongsEnabled: boolean; lemmaIndex: WeakMap<Run, number> };
+type RunProps = {
+  strongsEnabled: boolean;
+  lemmaIndex: WeakMap<Run, number>;
+  activeStrongIdx: number | null;
+  popoverId: string;
+};
 
 function PerLine({
   verses,
@@ -221,6 +233,7 @@ export function CIRRenderer({
   const [active, setActive] = useState<number | null>(null);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const popoverId = useId();
 
   // A passage change (including a synced pane navigated without any pointer/focus
   // transition here) must not leave the popover on a stale word/anchor.
@@ -248,7 +261,12 @@ export function CIRRenderer({
   const wordFrom = (target: EventTarget): HTMLElement | null =>
     target instanceof HTMLElement ? target.closest<HTMLElement>("[data-strongs]") : null;
 
-  const runProps: RunProps = { strongsEnabled, lemmaIndex };
+  const runProps: RunProps = {
+    strongsEnabled,
+    lemmaIndex,
+    activeStrongIdx: active,
+    popoverId,
+  };
   // The lemma table rebuilds with new verses before the reset effect runs, so validate the
   // index for this commit rather than handing the popover a stale or missing entry.
   const activeLemmas = active !== null ? lemmas[active] : undefined;
@@ -306,7 +324,12 @@ export function CIRRenderer({
         />
       )}
       {strongsEnabled && anchor && activeLemmas && (
-        <StrongsPopover anchor={anchor} lemmas={activeLemmas} onClose={closeWord} />
+        <StrongsPopover
+          id={popoverId}
+          anchor={anchor}
+          lemmas={activeLemmas}
+          onClose={closeWord}
+        />
       )}
     </div>
   );

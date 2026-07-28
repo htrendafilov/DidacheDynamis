@@ -22,8 +22,27 @@ const LEXICON_INPUT_DEBOUNCE_MS = 250;
 export function DictionaryPane({ pane }: { pane: Pane }) {
   const works = useWorks();
   const work = works?.find((item) => item.id === pane.workId);
+  // Work metadata decides which endpoint family this pane may call. Keep the
+  // initial render neutral instead of briefly mounting Easton's hooks against a
+  // lexicon work while /works is still in flight.
+  if (!work) return <PendingDictionaryPane pane={pane} />;
   if (work?.type === "lexicon") return <LexiconPane pane={pane} work={work} />;
   return <EastonDictionaryPane pane={pane} work={work} />;
+}
+
+function PendingDictionaryPane({ pane }: { pane: Pane }) {
+  const { t } = useTranslation();
+  const changePaneType = useStore((state) => state.changePaneType);
+  return (
+    <div className="pane dictionary-pane">
+      <div className="pane-header">
+        <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
+      </div>
+      <div className="pane-body dictionary-entry">
+        <p className="muted">{t("reader.loading")}</p>
+      </div>
+    </div>
+  );
 }
 
 function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {

@@ -23,10 +23,12 @@ function shortDefinition(text: string): string {
 }
 
 export function StrongsPopover({
+  id,
   anchor,
   lemmas,
   onClose,
 }: {
+  id: string;
   anchor: HTMLElement;
   lemmas: RunLemma[];
   onClose: () => void;
@@ -117,6 +119,7 @@ export function StrongsPopover({
   const title = lemmas.map((lemma) => lemma.id).join(", ");
   return (
     <span
+      id={id}
       ref={popoverRef}
       role="group"
       aria-label={title}

@@ -98,6 +98,25 @@ describe("StrongsPopover", () => {
     );
   });
 
+  it("exposes the active popover relationship to assistive technology", async () => {
+    vi.spyOn(api, "lexiconEntry").mockResolvedValue(g2316);
+    const { container } = renderReader();
+    const word = screen.getByRole("button", { name: "God" });
+
+    expect(word).toHaveAttribute("aria-expanded", "false");
+    expect(word).not.toHaveAttribute("aria-controls");
+
+    fireEvent.mouseOver(word);
+    const popover = await screen.findByRole("group", { name: "G2316" });
+    expect(popover).toHaveAttribute("id");
+    expect(word).toHaveAttribute("aria-expanded", "true");
+    expect(word).toHaveAttribute("aria-controls", popover.id);
+
+    fireEvent.click(container.querySelector(".line > span")!);
+    await waitFor(() => expect(word).toHaveAttribute("aria-expanded", "false"));
+    expect(word).not.toHaveAttribute("aria-controls");
+  });
+
   it("shows every id of a multi-id word with occurrence morphology", async () => {
     vi.spyOn(api, "lexiconEntry").mockImplementation((id: string) =>
       id === "H1254"

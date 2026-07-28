@@ -15,14 +15,45 @@ import {
 } from "./api";
 
 const booksCache = new Map<string, Book[]>();
+let worksCache: Work[] | undefined;
+let worksRequest: Promise<Work[]> | null = null;
+
+function loadWorks(): Promise<Work[]> {
+  if (worksCache !== undefined) return Promise.resolve(worksCache);
+  if (worksRequest === null) {
+    worksRequest = api
+      .works()
+      .then((works) => {
+        worksCache = works;
+        return works;
+      })
+      .finally(() => {
+        worksRequest = null;
+      });
+  }
+  return worksRequest;
+}
+
+/** Test-only: clear shared work discovery state between specs. */
+export function clearWorksCache(): void {
+  worksCache = undefined;
+  worksRequest = null;
+}
 
 export function useWorks(): Work[] | null {
-  const [works, setWorks] = useState<Work[] | null>(null);
+  const [works, setWorks] = useState<Work[] | null>(() => worksCache ?? null);
   useEffect(() => {
-    api
-      .works()
-      .then(setWorks)
-      .catch(() => setWorks([]));
+    if (worksCache !== undefined) {
+      setWorks(worksCache);
+      return;
+    }
+    let alive = true;
+    loadWorks()
+      .then((loaded) => alive && setWorks(loaded))
+      .catch(() => alive && setWorks([]));
+    return () => {
+      alive = false;
+    };
   }, []);
   return works;
 }
