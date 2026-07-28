@@ -35,14 +35,15 @@ export function StrongsPopover({
 }) {
   const { t } = useTranslation();
   const openDictionary = useStore((state) => state.openDictionary);
-  const [results, setResults] = useState<
-    { entry: StrongEntry | null; error: boolean }[] | null
-  >(null);
+  const [resultSet, setResultSet] = useState<{
+    lemmas: RunLemma[];
+    results: { entry: StrongEntry | null; error: boolean }[];
+  } | null>(null);
   const popoverRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     let alive = true;
-    setResults(null);
+    setResultSet(null);
     void Promise.all(
       lemmas.map(async (lemma) => {
         try {
@@ -52,12 +53,17 @@ export function StrongsPopover({
         }
       }),
     ).then((loaded) => {
-      if (alive) setResults(loaded);
+      if (alive) setResultSet({ lemmas, results: loaded });
     });
     return () => {
       alive = false;
     };
   }, [lemmas]);
+
+  // Effects reset state after a render. When the delegated reader moves directly
+  // from a multi-id word to a shorter lemma list, ignore the previous result array
+  // synchronously so it can never be indexed against the new props.
+  const results = resultSet?.lemmas === lemmas ? resultSet.results : null;
 
   useLayoutEffect(() => {
     const popover = popoverRef.current;

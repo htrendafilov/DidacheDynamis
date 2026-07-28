@@ -145,6 +145,25 @@ describe("StrongsPopover", () => {
     expect(popover).toHaveTextContent("Morphology (robinson): D-NPN");
   });
 
+  it("does not render stale multi-id results against a newly hovered single-id word", async () => {
+    vi.spyOn(api, "lexiconEntry").mockImplementation((id: string) =>
+      Promise.resolve({ ...g2316, strong_id: id }),
+    );
+    renderReader();
+
+    fireEvent.mouseOver(screen.getByRole("button", { name: "created" }));
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "H0853, H1254" })).toHaveTextContent(
+        "a deity; God.",
+      ),
+    );
+
+    fireEvent.mouseOver(screen.getByRole("button", { name: "these" }));
+    expect(await screen.findByRole("group", { name: "G3778" })).toHaveTextContent(
+      "Morphology (robinson): D-NPN",
+    );
+  });
+
   it("shows transient failures as errors and retries instead of caching a miss", async () => {
     const lookup = vi
       .spyOn(api, "lexiconEntry")
