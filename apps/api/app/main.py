@@ -96,13 +96,16 @@ class CacheMiddleware(BaseHTTPMiddleware):
 # Content-Security-Policy (assigned to M5): the app is now served through the Cloudflare
 # Tunnel straight to this process (no Caddy in the bible path), so the app sets its own headers.
 # The Dropbox token lives in sessionStorage, so lock scripts to same-origin; allow the Dropbox
-# API hosts for sync (connect-src), inline data-URL images (notes), and inline styles
-# (react-resizable-panels / TipTap set element style attributes).
+# API hosts for sync (connect-src), inline data-URL images (notes), inline styles
+# (react-resizable-panels / TipTap set element style attributes), and OpenRouter (M9.2 chat
+# assistant, plan/chat/m9.2-workspace-and-provider.md §10) — the only accepted model-provider
+# origin; add another only in the same reviewed change that ships its adapter.
 CSP = (
     "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
     "form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; font-src 'self'; frame-src 'self'; "
-    "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com"
+    "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com "
+    "https://openrouter.ai"
 )
 
 

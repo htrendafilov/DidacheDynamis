@@ -22,7 +22,11 @@ function AppLanguageHarness() {
   }, [uiLang]);
   return (
     <>
-      <TopBar onToggleSearch={() => undefined} onToggleSettings={() => undefined} />
+      <TopBar
+        onToggleSearch={() => undefined}
+        onToggleSettings={() => undefined}
+        onToggleAssistant={() => undefined}
+      />
       <ReadingSettings />
     </>
   );
