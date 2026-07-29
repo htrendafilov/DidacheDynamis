@@ -18,6 +18,7 @@ const web: Work = {
     'The World English Bible is in the Public Domain. "World English Bible" is a Trademark of eBible.org.',
   source_url: "https://ebible.org/",
   source_version: "2024 USFX",
+  ai_context_policy: "allowed",
 };
 
 const books: Book[] = [

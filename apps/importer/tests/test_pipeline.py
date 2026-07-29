@@ -1,6 +1,8 @@
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from bibleimport.pipeline import (
     AlignmentExpectation,
     BibleSpec,
@@ -23,6 +25,7 @@ SPEC = BibleSpec(
     versification="kjv",
     license="Public Domain",
     attribution="test attribution",
+    ai_context_policy="allowed",
 )
 
 
@@ -42,6 +45,26 @@ def test_build_writes_work_and_verses(tmp_path):
     assert c.execute("SELECT count(*) FROM verses").fetchone()[0] == 2
     assert c.execute("SELECT count(*) FROM books").fetchone()[0] == 2
     assert c.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+
+
+def test_build_writes_ai_context_policy(tmp_path):
+    db = build(tmp_path)
+    c = sqlite3.connect(db)
+    rows = c.execute("SELECT ai_context_policy FROM works").fetchall()
+    allowed_values = {"allowed", "allowed_no_training", "prohibited", "unknown"}
+    assert rows and all(row[0] in allowed_values for row in rows)
+
+
+def test_ai_context_policy_rejects_invalid_values(tmp_path):
+    db = build(tmp_path)
+    c = sqlite3.connect(db)
+    with pytest.raises(sqlite3.IntegrityError):
+        c.execute(
+            "INSERT INTO works(id,type,language,title,abbrev,direction,versification,"
+            "license,attribution,checksum,ai_context_policy) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            ("bad", "bible", "en", "Bad", "B", "ltr", "kjv", "t", "t", "0" * 64, "maybe"),
+        )
 
 
 def test_build_populates_fts(tmp_path):
@@ -79,6 +102,7 @@ def test_append_bible_adds_a_second_read_only_work(tmp_path):
         versification="kjv",
         license="GPL",
         attribution="CrossWire KJV test fixture",
+        ai_context_policy="allowed",
         expected_alignment=AlignmentExpectation(
             base_work_id="test",
             base_checksum=source_sha256(FIXTURE),
@@ -120,6 +144,7 @@ def test_append_bible_with_exact_alignment_needs_no_allow_list(tmp_path):
             versification="kjv",
             license="test",
             attribution="test",
+            ai_context_policy="allowed",
         ),
         db,
     )
@@ -146,6 +171,7 @@ def test_unexpected_alignment_blocks_append_without_changing_database(tmp_path):
             versification="kjv",
             license="test",
             attribution="test",
+            ai_context_policy="allowed",
         ),
         db,
     )
@@ -171,6 +197,7 @@ def test_lexical_sentinel_blocks_an_untagged_bible(tmp_path):
             versification="kjv",
             license="test",
             attribution="test",
+            ai_context_policy="allowed",
             lexical_sentinel=LexicalSentinel(
                 osis="Gen",
                 chapter=1,
@@ -200,6 +227,7 @@ def _append_kjv_strongs(db: Path):
         versification="kjv",
         license="GPL",
         attribution="CrossWire KJV Strong's test fixture",
+        ai_context_policy="allowed",
         expected_alignment=AlignmentExpectation(
             base_work_id="test",
             base_checksum=source_sha256(FIXTURE),

@@ -86,6 +86,7 @@ def test_append_study_content_populates_all_tables(tmp_path):
         versification="kjv",
         license="Public Domain",
         attribution="WEB is public domain.",
+        ai_context_policy="allowed",
     )
     diag = build_bible(FIXTURES / "mini_usfx.xml", spec, out)
     assert diag.ok

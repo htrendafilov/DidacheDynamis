@@ -17,6 +17,7 @@ const work = (id: string, abbrev: string): Work => ({
   attribution: "test",
   source_url: null,
   source_version: null,
+  ai_context_policy: "allowed",
 });
 
 describe("BibleVersionSelector", () => {

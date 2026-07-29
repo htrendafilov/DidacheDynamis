@@ -12,6 +12,7 @@ export interface Work {
   attribution: string;
   source_url: string | null;
   source_version: string | null;
+  ai_context_policy: "allowed" | "allowed_no_training" | "prohibited" | "unknown";
 }
 
 export interface Book {

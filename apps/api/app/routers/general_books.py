@@ -14,7 +14,8 @@ router = APIRouter(prefix=settings.API_V1, tags=["general books"])
 def list_general_books(conn: sqlite3.Connection = Depends(get_conn)) -> list[Work]:
     rows = conn.execute(
         "SELECT id,type,language,title,abbrev,direction,versification,license,attribution,"
-        "source_url,source_version FROM works WHERE type='book' ORDER BY title, id"
+        "source_url,source_version,ai_context_policy "
+        "FROM works WHERE type='book' ORDER BY title, id"
     ).fetchall()
     return [Work(**dict(row)) for row in rows]
 

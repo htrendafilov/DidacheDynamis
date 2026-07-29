@@ -61,6 +61,7 @@ def test_append_book_populates_sections_and_fts(tmp_path):
         versification="kjv",
         license="Public Domain",
         attribution="WEB is public domain.",
+        ai_context_policy="allowed",
     )
     assert build_bible(FIXTURES / "mini_usfx.xml", bible, out).ok
     book = BookSpec(
@@ -70,6 +71,7 @@ def test_append_book_populates_sections_and_fts(tmp_path):
         language="en",
         license="Public Domain",
         attribution="Public-domain test fixture.",
+        ai_context_policy="allowed",
     )
     assert append_book(FIXTURES / "mini_genbook.imp", book, out) == 4
 

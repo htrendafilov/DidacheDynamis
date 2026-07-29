@@ -40,6 +40,7 @@ def raw_client(tmp_path, monkeypatch):
         versification="kjv",
         license="Public Domain",
         attribution="WEB is public domain.",
+        ai_context_policy="allowed",
     )
     assert build_bible(src, spec, out, fmt="usfx").ok
     append_study_content(
@@ -117,6 +118,25 @@ def test_database_status_rejects_an_old_schema(tmp_path):
     }
 
 
+def test_database_status_rejects_the_pre_ai_context_policy_schema(tmp_path):
+    """v3 (M8.4 structured search, no ai_context_policy column) must not be read as v4 (M9.1)."""
+    old_db = tmp_path / "old.sqlite"
+    conn = sqlite3.connect(old_db)
+    conn.execute(
+        "CREATE TABLE works (id TEXT PRIMARY KEY, checksum TEXT NOT NULL, "
+        "type TEXT, language TEXT, title TEXT, abbrev TEXT, direction TEXT, "
+        "versification TEXT, license TEXT, attribution TEXT, source_url TEXT, "
+        "source_version TEXT)"
+    )
+    conn.execute("PRAGMA user_version = 3")
+    conn.close()
+
+    status = database_status(old_db)
+    assert status["status"] == "schema-outdated"
+    assert status["schema_version"] == 3
+    assert status["expected_schema_version"] == CONTENT_SCHEMA_VERSION == 4
+
+
 def test_api_refuses_an_incompatible_content_schema(client):
     previous = client.app.state.database_status
     client.app.state.database_status = {
@@ -177,10 +197,20 @@ def test_works_lists_web_with_attribution(client):
     assert dictionary["source_url"]
 
 
+def test_works_report_ai_context_policy(client):
+    works = client.get("/api/v1/works").json()
+    assert works  # every fixture work is present
+    assert all(work["ai_context_policy"] == "allowed" for work in works)
+
+
 def test_general_books_list_and_tree(client):
     books = client.get("/api/v1/books").json()
     assert [(book["id"], book["type"]) for book in books] == [("baptist1689", "book")]
     assert books[0]["license"] == "Public Domain"
+
+    works = {work["id"]: work for work in client.get("/api/v1/works").json()}
+    for book in books:
+        assert book["ai_context_policy"] == works[book["id"]]["ai_context_policy"]
 
     response = client.get("/api/v1/book/baptist1689")
     assert response.status_code == 200
