@@ -12,6 +12,7 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 | `crossreferences_kjv.tsv` | TSK-derived cross-references | CC BY 4.0 | CrossReferences.org KJV mapping |
 | `BaptistConfession1689.imp.gz` | Baptist Confession of Faith of 1689 (unaltered provenance base) | Public domain | CrossWire BaptistConfession1689 1.0.2 |
 | `BaptistConfession1689-ed1.imp.gz` | Baptist Confession of Faith of 1689 (active reviewed input) | Public domain | CrossWire 1.0.2 + bible_app_bg editorial revision 1 |
+| `BaptistConfession1689_BG.imp.gz` | Баптистка изповед на вярата от 1689 г. (български превод) | CC0 1.0 Universal | Public-domain English revision + bible_app_bg Bulgarian translation |
 | `StrongsGreek.imp.gz` | Strong's Greek Dictionary (M8 lexical data) | Public domain | CrossWire StrongsGreek 2.0 |
 | `StrongsHebrew.imp.gz` | Strong's Hebrew Dictionary (M8 lexical data) | Public domain | CrossWire StrongsHebrew 1.2 |
 
@@ -101,6 +102,17 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
   - verify or rebuild with:
     `python3 scripts/build_baptist_confession_1689_ed1.py --check` or
     `python3 scripts/build_baptist_confession_1689_ed1.py`.
+- Bulgarian translation:
+  - the Bulgarian translation and its editorial changes are released under
+    [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/);
+  - the rights declaration, source chain, checksums, and SWORD package metadata are recorded in
+    [`BaptistConfession1689_BG.info.json`](BaptistConfession1689_BG.info.json);
+  - the complete editorial record is
+    [`BaptistConfession1689_BG.corrections.md`](BaptistConfession1689_BG.corrections.md);
+  - rebuild the deterministic IMP gzip with
+    `python3 scripts/revise_baptist_confession_1689_bg.py`;
+  - build the installable Eloquent/SWORD package with
+    `python3 scripts/build_baptist_confession_1689_bg_sword.py`.
 - Strong's Greek Dictionary module:
   https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsGreek
   - CrossWire metadata records version 2.0 and `Public Domain`; the text derives from James

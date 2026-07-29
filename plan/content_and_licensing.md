@@ -15,9 +15,11 @@ before shipping, and store that evidence with the work.
 | Easton's Bible Dictionary | Dictionary | EN | Public domain | CrossWire Easton module; exported with official SWORD tools. |
 | Treasury of Scripture Knowledge-derived mapping | Cross-refs | — | CC BY 4.0 | CrossReferences.org KJV mapping; explicit attribution stored and shown. |
 | Baptist Confession of Faith of 1689 | General Book | EN | Public domain | CrossWire `BaptistConfession1689` 1.0.2 plus documented editorial revision 1; the unaltered export is retained as the provenance base. |
+| Баптистка изповед на вярата от 1689 г. | General Book / SWORD package | BG | CC0 1.0 Universal | Bulgarian translation and editorial revision released under CC0 on 2026-07-29; source chain, checksums, and correction record are committed with the work. |
 
-**v1 is English-only.** The pane system and canonical addressing already support additional
-translations, so Bulgarian can be added later with no rework once its rights are cleared.
+The hosted v1 reader remains English-only until the Bulgarian work is wired into the production
+import. The separately built Bulgarian SWORD package is redistributable now that its CC0 rights are
+recorded.
 
 Production does not republish CCEL's downloadable XML editions: CCEL's policy asks users to contact
 them before republishing CCEL works. Its near-facsimile 1677 Confession transcription is used only

@@ -1,0 +1,57 @@
+{
+  "format_version": 1,
+  "work": {
+    "id": "baptist1689bg",
+    "title": "Баптистка изповед на вярата от 1689 г.",
+    "language": "bg",
+    "license": "CC0-1.0",
+    "license_name": "CC0 1.0 Universal",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "ai_context_policy": "allowed"
+  },
+  "rights": {
+    "declaration_date": "2026-07-29",
+    "declaration": "The repository and translation owner designated the Bulgarian translation and its editorial revisions for release under CC0 1.0 Universal.",
+    "scope": [
+      "Bulgarian translated text",
+      "Bulgarian editorial and terminology revisions",
+      "Bulgarian correction record",
+      "Compiled BaptistConfession1689BG SWORD module"
+    ]
+  },
+  "source": {
+    "historical_work": "The Second London Baptist Confession of Faith (1677/1689)",
+    "historical_status": "Public domain by age",
+    "english_base_filename": "BaptistConfession1689-ed1.imp.gz",
+    "english_base_version": "CrossWire BaptistConfession1689 1.0.2 + bible_app_bg editorial revision 1 (2026-07-29)",
+    "english_base_license": "Public Domain",
+    "english_base_info": "BaptistConfession1689-ed1.info.json",
+    "crosswire_source_url": "https://www.crosswire.org/ftpmirror/pub/sword/raw/mods.d/baptistconfession1689.conf"
+  },
+  "translation": {
+    "method": "Initial machine-assisted draft followed by Bulgarian editorial, theological, terminology, markup, and Scripture-reference review.",
+    "revision_date": "2026-07-29",
+    "source_filename": "BaptistConfession1689_BG.imp",
+    "compressed_filename": "BaptistConfession1689_BG.imp.gz",
+    "revision_script": "scripts/revise_baptist_confession_1689_bg.py",
+    "correction_record": "BaptistConfession1689_BG.corrections.md",
+    "decompressed_sha256": "f1de137c9dd020d1911e539a57cc990c47875edd68bbd3ab501da25c38ec60e2",
+    "compressed_sha256": "f13466b2af3f8e9e214cc39a50212decbf5614c26eb2fcebe3d983bb969ce679",
+    "structure": {
+      "imp_keys": 35,
+      "chapters": 32,
+      "paragraphs": 160,
+      "notes": 497,
+      "scripture_references": 1180
+    }
+  },
+  "sword_module": {
+    "module_id": "BaptistConfession1689BG",
+    "module_type": "RawGenBook",
+    "version": "0.1",
+    "builder": "scripts/build_baptist_confession_1689_bg_sword.py",
+    "package": "dist/sword/BaptistConfession1689BG.swd",
+    "package_sha256": "52b6cea2a32c05735387210dd983bfbf4cec2e49fd74bf93b705ab64c65c2a01",
+    "distribution_license": "CC0 1.0 Universal"
+  }
+}
