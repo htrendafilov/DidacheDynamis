@@ -55,8 +55,8 @@ Every work now carries an `ai_context_policy` field, set at import time and serv
 
 | Value | Meaning |
 |---|---|
-| `allowed` | May be sent to any provider the user has connected. Public domain and CrossWire works. |
-| `allowed_no_training` | May be sent **only** to a provider bound not to train on or retain the text — OpenRouter with `zdr: true` + `data_collection: "deny"`, or a paid Gemini tier. Never to a free tier that trains on input. |
+| `allowed` | May be sent through the configured OpenRouter route. This includes paid Gemini models selected through OpenRouter; the app never accepts a Google key. Public domain and CrossWire works use this value. |
+| `allowed_no_training` | May be sent only when the OpenRouter request uses `zdr: true` + `data_collection: "deny"` and the user confirms for that tab session that OpenRouter's optional input/output logging and use-of-prompts settings are off. Use this value only when the rightsholder accepts that user-attestation boundary. |
 | `prohibited` | Never sent. |
 | `unknown` | Never sent; behaves as `prohibited`. |
 
@@ -77,7 +77,10 @@ being answered. Default to `prohibited` unless the work's licence explicitly per
 to an external AI provider.
 
 This is importer-owned metadata, not a browser-side allowlist, so it travels with the content database
-and cannot be bypassed by editing client code.
+and the official client can enforce it consistently. It is **not** a security boundary against a user
+who modifies code running in their own browser. If a licence requires the app to verify account-level
+logging state rather than accept user attestation, the current architecture cannot satisfy it and the
+work must remain `prohibited`.
 
 ## Bulgarian Bible — DEFERRED (rights not yet cleared)
 

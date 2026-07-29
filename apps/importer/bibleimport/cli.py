@@ -546,8 +546,8 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         choices=["allowed", "allowed_no_training", "prohibited", "unknown"],
         help="may this work's text be sent to an external AI service? "
-             "'allowed_no_training' permits it only via a provider bound not to "
-             "train on or retain the text. Set 'prohibited' unless the licence "
+             "'allowed_no_training' requires the conditional privacy gate in the "
+             "interactive chat plan. Set 'prohibited' unless the licence "
              "explicitly permits it.",
     )
     g.add_argument("--source-url", default=None)
@@ -581,8 +581,8 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         choices=["allowed", "allowed_no_training", "prohibited", "unknown"],
         help="may this work's text be sent to an external AI service? "
-             "'allowed_no_training' permits it only via a provider bound not to "
-             "train on or retain the text. Set 'prohibited' unless the licence "
+             "'allowed_no_training' requires the conditional privacy gate in the "
+             "interactive chat plan. Set 'prohibited' unless the licence "
              "explicitly permits it.",
     )
     b.add_argument("--source-url", default=None)

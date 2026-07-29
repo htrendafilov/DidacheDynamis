@@ -55,7 +55,7 @@ class BibleSpec:
     versification: str
     license: str
     attribution: str
-    ai_context_policy: str  # 'allowed' | 'prohibited' | 'unknown' — may this text reach an AI provider?
+    ai_context_policy: str  # allowed | allowed_no_training | prohibited | unknown
     source_url: str | None = None
     source_version: str | None = None
     direction: str = "ltr"
@@ -71,7 +71,7 @@ class BookSpec:
     language: str
     license: str
     attribution: str
-    ai_context_policy: str  # 'allowed' | 'prohibited' | 'unknown' — may this text reach an AI provider?
+    ai_context_policy: str  # allowed | allowed_no_training | prohibited | unknown
     source_url: str | None = None
     source_version: str | None = None
     direction: str = "ltr"

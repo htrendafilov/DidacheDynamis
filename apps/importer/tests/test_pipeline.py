@@ -51,7 +51,8 @@ def test_build_writes_ai_context_policy(tmp_path):
     db = build(tmp_path)
     c = sqlite3.connect(db)
     rows = c.execute("SELECT ai_context_policy FROM works").fetchall()
-    assert rows and all(row[0] in ("allowed", "prohibited", "unknown") for row in rows)
+    allowed_values = {"allowed", "allowed_no_training", "prohibited", "unknown"}
+    assert rows and all(row[0] in allowed_values for row in rows)
 
 
 def test_ai_context_policy_rejects_invalid_values(tmp_path):

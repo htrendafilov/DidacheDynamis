@@ -34,9 +34,8 @@ CREATE TABLE works (
     checksum       TEXT NOT NULL,         -- sha256 of the source artifact
     -- May this work's text be sent to an external AI service? (M9.1)
     --   allowed             — unconditionally, e.g. public domain
-    --   allowed_no_training — only to a provider contractually bound not to train on
-    --                         or retain it (OpenRouter zdr+data_collection:deny, or a
-    --                         paid Gemini tier). Never to a free tier that trains.
+    --   allowed_no_training — only through the conditional OpenRouter privacy gate
+    --                         defined in plan/interactive_chat_plan.md section 8.5
     --   prohibited          — never
     --   unknown             — never; treated as prohibited at the point of use
     ai_context_policy TEXT NOT NULL DEFAULT 'unknown'
