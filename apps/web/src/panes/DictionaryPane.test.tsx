@@ -21,9 +21,23 @@ vi.mock("../data/hooks", () => ({
       source_url: null,
       source_version: "test",
     },
+    {
+      id: "strongsgreek",
+      type: "lexicon",
+      language: "grc",
+      title: "Strong's Greek Dictionary",
+      abbrev: "StrGrk",
+      direction: "ltr",
+      versification: "none",
+      license: "Public Domain",
+      attribution: "Public-domain test fixture.",
+      source_url: null,
+      source_version: "test",
+    },
   ],
   useDictionaryHeadwords: () => [{ headword: "Aaron" }, { headword: "Moses" }],
   useDictionaryEntry: (workId: string, headword: string | null) => entry(workId, headword),
+  useStrongEntry: () => ({ loading: false, notFound: false, error: false, data: null }),
 }));
 
 const aaronEntry = {
@@ -121,5 +135,23 @@ describe("DictionaryPane", () => {
 
     expect(screen.getByText("This dictionary entry could not be loaded.")).toBeInTheDocument();
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
+  it("switches to a Strong's lexicon and drops the Easton headword", () => {
+    entry.mockReturnValue({ loading: false, error: false, data: aaronEntry });
+    render(<Harness />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Dictionary source" }), {
+      target: { value: "strongsgreek" },
+    });
+
+    expect(useStore.getState().panes[0]).toMatchObject({
+      workId: "strongsgreek",
+      headword: undefined,
+    });
+    expect(screen.getByRole("searchbox")).toHaveAttribute(
+      "placeholder",
+      "Strong's number (e.g. H1254 or G3056)…",
+    );
   });
 });

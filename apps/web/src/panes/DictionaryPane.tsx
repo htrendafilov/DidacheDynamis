@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DictionaryWorkSelector } from "../components/DictionaryWorkSelector";
 import { SourceSelector } from "../components/SourceSelector";
 import { WorkFooter } from "../components/WorkFooter";
 import {
@@ -27,8 +28,8 @@ export function DictionaryPane({ pane }: { pane: Pane }) {
   // initial render neutral instead of briefly mounting Easton's hooks against a
   // lexicon work while /works is still in flight.
   if (!work) return <PendingDictionaryPane pane={pane} />;
-  if (work?.type === "lexicon") return <LexiconPane pane={pane} work={work} />;
-  return <EastonDictionaryPane pane={pane} work={work} />;
+  if (work.type === "lexicon") return <LexiconPane pane={pane} work={work} works={works} />;
+  return <EastonDictionaryPane pane={pane} work={work} works={works} />;
 }
 
 function PendingDictionaryPane({ pane }: { pane: Pane }) {
@@ -46,7 +47,7 @@ function PendingDictionaryPane({ pane }: { pane: Pane }) {
   );
 }
 
-function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
+function LexiconPane({ pane, work, works }: { pane: Pane; work: Work; works: Work[] | null }) {
   const { t } = useTranslation();
   const changePaneType = useStore((state) => state.changePaneType);
   const updatePane = useStore((state) => state.updatePane);
@@ -90,6 +91,11 @@ function LexiconPane({ pane, work }: { pane: Pane; work: Work }) {
     <div className="pane dictionary-pane">
       <div className="pane-header">
         <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
+        <DictionaryWorkSelector
+          works={works}
+          workId={pane.workId}
+          onChange={(workId) => updatePane(pane.id, { workId, headword: undefined })}
+        />
         <input
           type="search"
           value={draft}
@@ -178,7 +184,15 @@ function StrongEntryView({
   );
 }
 
-function EastonDictionaryPane({ pane, work }: { pane: Pane; work: Work | undefined }) {
+function EastonDictionaryPane({
+  pane,
+  work,
+  works,
+}: {
+  pane: Pane;
+  work: Work | undefined;
+  works: Work[] | null;
+}) {
   const { t } = useTranslation();
   const changePaneType = useStore((state) => state.changePaneType);
   const updatePane = useStore((state) => state.updatePane);
@@ -219,6 +233,11 @@ function EastonDictionaryPane({ pane, work }: { pane: Pane; work: Work | undefin
     <div className="pane dictionary-pane">
       <div className="pane-header">
         <SourceSelector type={pane.type} onChange={(type) => changePaneType(pane.id, type)} />
+        <DictionaryWorkSelector
+          works={works}
+          workId={pane.workId}
+          onChange={(workId) => updatePane(pane.id, { workId, headword: undefined })}
+        />
         <input
           type="search"
           value={prefix}

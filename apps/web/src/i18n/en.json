@@ -21,6 +21,7 @@
   "selector.book": "Book",
   "selector.chapter": "Chapter",
   "selector.version": "Bible version",
+"selector.dictionary": "Dictionary source",
   "settings.verseLayout": "Verse layout",
   "settings.perLine": "One verse per line",
   "settings.flowing": "Continuous",

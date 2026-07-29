@@ -10,6 +10,19 @@ const entry = vi.fn();
 vi.mock("../data/hooks", () => ({
   useWorks: () => [
     {
+      id: "easton",
+      type: "dictionary",
+      language: "en",
+      title: "Easton's Bible Dictionary",
+      abbrev: "EBD",
+      direction: "ltr",
+      versification: "kjv",
+      license: "Public Domain",
+      attribution: "Public-domain test fixture.",
+      source_url: null,
+      source_version: "test",
+    },
+    {
       id: "strongsgreek",
       type: "lexicon",
       language: "grc",
@@ -187,5 +200,21 @@ describe("LexiconPane (Strong's dictionary work)", () => {
 
     expect(screen.getByText("No lexicon entry for this identifier.")).toBeInTheDocument();
     expect(screen.getByText("Occurrences for G0001")).toBeInTheDocument();
+  });
+
+  it("switches back to Easton's and clears the stale Strong's id", () => {
+    entry.mockReturnValue({ loading: false, notFound: false, error: false, data: g0001 });
+    render(<Harness />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Dictionary source" }), {
+      target: { value: "easton" },
+    });
+
+    expect(useStore.getState().panes[0]).toMatchObject({ workId: "easton", headword: undefined });
+    // The Easton pane mounts (headword list + Easton's placeholder), not the lexicon id-input.
+    expect(screen.getByRole("navigation", { name: "Dictionary headwords" })).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("Strong's number (e.g. H1254 or G3056)…"),
+    ).not.toBeInTheDocument();
   });
 });

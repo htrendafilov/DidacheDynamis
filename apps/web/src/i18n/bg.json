@@ -21,6 +21,7 @@
   "selector.book": "Книга",
   "selector.chapter": "Глава",
   "selector.version": "Библейски превод",
+"selector.dictionary": "Източник на речника",
   "settings.verseLayout": "Подредба на стиховете",
   "settings.perLine": "Всеки стих на нов ред",
   "settings.flowing": "Непрекъснато",
