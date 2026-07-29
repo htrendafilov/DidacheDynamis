@@ -49,20 +49,32 @@ the import diagnostics, not silently patched.
 
 ## AI-context policy (M9.1) — added 2026-07-29
 
-Every work now carries an `ai_context_policy` field (`allowed` | `prohibited` | `unknown`), set at
-import time and served read-only through `GET /api/v1/works` and `GET /api/v1/books`. It governs
-whether the planned AI study assistant (`interactive_chat_plan.md`) may send that work's text to a
-third-party model provider; `unknown` behaves as `prohibited`. See
+Every work now carries an `ai_context_policy` field, set at import time and served read-only through
+`GET /api/v1/works` and `GET /api/v1/books`. It governs whether the planned AI study assistant
+(`interactive_chat_plan.md`) may send that work's text to a third-party model provider.
+
+| Value | Meaning |
+|---|---|
+| `allowed` | May be sent to any provider the user has connected. Public domain and CrossWire works. |
+| `allowed_no_training` | May be sent **only** to a provider bound not to train on or retain the text — OpenRouter with `zdr: true` + `data_collection: "deny"`, or a paid Gemini tier. Never to a free tier that trains on input. |
+| `prohibited` | Never sent. |
+| `unknown` | Never sent; behaves as `prohibited`. |
+
+`allowed_no_training` exists because a negotiated licence is far more likely to permit AI use *under
+conditions* than to permit it outright — which is exactly what §8.6 of the chat plan tells us to ask
+the ББД. Without it, a conditional grant has to be recorded as `prohibited` (losing the permission we
+negotiated for) or as `allowed` (exceeding it). See
 [`interactive_chat_plan.md`](interactive_chat_plan.md) §8.5 and
 [`chat/m9.1-licence-metadata.md`](chat/m9.1-licence-metadata.md) for the full design.
 
 All eight works listed above (WEB, KJV, MHC, Easton's, TSK, the 1689 Confession, and the two Strong's
 lexicons) are `allowed` — each is public domain or CrossWire-licensed, and none of those grants
 restricts onward transmission to a third-party service. **A new work must state its policy explicitly
-at import time**: `bibleimport build`/`add-book --ai-context-policy {allowed,prohibited,unknown}` is a
-required CLI argument, and `WorkMeta.ai_context_policy` has no default in code, so a work cannot be
-imported without the question being answered. Default to `prohibited` unless the work's licence
-explicitly permits sending its text to an external AI provider.
+at import time**: `bibleimport build`/`add-book --ai-context-policy
+{allowed,allowed_no_training,prohibited,unknown}` is a required CLI argument, and
+`WorkMeta.ai_context_policy` has no default in code, so a work cannot be imported without the question
+being answered. Default to `prohibited` unless the work's licence explicitly permits sending its text
+to an external AI provider.
 
 This is importer-owned metadata, not a browser-side allowlist, so it travels with the content database
 and cannot be bypassed by editing client code.

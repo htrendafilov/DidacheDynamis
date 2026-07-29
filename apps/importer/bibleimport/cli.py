@@ -544,9 +544,11 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument(
         "--ai-context-policy",
         required=True,
-        choices=["allowed", "prohibited", "unknown"],
+        choices=["allowed", "allowed_no_training", "prohibited", "unknown"],
         help="may this work's text be sent to an external AI service? "
-             "Set 'prohibited' unless the licence explicitly permits it.",
+             "'allowed_no_training' permits it only via a provider bound not to "
+             "train on or retain the text. Set 'prohibited' unless the licence "
+             "explicitly permits it.",
     )
     g.add_argument("--source-url", default=None)
     g.add_argument("--source-version", default=None)
@@ -577,9 +579,11 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument(
         "--ai-context-policy",
         required=True,
-        choices=["allowed", "prohibited", "unknown"],
+        choices=["allowed", "allowed_no_training", "prohibited", "unknown"],
         help="may this work's text be sent to an external AI service? "
-             "Set 'prohibited' unless the licence explicitly permits it.",
+             "'allowed_no_training' permits it only via a provider bound not to "
+             "train on or retain the text. Set 'prohibited' unless the licence "
+             "explicitly permits it.",
     )
     b.add_argument("--source-url", default=None)
     b.add_argument("--source-version", default=None)

@@ -95,6 +95,74 @@ def test_build_accepts_explicit_ai_context_policy(tmp_path):
     ).fetchone()[0] == "prohibited"
 
 
+def test_build_accepts_conditional_ai_context_policy(tmp_path):
+    """A licence may permit AI use only under no-training terms — see M9.1."""
+    out = tmp_path / "content.sqlite"
+    code = main(
+        [
+            "build",
+            "--format",
+            "usfx",
+            "--source",
+            str(FIXTURE),
+            "--out",
+            str(out),
+            "--work-id",
+            "test",
+            "--title",
+            "Test Bible",
+            "--abbrev",
+            "TB",
+            "--language",
+            "en",
+            "--license",
+            "Licensed",
+            "--attribution",
+            "test",
+            "--ai-context-policy",
+            "allowed_no_training",
+        ]
+    )
+    assert code == 0
+    conn = sqlite3.connect(out)
+    assert conn.execute(
+        "SELECT ai_context_policy FROM works WHERE id='test'"
+    ).fetchone()[0] == "allowed_no_training"
+
+
+def test_build_rejects_an_unknown_ai_context_policy(tmp_path, capsys):
+    """The CHECK constraint and the CLI choices must stay in step."""
+    out = tmp_path / "content.sqlite"
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "build",
+                "--format",
+                "usfx",
+                "--source",
+                str(FIXTURE),
+                "--out",
+                str(out),
+                "--work-id",
+                "test",
+                "--title",
+                "Test Bible",
+                "--abbrev",
+                "TB",
+                "--language",
+                "en",
+                "--license",
+                "Public Domain",
+                "--attribution",
+                "test",
+                "--ai-context-policy",
+                "maybe",
+            ]
+        )
+    assert "ai-context-policy" in capsys.readouterr().err
+    assert not out.exists()
+
+
 def test_validation_failure_writes_atomic_diagnostics_without_database(tmp_path):
     source = tmp_path / "invalid_usfx.xml"
     source.write_text(
