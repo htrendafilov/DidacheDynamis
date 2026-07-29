@@ -38,8 +38,10 @@ data/sources/*.private.*
 *-handoff.md
 .kilo/
 
-# One-shot local release scripts
-release-fd29f03.sh
+# Local release driver — drives production from a workstation that holds the SSH
+# access and the `pass` store, so it is intentionally not committed. The durable
+# procedure lives in plan/deployment/live-runbook.md.
+scripts/release.sh
 
 # Playwright
 apps/web/test-results/
