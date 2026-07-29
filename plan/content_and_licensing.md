@@ -47,6 +47,26 @@ holes, one lemma-less entry, CJK editorial annotations, Hebrew e-text cleanups) 
 checksums and counts in [`../data/sources/README.md`](../data/sources/README.md) and are asserted in
 the import diagnostics, not silently patched.
 
+## AI-context policy (M9.1) — added 2026-07-29
+
+Every work now carries an `ai_context_policy` field (`allowed` | `prohibited` | `unknown`), set at
+import time and served read-only through `GET /api/v1/works` and `GET /api/v1/books`. It governs
+whether the planned AI study assistant (`interactive_chat_plan.md`) may send that work's text to a
+third-party model provider; `unknown` behaves as `prohibited`. See
+[`interactive_chat_plan.md`](interactive_chat_plan.md) §8.5 and
+[`chat/m9.1-licence-metadata.md`](chat/m9.1-licence-metadata.md) for the full design.
+
+All eight works listed above (WEB, KJV, MHC, Easton's, TSK, the 1689 Confession, and the two Strong's
+lexicons) are `allowed` — each is public domain or CrossWire-licensed, and none of those grants
+restricts onward transmission to a third-party service. **A new work must state its policy explicitly
+at import time**: `bibleimport build`/`add-book --ai-context-policy {allowed,prohibited,unknown}` is a
+required CLI argument, and `WorkMeta.ai_context_policy` has no default in code, so a work cannot be
+imported without the question being answered. Default to `prohibited` unless the work's licence
+explicitly permits sending its text to an external AI provider.
+
+This is importer-owned metadata, not a browser-side allowlist, so it travels with the content database
+and cannot be bypassed by editing client code.
+
 ## Bulgarian Bible — DEFERRED (rights not yet cleared)
 
 **Preferred target: the ББД (Bulgarian Bible Society) edition** — *"Библия, ревизирано издание"*

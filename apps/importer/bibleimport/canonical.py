@@ -235,6 +235,7 @@ class WorkMeta:
     attribution: str
     source_url: str | None
     source_version: str | None
+    ai_context_policy: str   # 'allowed' | 'prohibited' | 'unknown'
     checksum: str
 
 

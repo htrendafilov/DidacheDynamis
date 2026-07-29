@@ -67,6 +67,7 @@ class Work(BaseModel):
     attribution: str
     source_url: str | None = None
     source_version: str | None = None
+    ai_context_policy: str = "unknown"
 
 
 class Book(BaseModel):

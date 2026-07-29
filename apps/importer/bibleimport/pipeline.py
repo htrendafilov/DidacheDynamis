@@ -55,6 +55,7 @@ class BibleSpec:
     versification: str
     license: str
     attribution: str
+    ai_context_policy: str  # 'allowed' | 'prohibited' | 'unknown' — may this text reach an AI provider?
     source_url: str | None = None
     source_version: str | None = None
     direction: str = "ltr"
@@ -70,6 +71,7 @@ class BookSpec:
     language: str
     license: str
     attribution: str
+    ai_context_policy: str  # 'allowed' | 'prohibited' | 'unknown' — may this text reach an AI provider?
     source_url: str | None = None
     source_version: str | None = None
     direction: str = "ltr"
@@ -94,8 +96,8 @@ def _combined_sha256(paths: list[Path]) -> str:
 def _insert_work(conn: sqlite3.Connection, meta: WorkMeta) -> None:
     conn.execute(
         "INSERT INTO works(id,type,language,title,abbrev,direction,versification,"
-        "license,attribution,source_url,source_version,checksum) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "license,attribution,source_url,source_version,checksum,ai_context_policy) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             meta.id,
             meta.type,
@@ -109,6 +111,7 @@ def _insert_work(conn: sqlite3.Connection, meta: WorkMeta) -> None:
             meta.source_url,
             meta.source_version,
             meta.checksum,
+            meta.ai_context_policy,
         ),
     )
 
@@ -216,6 +219,7 @@ def build_bible(
         attribution=spec.attribution,
         source_url=spec.source_url,
         source_version=spec.source_version,
+        ai_context_policy=spec.ai_context_policy,
         checksum=source_sha256(source),
     )
 
@@ -310,6 +314,7 @@ def append_study_content(
         ),
         source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=MHC",
         source_version="CrossWire MHC 2.2" if sword_commentary else "CCEL ThML",
+        ai_context_policy="allowed",
         checksum=_combined_sha256(commentary_paths),
     )
     easton = WorkMeta(
@@ -327,6 +332,7 @@ def append_study_content(
         ),
         source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=Easton",
         source_version=easton_source_version(easton_diag),
+        ai_context_policy="allowed",
         checksum=source_sha256(dictionary_path),
     )
     tsk = WorkMeta(
@@ -344,6 +350,7 @@ def append_study_content(
         ),
         source_url="https://github.com/CrossReferences-org/bible-cross-references",
         source_version="KJV mapping",
+        ai_context_policy="allowed",
         checksum=source_sha256(xref_path),
     )
 
@@ -502,6 +509,7 @@ def append_bible(
         attribution=spec.attribution,
         source_url=spec.source_url,
         source_version=spec.source_version,
+        ai_context_policy=spec.ai_context_policy,
         checksum=source_checksum,
     )
     conn = sqlite3.connect(out_db)
@@ -650,6 +658,7 @@ def append_strongs(
         ),
         source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsGreek",
         source_version="CrossWire StrongsGreek 2.0",
+        ai_context_policy="allowed",
         checksum=source_sha256(greek_path),
     )
     hebrew_meta = WorkMeta(
@@ -667,6 +676,7 @@ def append_strongs(
         ),
         source_url="https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsHebrew",
         source_version="CrossWire StrongsHebrew 1.2",
+        ai_context_policy="allowed",
         checksum=source_sha256(hebrew_path),
     )
     conn = sqlite3.connect(out_db)
@@ -740,6 +750,7 @@ def append_book(
         attribution=spec.attribution,
         source_url=spec.source_url,
         source_version=spec.source_version,
+        ai_context_policy=spec.ai_context_policy,
         checksum=source_sha256(source),
     )
     conn = sqlite3.connect(out_db)

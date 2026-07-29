@@ -23,10 +23,76 @@ def test_build_web_writes_default_diagnostics_and_audit_line(tmp_path, capsys):
     assert report["imports"][0]["work_id"] == "web"
     assert report["imports"][0]["source"] == "mini_usfx.xml"
     assert len(report["imports"][0]["sha256"]) == 64
+    assert report["imports"][0]["ai_context_policy"] == "allowed"
     audit_line = next(
         line for line in capsys.readouterr().out.splitlines() if line.startswith("AUDIT ")
     )
     assert str(FIXTURE.parent) not in audit_line
+    assert '"ai_context_policy":"allowed"' in audit_line
+
+
+def test_build_requires_ai_context_policy(tmp_path, capsys):
+    out = tmp_path / "content.sqlite"
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "build",
+                "--format",
+                "usfx",
+                "--source",
+                str(FIXTURE),
+                "--out",
+                str(out),
+                "--work-id",
+                "test",
+                "--title",
+                "Test Bible",
+                "--abbrev",
+                "TB",
+                "--language",
+                "en",
+                "--license",
+                "Public Domain",
+                "--attribution",
+                "test",
+            ]
+        )
+    assert "ai-context-policy" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_build_accepts_explicit_ai_context_policy(tmp_path):
+    out = tmp_path / "content.sqlite"
+    code = main(
+        [
+            "build",
+            "--format",
+            "usfx",
+            "--source",
+            str(FIXTURE),
+            "--out",
+            str(out),
+            "--work-id",
+            "test",
+            "--title",
+            "Test Bible",
+            "--abbrev",
+            "TB",
+            "--language",
+            "en",
+            "--license",
+            "Public Domain",
+            "--attribution",
+            "test",
+            "--ai-context-policy",
+            "prohibited",
+        ]
+    )
+    assert code == 0
+    conn = sqlite3.connect(out)
+    assert conn.execute(
+        "SELECT ai_context_policy FROM works WHERE id='test'"
+    ).fetchone()[0] == "prohibited"
 
 
 def test_validation_failure_writes_atomic_diagnostics_without_database(tmp_path):

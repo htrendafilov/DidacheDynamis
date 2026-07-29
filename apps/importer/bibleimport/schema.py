@@ -12,7 +12,8 @@ import sqlite3
 # CONTENT_SCHEMA_VERSION constant and refuses to serve an incompatible database.
 # v2: verse_tokens + strong_lexicon (M8.1 Strong's lexical data).
 # v3: diacritic-folded structured search columns on strong_lexicon (M8.4).
-SCHEMA_VERSION = 3
+# v4: works.ai_context_policy (M9.1 — may a work's text be sent to an external AI service?).
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
@@ -30,7 +31,9 @@ CREATE TABLE works (
     attribution    TEXT NOT NULL,
     source_url     TEXT,
     source_version TEXT,
-    checksum       TEXT NOT NULL          -- sha256 of the source artifact
+    checksum       TEXT NOT NULL,         -- sha256 of the source artifact
+    ai_context_policy TEXT NOT NULL DEFAULT 'unknown'
+        CHECK (ai_context_policy IN ('allowed','prohibited','unknown'))
 );
 
 CREATE TABLE books (

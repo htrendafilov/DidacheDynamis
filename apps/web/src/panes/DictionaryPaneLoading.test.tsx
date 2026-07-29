@@ -19,6 +19,7 @@ const strongsGreek: Work = {
   attribution: "Public-domain test fixture.",
   source_url: null,
   source_version: "test",
+  ai_context_policy: "allowed",
 };
 
 const g2316: StrongEntry = {

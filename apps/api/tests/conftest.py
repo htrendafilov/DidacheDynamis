@@ -38,6 +38,7 @@ def db_path(tmp_path_factory) -> Path:
     spec = BibleSpec(
         work_id="web", title="World English Bible", abbrev="WEB", language="en",
         versification="kjv", license="Public Domain", attribution="WEB is public domain.",
+        ai_context_policy="allowed",
         source_url="https://ebible.org/", source_version="test fixture",
     )
     diag = build_bible(src, spec, out, fmt="usfx")
@@ -58,6 +59,7 @@ def db_path(tmp_path_factory) -> Path:
             language="en",
             license="Public Domain",
             attribution="Public-domain test fixture.",
+            ai_context_policy="allowed",
             source_url="https://example.test/1689",
             source_version="test fixture",
         ),
@@ -94,6 +96,7 @@ def strongs_db_path(tmp_path_factory) -> Path:
     spec = BibleSpec(
         work_id="web", title="World English Bible", abbrev="WEB", language="en",
         versification="kjv", license="Public Domain", attribution="WEB is public domain.",
+        ai_context_policy="allowed",
         source_url="https://ebible.org/", source_version="test fixture",
     )
     diag = build_bible(src, spec, out, fmt="usfx")
@@ -110,6 +113,7 @@ def strongs_db_path(tmp_path_factory) -> Path:
             versification="kjv",
             license="GPL",
             attribution="CrossWire KJV Strong's test fixture",
+            ai_context_policy="allowed",
             expected_alignment=AlignmentExpectation(
                 base_work_id="web",
                 base_checksum=source_sha256(src),

@@ -3,7 +3,7 @@
     bibleimport build-web --source data/sources/engwebp_usfx.zip --out data/content.sqlite
     bibleimport build --format usfx --work-id web --title "World English Bible" \\
         --abbrev WEB --language en --versification kjv --license "Public Domain" \\
-        --attribution "..." --source <path> --out data/content.sqlite
+        --attribution "..." --ai-context-policy allowed --source <path> --out data/content.sqlite
 """
 
 from __future__ import annotations
@@ -54,6 +54,7 @@ WEB_SPEC = BibleSpec(
     ),
     source_url="https://ebible.org/find/details.php?id=engwebp",
     source_version="World English Bible Updated (2023 text; eBible archive 2026-07-10)",
+    ai_context_policy="allowed",
 )
 
 KJV_SPEC = BibleSpec(
@@ -101,6 +102,7 @@ KJV_SPEC = BibleSpec(
         tagged_spans=6,
         strong_ids=7,
     ),
+    ai_context_policy="allowed",
 )
 
 BAPTIST_1689_SPEC = BookSpec(
@@ -117,6 +119,7 @@ BAPTIST_1689_SPEC = BookSpec(
         "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=BaptistConfession1689"
     ),
     source_version="CrossWire BaptistConfession1689 1.0.2 (2020-06-01)",
+    ai_context_policy="allowed",
 )
 
 
@@ -129,6 +132,7 @@ def _audit_record(
     source: str | Path,
     *,
     result: str,
+    ai_context_policy: str,
     statistics: dict | None = None,
     source_version: str | None = None,
     diagnostics=None,
@@ -140,6 +144,7 @@ def _audit_record(
         "source_bytes": path.stat().st_size if path.exists() else None,
         "sha256": source_sha256(path) if path.is_file() else None,
         "source_version": source_version,
+        "ai_context_policy": ai_context_policy,
         "result": result,
         "statistics": statistics or {},
         "warnings": list(diagnostics.warnings) if diagnostics else [],
@@ -152,7 +157,7 @@ def _audit_record(
 def _print_audit(record: dict) -> None:
     concise = {
         key: record[key]
-        for key in ("work_id", "source", "source_bytes", "sha256", "result")
+        for key in ("work_id", "source", "source_bytes", "sha256", "ai_context_policy", "result")
     }
     concise["statistics"] = {
         key: value for key, value in record["statistics"].items() if key != "per_book"
@@ -211,6 +216,7 @@ def _cmd_build_web(args) -> int:
         WEB_SPEC.work_id,
         args.source,
         result="ok" if diag.ok else "failed",
+        ai_context_policy=WEB_SPEC.ai_context_policy,
         statistics=diag.stats,
         source_version=WEB_SPEC.source_version,
         diagnostics=diag,
@@ -224,6 +230,7 @@ def _cmd_build(args) -> int:
     spec = BibleSpec(
         work_id=args.work_id, title=args.title, abbrev=args.abbrev, language=args.language,
         versification=args.versification, license=args.license, attribution=args.attribution,
+        ai_context_policy=args.ai_context_policy,
         source_url=args.source_url, source_version=args.source_version, direction=args.direction,
     )
     diag = build_bible(args.source, spec, args.out, fmt=args.format)
@@ -231,6 +238,7 @@ def _cmd_build(args) -> int:
         spec.work_id,
         args.source,
         result="ok" if diag.ok else "failed",
+        ai_context_policy=spec.ai_context_policy,
         statistics=diag.stats,
         source_version=spec.source_version,
         diagnostics=diag,
@@ -249,6 +257,7 @@ def _easton_audit(source: str | Path, stats: dict, easton_diag: dict) -> dict:
         "easton",
         source,
         result="ok",
+        ai_context_policy="allowed",
         statistics=statistics,
         source_version=easton_source_version(easton_diag),
     )
@@ -274,6 +283,7 @@ def _cmd_add_study(args) -> int:
                 "mhc",
                 source,
                 result="ok",
+                ai_context_policy="allowed",
                 statistics={"commentary_entries": stats["commentary_entries"]},
                 source_version="CrossWire MHC 2.2",
             )
@@ -285,6 +295,7 @@ def _cmd_add_study(args) -> int:
                 "tsk",
                 args.xref_source,
                 result="ok",
+                ai_context_policy="allowed",
                 statistics={"xrefs": stats["xrefs"]},
                 source_version="KJV mapping",
             ),
@@ -303,6 +314,7 @@ def _cmd_add_kjv(args) -> int:
         KJV_SPEC.work_id,
         args.source,
         result="ok" if diag.ok else "failed",
+        ai_context_policy=KJV_SPEC.ai_context_policy,
         statistics=diag.stats,
         source_version=KJV_SPEC.source_version,
         diagnostics=diag,
@@ -320,6 +332,7 @@ def _cmd_add_book(args) -> int:
         language=args.language,
         license=args.license,
         attribution=args.attribution,
+        ai_context_policy=args.ai_context_policy,
         source_url=args.source_url,
         source_version=args.source_version,
         direction=args.direction,
@@ -330,6 +343,7 @@ def _cmd_add_book(args) -> int:
         spec.work_id,
         args.source,
         result="ok",
+        ai_context_policy=spec.ai_context_policy,
         statistics={"book_sections": count},
         source_version=spec.source_version,
     )
@@ -346,6 +360,7 @@ def _strongs_audits(
         "strongsgreek",
         greek_source,
         result="ok",
+        ai_context_policy="allowed",
         statistics={"lexicon_entries": stats["strongs_greek_entries"]},
         source_version="CrossWire StrongsGreek 2.0",
     )
@@ -354,6 +369,7 @@ def _strongs_audits(
         "strongshebrew",
         hebrew_source,
         result="ok",
+        ai_context_policy="allowed",
         statistics={"lexicon_entries": stats["strongs_hebrew_entries"]},
         source_version="CrossWire StrongsHebrew 1.2",
     )
@@ -402,6 +418,7 @@ def _cmd_build_all(args) -> int:
         WEB_SPEC.work_id,
         src / SOURCE_FILES["web"],
         result="ok" if diag.ok else "failed",
+        ai_context_policy=WEB_SPEC.ai_context_policy,
         statistics=diag.stats,
         source_version=WEB_SPEC.source_version,
         diagnostics=diag,
@@ -418,6 +435,7 @@ def _cmd_build_all(args) -> int:
         KJV_SPEC.work_id,
         src / SOURCE_FILES["kjv"],
         result="ok" if diag.ok else "failed",
+        ai_context_policy=KJV_SPEC.ai_context_policy,
         statistics=diag.stats,
         source_version=KJV_SPEC.source_version,
         diagnostics=diag,
@@ -442,6 +460,7 @@ def _cmd_build_all(args) -> int:
             "mhc",
             src / SOURCE_FILES["mhc"],
             result="ok",
+            ai_context_policy="allowed",
             statistics={"commentary_entries": stats["commentary_entries"]},
             source_version="CrossWire MHC 2.2",
         ),
@@ -450,6 +469,7 @@ def _cmd_build_all(args) -> int:
             "tsk",
             src / SOURCE_FILES["tsk"],
             result="ok",
+            ai_context_policy="allowed",
             statistics={"xrefs": stats["xrefs"]},
             source_version="KJV mapping",
         ),
@@ -465,6 +485,7 @@ def _cmd_build_all(args) -> int:
         BAPTIST_1689_SPEC.work_id,
         src / SOURCE_FILES["baptist1689"],
         result="ok",
+        ai_context_policy=BAPTIST_1689_SPEC.ai_context_policy,
         statistics={"book_sections": count},
         source_version=BAPTIST_1689_SPEC.source_version,
     )
@@ -520,6 +541,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--language", required=True)
     g.add_argument("--license", required=True)
     g.add_argument("--attribution", required=True)
+    g.add_argument(
+        "--ai-context-policy",
+        required=True,
+        choices=["allowed", "prohibited", "unknown"],
+        help="may this work's text be sent to an external AI service? "
+             "Set 'prohibited' unless the licence explicitly permits it.",
+    )
     g.add_argument("--source-url", default=None)
     g.add_argument("--source-version", default=None)
     g.add_argument("--direction", default="ltr")
@@ -546,6 +574,13 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--versification", default="kjv")
     b.add_argument("--license", required=True)
     b.add_argument("--attribution", required=True)
+    b.add_argument(
+        "--ai-context-policy",
+        required=True,
+        choices=["allowed", "prohibited", "unknown"],
+        help="may this work's text be sent to an external AI service? "
+             "Set 'prohibited' unless the licence explicitly permits it.",
+    )
     b.add_argument("--source-url", default=None)
     b.add_argument("--source-version", default=None)
     b.add_argument("--direction", default="ltr")
