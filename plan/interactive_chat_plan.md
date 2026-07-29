@@ -2,7 +2,7 @@
 
 Status: ready to execute
 Target milestone: M9
-Last reviewed: 2026-07-28
+Last reviewed: 2026-07-29
 
 Implementation plan for an optional AI-assisted study workspace in the Bible reader. `plan/00_system_design.md` §9 lists "AI explanations" as a v1 non-goal; M9 is the deliberate milestone that lifts it, not a v1 patch.
 
@@ -26,7 +26,7 @@ Build the assistant as a **client-side, source-grounded study workspace**, not a
 3. Send only explicitly selected context to an external model provider.
 4. Stream a Bulgarian or English response with citations that resolve only to the trusted context the application assembled.
 5. Keep provider credentials and conversations in the browser. The production server stays read-only and receives neither the credential nor the conversation.
-6. Support several providers through **one OpenAI-compatible adapter** plus a provider registry. The user supplies their own API key (BYOK). See §5 for which providers are actually reachable from a browser — this is a hard constraint, not a preference.
+6. Ship the first release with **OpenRouter only**, using a user-owned OpenRouter API key. Keep a small provider registry as an extension point, but do not accept or configure direct Google, Anthropic, OpenAI, or other upstream-provider credentials. See §5.
 7. Start with deterministic pre-retrieval. Model-driven tool-calling is deferred to M9.6.
 
 This is an explanation and navigation aid. It is not an authority on doctrine, translation, or original-language meaning.
@@ -42,7 +42,7 @@ This is an explanation and navigation aid. It is not an authority on doctrine, t
 - Navigate from a response citation to the existing Bible, commentary, dictionary, lexicon, or book UI.
 - Support streamed output, Stop, Retry, keyboard use, and mobile use.
 - Make the exact material leaving the browser visible before it is sent.
-- Provide a provider abstraction so a new OpenAI-compatible endpoint is a table row, not a rewrite.
+- Keep the OpenAI-compatible transport behind a small configuration seam so a future, separately reviewed provider does not require a rewrite.
 
 ### 2.2 Non-goals for the first release
 
@@ -52,7 +52,7 @@ This is an explanation and navigation aid. It is not an authority on doctrine, t
 - Automatic inclusion of an entire commentary, dictionary, or general book.
 - Fine-tuning or hosting a model.
 - Claiming theological neutrality, doctrinal authority, or guaranteed factual correctness.
-- Direct OpenAI API keys — **not technically possible from a browser** (§5.2).
+- Direct Google Gemini / Google AI Studio, Anthropic, OpenAI, or other upstream-provider keys. The first release accepts an OpenRouter key only (§5.2).
 
 ## 3. Constraints inherited from the repository
 
@@ -75,7 +75,7 @@ Browser
 ├── ContextBuilder ──► existing cacheable GET /api/v1 endpoints
 ├── SourceNormalizer (CIR Document/Passage ──► bounded plain text)
 ├── PromptBuilder ──► bounded source records S1, S2, ...
-├── ChatClient (one OpenAI-compatible adapter + provider registry)
+├── ChatClient (OpenRouter over its OpenAI-compatible SSE API)
 ├── streamed response + trusted citation resolver
 └── local Dexie/IndexedDB history
 
@@ -95,7 +95,7 @@ sequenceDiagram
     actor User
     participant Web as apps/web (browser)
     participant API as apps/api (read-only)
-    participant LLM as User's chosen provider
+    participant LLM as OpenRouter / selected model
 
     Note over Web,LLM: M9.3 — grounded question about selected context
     User->>Web: "Explain John 3:16, and why 'begotten'?"
@@ -126,20 +126,20 @@ The trade-off is that a browser credential is readable by script if the site suf
 
 - Credential in `sessionStorage` only, never `localStorage`, IndexedDB, notes, Dropbox, a URL, logs, or error telemetry.
 - Password-type input; never echoed, rendered, exported, or included in a copied error report.
-- Guidance to create a **dedicated, spend-limited key** per provider so revocation is cheap.
+- Guidance to create a **dedicated, spend-limited OpenRouter key** so revocation is cheap.
 - Existing same-origin scripts and strict CSP; no third-party script tags; no provider SDKs.
 - Plain-text / constrained response rendering; no raw model HTML; no `dangerouslySetInnerHTML`.
-- A visible Disconnect action and per-provider revocation instructions.
+- A visible Disconnect action and OpenRouter revocation instructions.
 
 ## 5. Provider strategy
 
-### 5.1 One adapter, a registry of endpoints
+### 5.1 One OpenRouter adapter, with a narrow extension seam
 
-Every provider we can actually use exposes an OpenAI-compatible `POST /chat/completions` with SSE streaming. So there is **one** adapter and a table:
+The shipped provider exposes an OpenAI-compatible `POST /chat/completions` with SSE streaming. Use **one** adapter and a one-row configuration table:
 
 ```ts
 interface ProviderConfig {
-  id: "openrouter" | "anthropic" | "gemini";
+  id: "openrouter";
   baseUrl: string;                    // no trailing slash
   modelsPath: string;                 // GET, for the model picker
   extraHeaders: Record<string, string>;
@@ -158,26 +158,23 @@ interface ChatClient {
 }
 ```
 
-Use raw `fetch` and hand-parse SSE. Do **not** add an SDK: the OpenAI/Anthropic JS SDKs send `x-stainless-*` headers that break the CORS preflight on at least one target endpoint (§5.2, Gemini), and they are large. Lazy-load the whole chat feature on first open.
+Use raw `fetch` and hand-parse SSE. Do **not** add an SDK: OpenRouter needs only a small standards-based client, and an SDK would add weight without removing the need to handle SSE and OpenRouter metadata. Lazy-load the whole chat feature on first open.
 
 `ChatRunMeta` records: requested and actual model, provider, finish reason, usage/cost when returned, retry metadata, and a typed user-safe error.
 
-### 5.2 Which providers are reachable from a browser
+### 5.2 Shipping provider
 
-**This table is the constraint that shapes M9.** It is not a preference list. Verify each row in the M9.0 spike before writing adapter code.
+M9.0 investigated several browser-reachable APIs. That research does not create implementation scope: the first release has exactly one credential type, one network origin, and one provider row.
 
 | Provider | OpenAI-compatible base URL | Auth | Required extra headers | Browser CORS | Verdict |
 |---|---|---|---|---|---|
-| **OpenRouter** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <key>` | optional `HTTP-Referer`, `X-Title` (attribution) | ✅ Works today; browser BYOK is a documented use case | **Ship in M9.2** |
-| **Anthropic** | `https://api.anthropic.com/v1` | `Authorization: Bearer <key>` | `anthropic-dangerous-direct-browser-access: true` | ✅ Officially supported since Aug 2024 | **Deferred — no API key available (§5.5)** |
-| **Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer <key>` | none — keep the header set minimal | ✅ Verified working with raw `fetch`. Undocumented by Google, so keep the registry row easy to drop | **Ship in M9.2** |
-| **OpenAI direct** | `https://api.openai.com/v1` | — | — | ❌ The **preflight** succeeds and echoes the origin, but the actual `POST /chat/completions` response carries no `Access-Control-Allow-Origin`, so the browser blocks it | **Out of scope — reach OpenAI models via OpenRouter instead** |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <OpenRouter key>` | optional `HTTP-Referer`, `X-Title` (attribution) | ✅ Works today; browser use with a user-owned key was verified | **The only M9.2 provider** |
 
 Notes on the subtleties, all confirmed in [`chat/m9.0-findings.md`](chat/m9.0-findings.md):
 
-- The Anthropic header is named "dangerous" because it enables the anti-pattern of a *developer* shipping *their* key in client code. That is not what this is: the user supplies their own key, in their own browser, for their own account. Say so in the settings UI so the header name does not alarm anyone reading the network tab.
-- Anthropic's `GET /v1/models` **does** work through the OpenAI-compatibility layer with `Authorization: Bearer`. No static model list is needed.
 - OpenRouter's `GET /api/v1/models` needs no auth, so the model picker can populate before the user connects. Use that for the first-run experience.
+- The M9.0 reachability work for direct providers is retained in [`chat/m9.0-findings.md`](chat/m9.0-findings.md) as historical evidence. There is no direct-provider registry row, key input, request strategy, or CSP origin in M9.2.
+- Gemini-, Claude-, and OpenAI-branded models may still appear in OpenRouter's catalogue. They are reached only through the OpenRouter API and OpenRouter credential; the app never asks for the corresponding upstream key.
 - **OpenAI's CORS support is endpoint-inconsistent**, which makes it a trap: `GET /v1/models` is browser-readable and the completions preflight returns 200 with the origin echoed, so a curl-only test reports success. Only the actual POST response reveals the missing header. Re-test with a real browser, not curl, if this is ever revisited.
 
 ### 5.3 Privacy routing
@@ -190,9 +187,11 @@ Only OpenRouter exposes routing-level privacy controls. Request them by default:
 
 - `zdr: true` requires zero-data-retention endpoints. `data_collection: "deny"` blocks providers that train on the data. They are different guarantees; request both.
 - If no model satisfies both, explain why. **Do not silently weaken them.** A user-controlled setting may permit broader routing after a clear warning.
-- **The app cannot control the user's own account-level logging.** OpenRouter account settings include "enable free endpoints that may train on inputs" and "enable free endpoints that may publish prompts". If those are on, prompts are retained regardless of what this app requests. State this in the privacy notice; it is not something the SPA can detect or override.
-- Anthropic and Gemini have no equivalent per-request control. Their retention is governed by the user's own account terms. Say so per provider in the settings UI — draft wording in [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §10c.
-- **Gemini's tier *is* its privacy control, and the app cannot read it.** Google's published policy is that free-tier content is *"used to improve our products"* and paid-tier content is not. There is no request parameter that changes this and no way for the SPA to tell which tier a pasted key belongs to. The settings UI must therefore state the free-tier terms plainly and let the user decide, and the §8.5 licence gate must treat Gemini as **not** satisfying `allowed_no_training` unless the user asserts a paid key.
+- These request fields constrain OpenRouter's **upstream endpoint routing**, including BYOK endpoints configured in the user's OpenRouter workspace. OpenRouter documents that a BYOK credential does not bypass ZDR or `data_collection` filtering.
+- **The app cannot control or detect OpenRouter's own account-level prompt-logging opt-ins.** OpenRouter says prompt logging and use of inputs/outputs are off by default, but a user or workspace admin can enable them. Per-request ZDR does not turn those account choices off. State this in the privacy notice.
+- OpenRouter's privacy documentation says it may sample a small number of prompts for anonymous categorization under a ZDR policy even when logging/use opt-ins are off. Disclose that separately from retention and training; do not describe the request as unseen or unprocessed.
+- Therefore `allowed_no_training` requires both privacy routing **and** a session-scoped user confirmation that OpenRouter input/output logging and OpenRouter use of prompts are disabled for that account/workspace. Default the confirmation off; clear it on Disconnect. Without both conditions, those sources stay blocked (§8.5).
+- The app accepts only an OpenRouter API key and does not create or manage upstream BYOK credentials. If the user independently configured provider BYOK in OpenRouter, the upstream provider terms remain the user's responsibility; BYOK is not presented as a terms workaround. Display `usage.is_byok` when OpenRouter returns it.
 
 ### 5.4 Free-tier reality (OpenRouter)
 
@@ -200,10 +199,11 @@ Measured 2026-07-29 ([`chat/m9.0-findings.md`](chat/m9.0-findings.md) §4):
 
 - `openrouter/free` is a real router that picks a free model at random, filtered by the capabilities the request needs. 200k context, zero-priced.
 - Free-tier limits: **20 requests/minute**, **50 requests/day** without credit, **1,000/day** once $10 in credits has ever been purchased.
+- Do not promise zero-cost onboarding. OpenRouter's current Terms say API use requires purchasing credits (minimum purchase $5), while its FAQ describes only a very small new-user allowance and free-priced model variants. "`:free`" describes inference price and rate limits, not a guaranteed no-payment account path.
 - Tool support is **not** a meaningful constraint on the free pool: 14 of the 15 free entries advertise `tools`, including `openrouter/free` itself. Do not use this as an argument for anything.
 - **The privacy branch resolved in favour of row 1**: `openrouter/free` satisfies `zdr: true` + `data_collection: "deny"`. Most *individually named* free models do not — they return HTTP 404 "no endpoints found matching your data policy" — because the router filters to compliant endpoints and its constituents do not. Expect that 404 to be a common, user-visible path.
-- **Free-model output quality is a separate problem from privacy, and it is serious.** Four identical Bulgarian requests routed to four different models: one produced gibberish, one was a content-safety classifier that replied `"User"`, two were good. Passing the privacy gate does not make a model usable for a Bulgarian Bible reader. See §18 and [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §7 — the default-model choice is an open owner decision.
-- **Hidden reasoning silently consumes the output budget.** `openrouter/free` at `max_tokens: 160` returned 160 chunks and an empty answer. Requests must send `reasoning: {enabled: false}` (not `exclude`, which only hides the output while still spending the budget). **Gemini needs its thinking disabled too, but only some Gemini models can** — `reasoning_effort: "none"` works on 2.5 Flash and Flash-Lite and is rejected by 2.5 Pro and every Gemini 3 model. Suppression is therefore a per-model capability, not a per-provider constant; where it is impossible, the only defence is a `max_tokens` large enough that thinking cannot consume it all. See `chat/m9.2-workspace-and-provider.md` §4b and `chat/m9.0-findings.md` §8a.
+- **Free-model output quality is a separate problem from privacy, and it is serious.** Four identical Bulgarian requests routed to four different models: one produced gibberish, one was a content-safety classifier that replied `"User"`, two were good. Passing the privacy gate does not make a model usable for a Bulgarian Bible reader. **Decision: ship no default model; the user must choose.** See §18 and [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §7.
+- **Hidden reasoning silently consumes the output budget.** `openrouter/free` at `max_tokens: 160` returned 160 chunks and an empty answer. Requests must send `reasoning: {enabled: false}` (not `exclude`, which only hides the output while still spending the budget) unless OpenRouter's model metadata says reasoning is mandatory. Suppression is a per-model capability even though every request uses OpenRouter; where it is impossible, the defence is a larger `max_tokens` plus an explicit `emptyAnswer` error. See `chat/m9.2-workspace-and-provider.md` §4b and `chat/m9.0-findings.md` §8a.
 
 #### 5.4a Anthropic direct — deferred, and not needed
 
@@ -223,9 +223,9 @@ Revisit only if OpenRouter's routing becomes a problem for Claude specifically. 
 
 ## 6. Credential lifecycle
 
-1. User opens Assistant settings, picks a provider, and follows its `keyHelpUrl` to create a **dedicated, spend-limited key**.
-2. Key is pasted into a password-type input and stored in `sessionStorage` under `bible-chat-key-<providerId>`.
-3. On connect, validate it with one cheap **authenticated** call so a bad key fails immediately, not mid-answer. **The validation endpoint is per-provider and is not always the models endpoint** — OpenRouter's `GET /api/v1/models` requires no auth and returns 200 for any key, so validating through it accepts anything. Use `GET /api/v1/key` there. See [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §11.
+1. User opens Assistant settings, reviews the current OpenRouter Terms and Model Terms notice, and confirms for this session that they use their own eligible account, are at least 13 (with parent/guardian permission when under 18), and have rights to the question and any notes they select. Then they follow the OpenRouter link to create a **dedicated, spend-limited OpenRouter key**.
+2. The key is pasted into a password-type input and stored in `sessionStorage` under `bible-chat-key-openrouter`.
+3. On connect, validate it with `GET /api/v1/key`, a cheap **authenticated** call, so a bad key fails immediately rather than mid-answer. OpenRouter's `GET /api/v1/models` requires no auth and returns 200 for any key, so it cannot validate credentials. See [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §11.
 4. Reloading the same tab preserves the connection. Closing the tab ends it. Disconnect clears it immediately.
 5. The key is never rendered, exported, logged, put in a URL, or included in a copied error report. A component test asserts this (§16).
 
@@ -244,14 +244,14 @@ Add an Assistant action to `TopBar`. **Do not add `"chat"` to `PaneSourceType`**
 ### 7.2 Chat layout
 
 - Thread selector and New chat
-- Provider + model status, with the **actual** model used for each answer
+- OpenRouter + model status, with the **actual** model used for each answer
 - Context chips (§8.1) with a pre-send summary
 - Message list, with an `aria-live="polite"` region announcing stream start/finish
 - Expandable Sources for each answer, showing the exact excerpt sent
 - Composer with Send/Stop; Retry and Copy answer
 - Answer-language control (follow UI language / English / Bulgarian)
 - Local-history and Private-session controls
-- Settings: provider, key, model, privacy, data-sending
+- Settings: OpenRouter key, model, privacy, terms/eligibility, data-sending
 
 Before the first request:
 
@@ -345,13 +345,13 @@ const DIVISORS = {
 Two limits to carry forward, both recorded in `m9.0-findings.md` §5a:
 
 - The calibration used **six** samples against **two Gemini-family models**. `openrouter/free` routes to Cohere and NVIDIA models as well, and those were never measured — the `1.15` is a guess. [`chat/m9.0b-bulgarian-benchmark.md`](chat/m9.0b-bulgarian-benchmark.md) closes this; until it does, the estimate is trustworthy for Gemini only.
-- **Usage opt-in is per-provider.** `usage: { include: true }` is an OpenRouter extension; Gemini rejects it with HTTP 400 and needs `stream_options: { include_usage: true }`. Without the right one, the cost display in §7.2 and this calibration both have nothing to read. Use `total_tokens`, never `prompt + completion` — hidden thinking tokens appear only in the total.
+- Every shipped request uses OpenRouter's `usage: { include: true }`. Use `total_tokens`, never `prompt + completion` — hidden reasoning can make the component counts incomplete.
 
 Log the estimate-vs-actual ratio locally during M9.3 and adjust the constants once.
 
 ### 8.4 Personal notes
 
-Off by default, never retrieved automatically. To include a note: the user explicitly selects it for the current turn; the UI warns its text goes to the selected external provider; the request summary identifies it as personal data; inclusion applies to that turn only unless deliberately pinned.
+Off by default, never retrieved automatically. To include a note: the user explicitly selects it for the current turn; the UI warns its text goes through OpenRouter to the selected model; the request summary identifies it as personal data; inclusion applies to that turn only unless deliberately pinned.
 
 Chat history is **not** synced through the notes Dropbox App Folder in M9.
 
@@ -365,15 +365,17 @@ ai_context_policy = allowed | allowed_no_training | prohibited | unknown
 
 | Value | May the work's text be sent? |
 |---|---|
-| `allowed` | To any connected provider. Public-domain and CrossWire works. |
-| `allowed_no_training` | **Only** to a provider bound not to train on or retain it: OpenRouter with `zdr: true` + `data_collection: "deny"`, or a **paid** Gemini tier. Never to Gemini's free tier, whose published terms say content is *"used to improve our products"* ([`chat/m9.0-findings.md`](chat/m9.0-findings.md) §10a). |
+| `allowed` | Through the configured OpenRouter route. Public-domain and CrossWire works. |
+| `allowed_no_training` | Only through OpenRouter when `zdr: true` + `data_collection: "deny"` are on **and** the user has confirmed for this session that OpenRouter input/output logging and OpenRouter use of prompts are disabled. |
 | `prohibited` | Never. |
 | `unknown` | Never — behaves as `prohibited`. |
 
 - `allowed_no_training` exists because §8.6 asks the ББД for exactly that kind of conditional permission. A three-value vocabulary would force a conditional grant to be recorded as `prohibited` (discarding what was negotiated) or `allowed` (exceeding it).
-- **The app cannot detect which Gemini tier a key is on.** So `allowed_no_training` + Gemini is gated on the user's own assertion, stated plainly in the settings UI — not on detection. With OpenRouter it is gated on the routing request, which M9.0 §3 verified actually fails closed with an HTTP 404 rather than silently downgrading.
-- The UI disables prohibited sources and explains why; it disables `allowed_no_training` sources too whenever the connected provider cannot satisfy the condition.
+- OpenRouter's routing constraint fails closed with an HTTP 404 rather than silently downgrading. The separate account-logging confirmation is needed because that account state is not exposed by `GET /api/v1/key` and cannot be enforced by the request body.
+- Use `allowed_no_training` only when the rightsholder accepts this combination of enforceable routing plus user attestation. If the licence requires the app to verify or technically enforce that account-level logging is off, the current architecture cannot satisfy it; record `prohibited` until OpenRouter exposes an enforceable control.
+- The UI disables prohibited sources and explains why; it disables `allowed_no_training` sources too whenever the OpenRouter privacy and account-confirmation conditions are not satisfied.
 - Importer-owned metadata, not a browser-only allowlist, so it is versioned with the content it describes and a newly imported work arrives carrying its own policy.
+- This field records the **content owner's permission** only. It does not replace OpenRouter account eligibility, OpenRouter's Terms, applicable Model Terms, or the user's obligation to have rights to their own question and explicitly selected notes; M9.2 handles those separately at setup and pre-send.
 
 **Data direction.** Outward only: importer → `works` table in `content.sqlite` → `GET /api/v1/works` → browser. Nothing is sent to the server; the server stays read-only and stateless.
 
@@ -395,7 +397,7 @@ Deploy order: rebuild `content.sqlite` to a temporary path → atomically rename
 
 If the ББД (or any licensed Bulgarian) text lands with `ai_context_policy = prohibited`, the assistant will be unable to quote the very text Bulgarian readers are reading. It would answer Bulgarian questions while quoting English WEB/KJV — a visibly degraded flagship feature.
 
-**Action, before the licence is signed:** add an explicit item to the ББД permission request asking whether short excerpts may be transmitted to a third-party AI service for user-initiated study queries, and under what conditions (user-supplied key, no training, no retention, attribution). This costs nothing to ask now and cannot be retrofitted later. Record the answer in `plan/content_and_licensing.md` alongside the storage-rights question already tracked there.
+**Action, before the licence is signed:** add an explicit item to the ББД permission request asking whether short excerpts may be supplied as inputs to OpenRouter and its selected model providers for user-initiated study queries, under OpenRouter's then-current User Content licence and any applicable Model Terms. Ask which conditions are required (for example: user-supplied OpenRouter key, no training, no retention, excerpt limits, attribution, and anonymous categorization), and whether user attestation that OpenRouter account logging is off is acceptable. Do not infer permission from a generic web/API clause. Record the exact answer in `plan/content_and_licensing.md` alongside the storage-rights question already tracked there; map it to `allowed`, `allowed_no_training`, or `prohibited` only after checking that the actual OpenRouter route can honor every condition.
 
 ## 9. Prompt and response contract
 
@@ -443,7 +445,7 @@ Model-driven tool calling is M9.6 (§15), to be built only if real usage shows t
 
 ## 11. Strong's integration — available now
 
-M8 has shipped. `GET /api/v1/lexicon/{strong_id}` (`apps/api/app/routers/lexicon.py`) serves `StrongEntry`; `api.lexiconEntry` exists in `data/api.ts:262`; `render/StrongsPopover.tsx` ships; `SCHEMA_VERSION = 2` includes `strong_lexicon`; and `plan/content_and_licensing.md` records both lexicon licences as cleared on 2026-07-27.
+M8 has shipped. `GET /api/v1/lexicon/{strong_id}` (`apps/api/app/routers/lexicon.py`) serves `StrongEntry`; `api.lexiconEntry` exists in `data/api.ts:262`; `render/StrongsPopover.tsx` ships; the current schema includes `strong_lexicon`; and `plan/content_and_licensing.md` records both lexicon licences as cleared on 2026-07-27.
 
 Therefore, in **M9.3** (not a later milestone):
 
@@ -535,10 +537,10 @@ CSP additions, each only when its adapter actually ships:
 
 ```text
 connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com
-            https://openrouter.ai https://generativelanguage.googleapis.com
+            https://openrouter.ai
 ```
 
-`https://api.anthropic.com` is **not** added — the direct Anthropic adapter is deferred (§5.4a). Add it only if that adapter ever ships.
+No direct model-provider origin is added. Add one only in the same reviewed change that introduces its adapter.
 
 Strengthen `apps/api/tests/test_api.py:53`: it currently only asserts strings are *present*. Add a negative assertion that `connect-src` contains no bare-scheme wildcard and matches an exact expected allowlist.
 
@@ -550,13 +552,14 @@ Strengthen `apps/api/tests/test_api.py:53`: it currently only asserts strings ar
 
 Disposable spike against a production-like CSP page. Exit criteria are **written decisions**, not "we tested it".
 
-- Prove browser CORS + SSE streaming + model listing for **each** of OpenRouter, Anthropic (with the `anthropic-dangerous-direct-browser-access` header), and Gemini (with a minimal header set). Record which of the three actually work.
-- Confirm whether Anthropic's `GET /v1/models` works through the OpenAI-compat layer with `Authorization: Bearer`; if not, decide on a static list.
-- Test `zdr: true` + `data_collection: "deny"` against OpenRouter's catalogue, including the free router, and record the resulting availability.
-- Confirm current OpenRouter free-tier rate limits and whether `openrouter/free` still resolves.
+- Record browser CORS + SSE streaming + model listing findings for OpenRouter and the investigated direct-provider alternatives. **✅ Done; only OpenRouter ships.**
+- Confirm whether Anthropic's `GET /v1/models` works through the OpenAI-compat layer. **✅ Historical check done; it is reachable, but no direct adapter ships.**
+- Test `zdr: true` + `data_collection: "deny"` against OpenRouter's catalogue, including the free router, and record the resulting availability. **✅ Done; the router passes and many named free models fail closed.**
+- Confirm current OpenRouter free-tier rate limits and whether `openrouter/free` still resolves. **✅ Done 2026-07-29.**
 - Calibrate `estimateTokens()` against real `usage.prompt_tokens` from ~10 representative prompts; fix the constants. **⚠ Partial — 6 samples, one tokenizer family. See M9.0b.**
-- Draft the user-facing privacy wording, per provider. **✅ Done in review — `chat/m9.0-findings.md` §10c.**
-- Recheck provider terms — pricing and retention policies change. **✅ Done in review — §10d. The headline: Gemini's free tier trains on submitted content; its paid tier does not.**
+- Draft the OpenRouter privacy and terms wording. **✅ Done in review and updated for the OpenRouter-only decision.**
+- Recheck provider terms — pricing and retention policies change. **✅ Rechecked 2026-07-29.** OpenRouter account eligibility, credit requirements, Model Terms flow-down, optional account logging, and BYOK boundaries are implementation requirements, not footnotes.
+- Verify `GET /api/v1/key` is browser-readable for key validation. **✅ Done 2026-07-29:** preflight returned 204 and an invalid-key GET returned a readable 401, both with `Access-Control-Allow-Origin: *`.
 
 **Privacy-constraint branch.** §5.3 requires ZDR + denied data collection by default and forbids weakening it silently. Decide here, before building:
 
@@ -586,7 +589,7 @@ Does **not** block M9.2 — "no default model" already ships. Must land before M
 
 **Work order: [`chat/m9.1-licence-metadata.md`](chat/m9.1-licence-metadata.md).**
 
-Implements §8.5 end to end: schema column, `SCHEMA_VERSION` 2 → 3, importer field, API models and both `SELECT` lists, web `Work` type, tests, content rebuild, and the rebuild-before-restart deploy.
+Implements §8.5 end to end: schema column, `SCHEMA_VERSION` 3 → 4, importer field, API models and both `SELECT` lists, web `Work` type, tests, content rebuild, and the rebuild-before-restart deploy.
 
 Ships **before** any licensed Bulgarian import and independently of all chat work, so the gate exists when it is needed and the only server-side change in M9 is de-risked on its own.
 
@@ -600,9 +603,9 @@ Exit: `/ready` reports matching schema versions after deploy; `GET /api/v1/works
 
 - `ChatDrawer` shell, `activeWorkspace` state machine in `App.tsx`, TopBar entry, focus management, i18n + parity test.
 - Provider registry, key-paste settings UI, `sessionStorage` credential store, connect-validation, Disconnect.
-- Single OpenAI-compatible adapter for **OpenRouter and Gemini**: streaming SSE parser, typed errors, abort, retry policy, per-provider usage opt-in, reasoning suppression.
+- OpenRouter client: streaming SSE parser, typed errors, abort, retry policy, usage metadata, and capability-driven reasoning suppression.
 - Model catalogue + picker with filtering (OpenRouter lists 367 models).
-- CSP origins for those two adapters only.
+- CSP origin for OpenRouter only.
 - Lazy chunks; `VITE_CHAT_ENABLED` off in production.
 
 Exit: connect a key, pick a model, send a plain message, stream it, stop it, disconnect — behind the flag.
@@ -620,7 +623,7 @@ Exit: connect a key, pick a model, send a plain message, stream it, stop it, dis
 - Safe renderer, trusted citation resolver, pane navigation, Sources panel.
 - Dexie history, Private session, Export JSON, retention caps.
 - Licence gate UI (consuming M9.1's field) and note opt-in.
-- **Prompt-injection tests ship here.** M9.3 is where third-party prose — Matthew Henry, Easton's, the 1689 Confession — first enters a prompt, so this is where the exposure opens. Cover at minimum: imperative text inside an imported source ("ignore previous instructions…"); a source that fabricates a citation marker (`[S9]`) the manifest does not contain; a source impersonating the system contract.
+- **Prompt-injection tests ship here.** M9.3 is where third-party prose — Matthew Henry, Easton's, the 1689 Confession — first enters a prompt, so this is where the exposure opens. Cover at minimum: imperative text inside an imported source ("ignore previous instructions…"); a source that fabricates a citation marker (`[S9]`) the manifest does not contain; a source impersonating the system contract. These adversarial cases use local/mocked transcripts only; OpenRouter's current Terms require prior written approval for red-team testing against live models.
 
 Exit: every navigable citation maps to context the app actually sent; no fabricated citation opens; injected instructions inside source excerpts do not alter behaviour; explain / summarize / compare / outline / word-choice all work in EN and BG. Flag can be turned on.
 
@@ -671,7 +674,7 @@ Shortest path to a chat you can actually use: **M9.0 + M9.1 + M9.2 + M9.3 ≈ 14
 
 ### Unit
 
-- Provider registry: correct base URL, headers, and CSP origin per provider.
+- OpenRouter configuration: correct base URL, headers, validation path, and CSP origin.
 - SSE parsing across split chunks, comments, malformed events, abort, terminal usage chunk.
 - `normalize.ts`: CIR `Document` and `Passage` → text, verse numbers preserved, markup stripped.
 - `tokens.ts`: monotonic, handles Cyrillic, never under-estimates below the calibrated ratio.
@@ -690,7 +693,7 @@ Shortest path to a chat you can actually use: **M9.0 + M9.1 + M9.2 + M9.3 ≈ 14
 - **The API key never appears in rendered output, history, URLs, exports, copied error reports, or test logs.**
 - A source citation opens the correct Bible / commentary / dictionary / lexicon / book target.
 - Bulgarian UI and answer-language selection.
-- Provider, model, and privacy-constraint messages.
+- OpenRouter, model, terms, and privacy-constraint messages.
 - i18n key parity for `chat.*` (`i18n/chatTranslations.test.ts`, mirroring `searchTranslations.test.ts`).
 
 ### API contract
@@ -699,7 +702,7 @@ Fixture-backed real endpoints; no mocks of nonexistent convenience routes. Cover
 
 ### End-to-end
 
-- Mock provider model catalogue and SSE responses.
+- Mock the OpenRouter model catalogue and SSE responses.
 - Verify Dropbox OAuth still works and reader deep links are unaffected.
 - Reload saved history; verify a Private session disappears.
 - Cancel during retrieval and during streaming.
@@ -713,6 +716,7 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 
 - The only server-side change in M9 is the outward-flowing `ai_context_policy` metadata, shipped with a schema bump and a content rebuild; `/ready` reports matching schema versions after deploy.
 - No provider secret or chat content passes through or persists on the application server.
+- The only accepted model-service credential and CSP origin are OpenRouter's; no direct upstream-provider key path ships.
 - Credential lifetime is tab-session-only; Disconnect clears it; it never appears in any output.
 - CSP stays an explicit allowlist and passes a regression test that also rejects wildcards.
 - All context uses real `/api/v1` routes and is visible before sending.
@@ -720,6 +724,7 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 - Prohibited and unknown-licence works cannot be sent.
 - Responses stream and can be stopped without leaving background work.
 - The actual provider and model, and the local/external privacy status, are visible per answer.
+- Connect requires a session-scoped OpenRouter terms/eligibility acknowledgement, and setup discloses Model Terms, input-rights responsibility, optional account logging, and anonymous categorization.
 - Only citations backed by the immutable source manifest are interactive.
 - Bulgarian answers label English quotations and never present one as a Bulgarian translation.
 - Strong's claims are backed by a retrieved lexicon entry and are distinguished from interpretation.
@@ -734,16 +739,18 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 | Prompt injection in imported prose | Sources marked as untrusted data; no model-driven tools before M9.6; safe renderer; adversarial tests from M9.3 |
 | Browser credential theft through XSS | Session-only storage, dedicated spend-limited keys, strict CSP, no raw HTML, no third-party scripts or SDKs |
 | Provider sees personal or licensed text | Pre-send context display, note opt-in, importer-owned licence gate |
-| Gemini's undocumented browser CORS is withdrawn | Verified working at M9.0 but never documented by Google. Keep the registry row trivially removable; Gemini models stay reachable through OpenRouter |
 | OpenAI models wanted | Reached through OpenRouter. `api.openai.com` answers the preflight but omits the header on the actual completions response, so no browser can read it; adding a proxy is a separate ADR |
 | Free model disappears or is rate-limited | Live catalogue, actual-model label, clear retry/model-change UI, published rate limits; no uptime promise |
 | No model satisfies the ZDR default | **Resolved at M9.0**: `openrouter/free` satisfies both constraints, so the default does not have to be weakened |
 | A privacy-compliant default produces unusable Bulgarian | Measured, not hypothetical: half the sampled free-router responses were unusable. **Resolved: no default model ships** (`chat/m9.0-findings.md` §7a). The answer-quality axis is independent of the privacy axis; M9.0b benchmarks it properly |
-| Hidden reasoning tokens consume the whole answer budget | `reasoning: {enabled: false}` on OpenRouter, a typed `emptyAnswer` error, and `total_tokens` (not prompt+completion) for cost display. **On Gemini this is model-dependent** — thinking can be disabled on 2.5 Flash/Flash-Lite but *not* on 2.5 Pro or any Gemini 3 model, so suppression must be driven by per-model capability and fall back to a raised `max_tokens` (`chat/m9.0-findings.md` §8a) |
+| Hidden reasoning tokens consume the whole answer budget | `reasoning: {enabled: false}` when OpenRouter metadata does not mark reasoning mandatory, a typed `emptyAnswer` error, and `total_tokens` (not prompt+completion) for cost display |
 | The token estimator under-counts on an unmeasured tokenizer | The §8.3 budget is enforced with divisors calibrated on Gemini models only, plus an unmeasured 1.15 allowance, while `openrouter/free` routes to Cohere and NVIDIA models. M9.0b measures four families; until then the picker's supported set is the fallback lever |
-| A key is accepted and fails on the first question | OpenRouter's `/models` needs no auth, so validating a key through it accepts anything. Validation is a per-provider strategy using `GET /api/v1/key` (`chat/m9.0-findings.md` §11) |
-| Gemini free-tier content becomes Google training data | Google's published free-tier terms. Disclosed verbatim in the settings copy (§10c), and `allowed_no_training` works are blocked from Gemini unless the user asserts a paid key |
-| The user's own provider account logs prompts | Cannot be detected or overridden by the SPA. Disclosed in the privacy notice (§5.3) |
+| A key is accepted and fails on the first question | OpenRouter's `/models` needs no auth, so validating through it accepts anything. Connect uses authenticated `GET /api/v1/key` (`chat/m9.0-findings.md` §11) |
+| The user's OpenRouter account logs prompts | Cannot be detected or overridden by the SPA. Disclose it; require a session-scoped "logging is off" confirmation before any `allowed_no_training` source is eligible (§5.3) |
+| A user lacks rights to an input, or assumes ZDR means no processing | Source policy gates imported works; setup covers rights to questions/notes and discloses OpenRouter's anonymous ZDR categorization |
+| The OpenRouter account uses upstream BYOK | The app neither accepts nor configures upstream keys. OpenRouter says request data policies still apply to BYOK; show `usage.is_byok` when returned and state that upstream terms remain the user's responsibility |
+| OpenRouter or selected-model terms are incompatible | Link the current OpenRouter and model terms during setup; user confirms they are eligible and are using their own account. Do not promise free onboarding; re-review terms before release |
+| Adversarial tests violate OpenRouter's red-team restriction | Keep prompt-injection tests local/mocked unless prior written OpenRouter approval is obtained |
 | `ai_context_policy` restart ordered before the rebuild | M9.1 ships schema + rebuild as one unit. Reversing the order returns `503 schema-outdated` on every request and pages the monitor |
 | **Licensed BG text forbids AI use** | Ask ББД explicitly, now, before signing (§8.6). Otherwise the flagship feature quotes English to Bulgarian readers |
 | Cost surprise | User-owned account, live pricing metadata, provider spending limits, plus enforced caps: the §8.3 input budget, a `max_tokens` output cap, and a session token counter that warns at a user-set threshold |
@@ -753,17 +760,15 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 
 ## 19. References checked for this plan
 
-Provider terms, retention, pricing, scopes, and model availability must be rechecked at M9.0 and before each adapter is released.
+OpenRouter terms, retention, pricing, scopes, and model availability must be rechecked before M9.2 is released. Any future adapter gets its own review.
 
 - OpenRouter OAuth PKCE (no `state` parameter): <https://openrouter.ai/docs/guides/overview/auth/oauth>
 - OpenRouter streaming: <https://openrouter.ai/docs/api/reference/streaming>
 - OpenRouter models: <https://openrouter.ai/docs/api/api-reference/models/get-models>
 - OpenRouter free router: <https://openrouter.ai/docs/guides/routing/routers/free-router>
 - OpenRouter ZDR / provider selection: <https://openrouter.ai/docs/guides/features/zdr>, <https://openrouter.ai/docs/guides/routing/provider-selection>
+- OpenRouter Terms and BYOK behaviour: <https://openrouter.ai/terms>, <https://openrouter.ai/docs/guides/overview/auth/byok>
 - Anthropic browser CORS header: <https://simonwillison.net/2024/Aug/23/anthropic-dangerous-direct-browser-access/>
-- Gemini OpenAI compatibility: <https://ai.google.dev/gemini-api/docs/openai>
-- Gemini OpenAI-compat CORS reports: <https://discuss.ai.google.dev/t/gemini-api-cors-error-with-openai-compatability/58619>
-- Gemini API key safety: <https://ai.google.dev/gemini-api/docs/api-key>
 - Hugging Face OAuth / Inference Providers / pricing: <https://huggingface.co/docs/hub/oauth>, <https://huggingface.co/docs/inference-providers/en/index>, <https://huggingface.co/docs/inference-providers/en/pricing>
 - Ollama OpenAI compatibility and browser origins: <https://docs.ollama.com/api/openai-compatibility>, <https://docs.ollama.com/faq>
 
