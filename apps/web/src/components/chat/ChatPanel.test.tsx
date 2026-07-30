@@ -292,11 +292,16 @@ describe("ChatPanel", () => {
 
     const secondSendCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
     const body = JSON.parse(secondSendCall[1].body as string);
-    expect(body.messages).toEqual([
-      { role: "system", content: expect.stringContaining("No sources were supplied") },
-      { role: "user", content: "first" },
-      { role: "user", content: "second" },
-    ]);
+    // Sources live in the user message, not the system message (prompt.ts §10 threat
+    // model), so the "no sources" text shows up on the new turn's user message, and
+    // priorHistory's "first" stays exactly as sent — never re-wrapped on replay.
+    expect(body.messages).toHaveLength(3);
+    expect(body.messages[0].role).toBe("system");
+    expect(body.messages[0].content).not.toContain("No sources were supplied");
+    expect(body.messages[1]).toEqual({ role: "user", content: "first" });
+    expect(body.messages[2].role).toBe("user");
+    expect(body.messages[2].content).toContain("No sources were supplied for this question.");
+    expect(body.messages[2].content).toContain("second");
   });
 
   it("keeps a selected model sendable after a filter hides it from the visible list", async () => {

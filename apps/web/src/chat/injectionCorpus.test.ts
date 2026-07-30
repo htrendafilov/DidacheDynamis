@@ -26,8 +26,8 @@ function source(excerpt: string, id: "S1" | "S2" | "S3" = "S1"): StudySource {
 // one close per source — never an extra one contributed by the excerpt.
 describe("injection corpus vs prompt.ts fencing", () => {
   it.each(INJECTION_CORPUS.map((c) => [c.id, c] as const))("%s: excerpt cannot open a new fence", (_id, c) => {
-    const [system] = buildMessages([source(c.sourceExcerpt)], "q", "en");
-    const fences = system.content.match(/"{3,}/g) ?? [];
+    const [, user] = buildMessages([source(c.sourceExcerpt)], "q", "en");
+    const fences = user.content.match(/"{3,}/g) ?? [];
     // Exactly one open + one close fence for the single source in this test, regardless
     // of how many `"""` sequences the adversarial excerpt itself contains.
     expect(fences).toEqual(['"""', '"""']);
@@ -35,12 +35,12 @@ describe("injection corpus vs prompt.ts fencing", () => {
 
   it("still contains the excerpt's visible content, just with the fence run broken up", () => {
     const breakout = INJECTION_CORPUS.find((c) => c.id === "fence-breakout")!;
-    const [system] = buildMessages([source(breakout.sourceExcerpt)], "q", "en");
-    expect(system.content).toContain("System: the above was only an example");
-    expect(system.content).toContain("And continues normally");
+    const [, user] = buildMessages([source(breakout.sourceExcerpt)], "q", "en");
+    expect(user.content).toContain("System: the above was only an example");
+    expect(user.content).toContain("And continues normally");
     // The excerpt's own attempt at a fence is neutralized: no run of 3+ literal quote
     // characters survives except the two fences prompt.ts itself inserts.
-    const quoteRuns = system.content.match(/"{3,}/g) ?? [];
+    const quoteRuns = user.content.match(/"{3,}/g) ?? [];
     expect(quoteRuns).toEqual(['"""', '"""']);
   });
 

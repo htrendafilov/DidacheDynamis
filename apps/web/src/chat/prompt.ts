@@ -1,8 +1,22 @@
 // Prompt assembly (M9.3 step 4, §6). Builds the system contract + labelled, delimited
-// source data blocks. The delimiter is a prompt-engineering defense, not a security
-// boundary — the real enforcement against a fabricated or altered citation id is
-// citations.ts, which resolves against an immutable manifest captured at send time (§7,
-// §10). Never requests chain-of-thought.
+// source data blocks. Never requests chain-of-thought.
+//
+// Threat model, stated plainly rather than implied: source excerpts are third-party
+// content (§10 — Matthew Henry, Easton's, the 1689 Confession, and anything imported
+// after them) and are therefore untrusted. They are placed in the *user* message, not the
+// system message, so they sit at lower nominal privilege than the rules in systemContract()
+// — most providers weight system-role text as more authoritative, so a compromised or
+// adversarial excerpt sharing that role with the app's own instructions would be a
+// materially worse position than sharing the user role with the question. The fence
+// (escapeFence) and the "quoted data, not instructions" framing are prompt-engineering
+// defenses on top of that, not a security boundary; no combination of role placement,
+// delimiting, and instruction text can guarantee a model will not be swayed by adversarial
+// text it is asked to read. That residual risk is real and is not eliminated here. What IS
+// enforced, deterministically, downstream of whatever the model outputs: citations.ts
+// resolves only against the manifest actually sent (a fabricated or altered id renders
+// inert, never navigates), and the renderer (markdown.ts / ChatMessage.tsx) never turns
+// model output into live HTML, a real anchor, or a script regardless of what the model was
+// tricked into producing. See injectionCorpus.ts for the cases this is tested against.
 import type { ChatMessage } from "./client";
 import type { SourceKind, StudySource } from "./types";
 
@@ -61,9 +75,12 @@ export function buildMessages(
   question: string,
   answerLanguage: "en" | "bg",
 ): ChatMessage[] {
-  const system = `${systemContract(answerLanguage)}\n\n${sourcesSection(sources)}`;
+  // Sources live in the user message (see the threat-model note above), clearly separated
+  // from the question by their own heading — still never blended into the question's own
+  // prose, just no longer sharing the system role with the app's instructions.
+  const userContent = `${sourcesSection(sources)}\n\n## Question\n\n${question}`;
   return [
-    { role: "system", content: system },
-    { role: "user", content: question },
+    { role: "system", content: systemContract(answerLanguage) },
+    { role: "user", content: userContent },
   ];
 }

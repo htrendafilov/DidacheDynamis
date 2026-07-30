@@ -26,17 +26,30 @@ describe("buildMessages", () => {
     expect(messages[1].role).toBe("user");
   });
 
-  it("keeps the user message as the question alone, never merged with source prose", () => {
+  // Source excerpts are untrusted third-party content (§10) and must not share the
+  // system role — a compromised or adversarial excerpt sharing that role with the app's
+  // own instructions would sit at the same nominal privilege as those instructions.
+  it("keeps every source excerpt out of the system message entirely", () => {
+    const messages = buildMessages([source()], "q", "en");
+    expect(messages[0].content).not.toContain("16 For God so loved the world.");
+    expect(messages[0].content).not.toContain("John 3:16 (WEB)");
+  });
+
+  it("puts the question and every source in the user message, clearly separated, never blended into indistinguishable prose", () => {
     const messages = buildMessages([source()], "What does this verse mean?", "en");
-    expect(messages[1].content).toBe("What does this verse mean?");
+    const user = messages[1].content;
+    expect(user).toContain("## Question\n\nWhat does this verse mean?");
+    expect(user).toContain('"""\n16 For God so loved the world.\n"""');
+    // The question is its own clearly headed section, not appended to or interleaved
+    // with source text.
+    expect(user.endsWith("What does this verse mean?")).toBe(true);
   });
 
   it("labels and delimits every source as data, with its id, kind, and excerpt", () => {
-    const messages = buildMessages([source()], "q", "en");
-    const system = messages[0].content;
-    expect(system).toContain("[S1] Bible");
-    expect(system).toContain("John 3:16 (WEB)");
-    expect(system).toContain('"""\n16 For God so loved the world.\n"""');
+    const user = buildMessages([source()], "q", "en")[1].content;
+    expect(user).toContain("[S1] Bible");
+    expect(user).toContain("John 3:16 (WEB)");
+    expect(user).toContain('"""\n16 For God so loved the world.\n"""');
   });
 
   it("includes every rule the system contract must carry", () => {
@@ -64,15 +77,15 @@ describe("buildMessages", () => {
   });
 
   it("says explicitly when no sources were supplied", () => {
-    const system = buildMessages([], "q", "en")[0].content;
-    expect(system).toContain("No sources were supplied for this question.");
+    const user = buildMessages([], "q", "en")[1].content;
+    expect(user).toContain("No sources were supplied for this question.");
   });
 
   it("never merges multiple sources' excerpts into one block", () => {
     const s1 = source({ id: "S1", excerpt: "Excerpt one." });
     const s2 = source({ id: "S2", kind: "commentary", excerpt: "Excerpt two." });
-    const system = buildMessages([s1, s2], "q", "en")[0].content;
-    const blocks = system.split('"""').filter((_, i) => i % 2 === 1); // odd segments are inside fences
+    const user = buildMessages([s1, s2], "q", "en")[1].content;
+    const blocks = user.split('"""').filter((_, i) => i % 2 === 1); // odd segments are inside fences
     expect(blocks).toEqual(["\nExcerpt one.\n", "\nExcerpt two.\n"]);
   });
 });
