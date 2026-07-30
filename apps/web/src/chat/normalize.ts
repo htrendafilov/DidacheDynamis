@@ -15,18 +15,32 @@ function collapseWhitespace(s: string): string {
   return s.replace(/[ \t]+/g, " ").replace(/[ \t]*\n[ \t]*/g, "\n").trim();
 }
 
-// "16" -> {16}; "16-18" -> {16,17,18}. Malformed input matches nothing, which is the
-// safe direction: better to drop a verse than to silently include an unrequested one.
-function parseVerseRange(verses: string): Set<number> | null {
+export interface VerseRange {
+  start: number;
+  end: number;
+}
+
+// "16" -> {start:16,end:16}; "16-18" -> {start:16,end:18}. Malformed input matches
+// nothing, which is the safe direction: better to drop a verse than to silently include
+// an unrequested one.
+//
+// Deliberately never expands into a Set or array: `verses` is free text a user can type
+// into ContextPicker's range input and the API's own verses param accepts it unbounded
+// (e.g. "1-999999999"). Returning bounds and filtering by numeric comparison keeps
+// filtering O(verses actually in the passage) regardless of how large the requested range
+// string claims to be — an earlier version expanded the full range into a Set first and
+// could freeze the tab on exactly that kind of input.
+export function parseVerseRange(verses: string): VerseRange | null {
   const single = /^(\d+)$/.exec(verses);
-  if (single) return new Set([Number(single[1])]);
+  if (single) {
+    const n = Number(single[1]);
+    return { start: n, end: n };
+  }
   const range = /^(\d+)-(\d+)$/.exec(verses);
   if (!range) return null;
   const [start, end] = [Number(range[1]), Number(range[2])];
   if (end < start) return null;
-  const set = new Set<number>();
-  for (let n = start; n <= end; n++) set.add(n);
-  return set;
+  return { start, end };
 }
 
 function lineText(line: Line): string {
@@ -52,7 +66,9 @@ function verseText(v: Verse): string {
 
 export function passageToText(p: Passage, verses?: string): string {
   const wanted = verses ? parseVerseRange(verses) : null;
-  const included = wanted ? p.verses.filter((v) => wanted.has(v.verse)) : p.verses;
+  const included = wanted
+    ? p.verses.filter((v) => v.verse >= wanted.start && v.verse <= wanted.end)
+    : p.verses;
   return included.map(verseText).join("\n");
 }
 

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { CrossReferences, Document, Passage, StrongEntry } from "../data/api";
-import { crossReferencesToText, documentToText, passageToText, strongEntryToText } from "./normalize";
+import {
+  crossReferencesToText,
+  documentToText,
+  parseVerseRange,
+  passageToText,
+  strongEntryToText,
+} from "./normalize";
 import fixtures from "./__fixtures__/cir.json";
 
 // Real CIR pulled from the actual FastAPI routes over the same importer test fixtures
@@ -32,6 +38,43 @@ describe("passageToText", () => {
     expect(passageToText(f.passage_john3_v16 as Passage)).toBe(
       passageToText(f.passage_john3 as Passage, "16"),
     );
+  });
+
+  // ContextPicker's verse-range input is free text, and the API's own verses param
+  // accepts an unbounded range like "1-999999999". Filtering must stay O(verses actually
+  // in the passage) regardless of what the range string claims, never expand it into a
+  // collection sized to the range itself.
+  it("does not hang or allocate proportionally to an absurdly large requested range", () => {
+    const full = f.passage_john3 as Passage;
+    const start = Date.now();
+    const result = passageToText(full, "1-999999999");
+    expect(Date.now() - start).toBeLessThan(50);
+    expect(result).toBe("16 For God so loved the world."); // still just the one real verse
+  });
+});
+
+describe("parseVerseRange", () => {
+  it("parses a single verse", () => {
+    expect(parseVerseRange("16")).toEqual({ start: 16, end: 16 });
+  });
+
+  it("parses a range", () => {
+    expect(parseVerseRange("16-18")).toEqual({ start: 16, end: 18 });
+  });
+
+  it("accepts an absurdly large range as bounds only, never expanding it", () => {
+    expect(parseVerseRange("1-999999999")).toEqual({ start: 1, end: 999999999 });
+  });
+
+  it.each([
+    ["", "empty"],
+    ["abc", "non-numeric"],
+    ["18-16", "end before start"],
+    ["16-", "missing end"],
+    ["-16", "missing start"],
+    ["16,18", "comma-separated, not a range"],
+  ])("returns null for %s (%s)", (input) => {
+    expect(parseVerseRange(input)).toBeNull();
   });
 });
 

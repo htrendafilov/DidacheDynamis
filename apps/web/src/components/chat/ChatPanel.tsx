@@ -90,6 +90,7 @@ export function ChatPanel({
   const composerId = useId();
 
   const panes = useStore((s) => s.panes);
+  const updatePane = useStore((s) => s.updatePane);
   const openPassage = useStore((s) => s.openPassage);
   const openCommentary = useStore((s) => s.openCommentary);
   const openDictionary = useStore((s) => s.openDictionary);
@@ -191,6 +192,19 @@ export function ChatPanel({
       case "openPassage":
         openPassage(intent.workId, intent.osis, intent.chapter, intent.verse);
         paneType = "bible";
+        // An xref source's canonicalTarget is its anchor verse, not any one of the
+        // (possibly several) cross-references it summarizes — there is no single "the
+        // target reference" to jump to. Selecting the anchor verse instead opens the
+        // existing cross-reference tools panel (BiblePane's useCrossReferences), which
+        // shows the actual reference list the excerpt was built from.
+        if (source.kind === "xref" && intent.verse != null) {
+          const pane = useStore
+            .getState()
+            .panes.find(
+              (p) => p.type === "bible" && p.workId === intent.workId && p.osis === intent.osis && p.chapter === intent.chapter,
+            );
+          if (pane) updatePane(pane.id, { selectedVerse: intent.verse });
+        }
         break;
       case "openCommentary":
         openCommentary(intent.workId, intent.osis, intent.chapter);

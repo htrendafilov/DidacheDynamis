@@ -79,7 +79,9 @@ describe("buildContext retrieval", () => {
     expect(sources).toHaveLength(1);
     expect(sources[0].id).toBe("S1");
     expect(sources[0].excerpt).toBe("16 For God so loved the world.");
-    expect(sources[0].canonicalTarget).toEqual({ kind: "bible", workId: "web", osis: "John", chapter: 3 });
+    // Includes the retrieved verse, not just book/chapter, so the citation actually
+    // focuses verse 16 on click (openPassage's verse param).
+    expect(sources[0].canonicalTarget).toEqual({ kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 });
   });
 
   it("assigns contiguous ids after some chips are dropped", async () => {

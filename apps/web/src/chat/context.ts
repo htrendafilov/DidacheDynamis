@@ -15,6 +15,7 @@ import { satisfiesNoTraining } from "./credentials";
 import {
   crossReferencesToText,
   documentToText,
+  parseVerseRange,
   passageToText,
   strongEntryToText,
 } from "./normalize";
@@ -140,11 +141,16 @@ async function buildCandidate(
       const passage = await api.passage(chip.workId, chip.osis, chip.chapter, chip.verses, signal);
       const excerpt = passageToText(passage, chip.verses);
       if (!excerpt) return null;
+      // The first verse of the retrieved range, so a citation click actually focuses and
+      // flashes it (openPassage's verse param) instead of just landing on the chapter —
+      // "retrieved as John 3:16" must mean the citation opens at verse 16, not just John 3.
+      const verse = chip.verses ? parseVerseRange(chip.verses)?.start : undefined;
       const canonicalTarget: CanonicalTarget = {
         kind: "bible",
         workId: chip.workId,
         osis: chip.osis,
         chapter: chip.chapter,
+        verse,
       };
       return {
         source: {

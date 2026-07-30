@@ -431,6 +431,31 @@ describe("ChatPanel grounded flow (M9.3)", () => {
     expect(citation).toHaveTextContent("[S1]");
   });
 
+  it("clicking an xref citation opens the anchor verse and selects it, so the existing cross-reference panel shows the actual reference list", async () => {
+    const xrefSource = source({
+      id: "S1",
+      kind: "xref",
+      workId: "web",
+      label: "2 cross-references (John 3:16)",
+      canonicalTarget: { kind: "xref", workId: "web", osis: "John", chapter: 3, verse: 16 },
+      excerpt: "Rom 5:8\n1John 4:9-10",
+    });
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [xrefSource], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"See [S1]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const citation = await screen.findByRole("button", { name: /cross-references/ });
+    const { useStore } = await import("../../state/store");
+    fireEvent.click(citation);
+
+    const pane = useStore.getState().panes.find((p) => p.type === "bible" && p.osis === "John" && p.chapter === 3);
+    expect(pane?.selectedVerse).toBe(16);
+  });
+
   it("calls onCitationNavigate when a resolved citation is clicked", async () => {
     const onCitationNavigate = vi.fn();
     render(<ChatPanel onClose={() => {}} onCitationNavigate={onCitationNavigate} />);
