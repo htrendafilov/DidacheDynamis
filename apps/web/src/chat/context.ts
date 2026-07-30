@@ -15,7 +15,6 @@ import { satisfiesNoTraining } from "./credentials";
 import {
   crossReferencesToText,
   documentToText,
-  parseVerseRange,
   passageToText,
   strongEntryToText,
 } from "./normalize";
@@ -141,10 +140,14 @@ async function buildCandidate(
       const passage = await api.passage(chip.workId, chip.osis, chip.chapter, chip.verses, signal);
       const excerpt = passageToText(passage, chip.verses);
       if (!excerpt) return null;
-      // The first verse of the retrieved range, so a citation click actually focuses and
-      // flashes it (openPassage's verse param) instead of just landing on the chapter —
-      // "retrieved as John 3:16" must mean the citation opens at verse 16, not just John 3.
-      const verse = chip.verses ? parseVerseRange(chip.verses)?.start : undefined;
+      // The first verse actually returned, not the requested range's parsed start: the
+      // API filters to verses that exist (apps/api/app/routers/passages.py) — a range
+      // beginning at an absent verse still returns later verses, and the citation must
+      // focus one of those, not the requested-but-absent number. So a citation click
+      // actually focuses and flashes real content (openPassage's verse param) instead of
+      // landing on nothing — "retrieved as John 3:16" must mean the citation opens at
+      // whatever verse 16's excerpt actually started with.
+      const verse = chip.verses ? passage.verses[0]?.verse : undefined;
       const canonicalTarget: CanonicalTarget = {
         kind: "bible",
         workId: chip.workId,

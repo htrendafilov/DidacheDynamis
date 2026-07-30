@@ -84,6 +84,26 @@ describe("buildContext retrieval", () => {
     expect(sources[0].canonicalTarget).toEqual({ kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 });
   });
 
+  it("targets the first verse actually returned, not the requested range's start, when the start is absent", async () => {
+    // apps/api's passage route filters to verses that exist within the requested range
+    // (routers/passages.py) — a range beginning at an absent verse (e.g. a gap) still
+    // returns later verses. The citation must focus one of those, not verse 14, which
+    // this passage does not contain.
+    apiMock.passage.mockResolvedValue({
+      work_id: "web",
+      osis: "John",
+      chapter: 3,
+      headings: [],
+      verses: [
+        { verse: 16, lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: "For God so loved the world." }] }] },
+        { verse: 17, lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: "For God sent not his Son." }] }] },
+      ],
+    });
+    const chips: ContextChip[] = [{ kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "14-17" }];
+    const { sources } = await buildContext(chips, [work("web")], true, new AbortController().signal);
+    expect(sources[0].canonicalTarget).toEqual({ kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 });
+  });
+
   it("assigns contiguous ids after some chips are dropped", async () => {
     apiMock.passage.mockResolvedValue(passage("Text one."));
     apiMock.dictionaryEntry.mockResolvedValue({
