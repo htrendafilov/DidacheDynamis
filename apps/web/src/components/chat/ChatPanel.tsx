@@ -367,10 +367,18 @@ export function ChatPanel({
           />
           {t("chat.history.privateSession")}
         </label>
-        <button type="button" onClick={() => void clearThisThread()} disabled={messages.length === 0}>
+        {/* Disabled while streaming: send()'s in-flight closure still has currentThreadId
+            captured and, after the turn finishes, saves the assistant message/run under it
+            regardless of what happens elsewhere — clearing that thread mid-turn would leave
+            those writes to resurrect it as orphaned data, visible in a later Export JSON. */}
+        <button
+          type="button"
+          onClick={() => void clearThisThread()}
+          disabled={messages.length === 0 || streaming}
+        >
           {t("chat.history.clearThread")}
         </button>
-        <button type="button" onClick={() => void clearAllHistoryAndReset()}>
+        <button type="button" onClick={() => void clearAllHistoryAndReset()} disabled={streaming}>
           {t("chat.history.clearAll")}
         </button>
         <button type="button" onClick={() => void exportJson()}>

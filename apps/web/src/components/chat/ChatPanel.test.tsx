@@ -480,6 +480,25 @@ describe("ChatPanel grounded flow (M9.3)", () => {
 });
 
 describe("ChatPanel history (M9.3 step 6)", () => {
+  it("disables both Clear controls while a turn is streaming, re-enabling once it settles", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    let resolveFetch: ((value: Response) => void) | null = null;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (resolveFetch = resolve)));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear all history" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Clear this conversation" })).toBeDisabled();
+
+    await waitFor(() => expect(resolveFetch).not.toBeNull());
+    await act(async () => {
+      resolveFetch?.(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear all history" })).not.toBeDisabled());
+    expect(screen.getByRole("button", { name: "Clear this conversation" })).not.toBeDisabled();
+  });
+
   it("finds saved history on reload: a new mount restores the previous thread's messages", async () => {
     await connectAndSelectModel();
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
@@ -512,6 +531,9 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    // Clear stays disabled until the turn (including its own history save) settles —
+    // wait for that, not just for the visible text, before clicking it.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear this conversation" })).not.toBeDisabled());
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: "Clear this conversation" }));
