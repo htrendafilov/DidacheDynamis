@@ -52,7 +52,13 @@ MINI_USFX = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def build_study_db(tmp_dir: Path) -> Path:
-    from bibleimport.pipeline import BibleSpec, BookSpec, append_book, append_study_content, build_bible
+    from bibleimport.pipeline import (
+        BibleSpec,
+        BookSpec,
+        append_book,
+        append_study_content,
+        build_bible,
+    )
 
     src = tmp_dir / "mini_usfx.xml"
     src.write_text(MINI_USFX, encoding="utf-8")

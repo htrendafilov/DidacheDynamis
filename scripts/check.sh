@@ -25,6 +25,9 @@ if [ -f apps/importer/pyproject.toml ]; then
   "$IMPORTER_PY" scripts/revise_baptist_confession_1689_bg.py --check
 fi
 
+echo "==> scripts: ruff"
+"$RUFF" check scripts
+
 echo "==> api: ruff + pytest"
 if [ -f apps/api/pyproject.toml ]; then
   if [ -x apps/api/.venv/bin/python ]; then

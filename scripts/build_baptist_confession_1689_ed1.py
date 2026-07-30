@@ -10,7 +10,6 @@ import io
 import json
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INFO_PATH = REPO_ROOT / "data/sources/BaptistConfession1689-ed1.info.json"
 

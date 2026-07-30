@@ -90,7 +90,7 @@ def bg_prose(chapter: str, target: int) -> tuple[str, str]:
     reference runs, then start at a sentence boundary.
     """
     raw = BG_IMP.read_text(encoding="utf-8")
-    blocks = re.split(r"^\$\$\$", raw, flags=re.M)
+    blocks = re.split(r"^\$\$\$", raw, flags=re.MULTILINE)
     body = next((b for b in blocks if b.strip().startswith(chapter)), None)
     if body is None:
         raise SystemExit(f"chapter {chapter!r} not found in {BG_IMP.name}")

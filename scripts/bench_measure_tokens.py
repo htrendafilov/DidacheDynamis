@@ -28,7 +28,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -119,7 +119,7 @@ def main() -> int:
 
     samples = [json.loads(line) for line in PROMPTS.read_text(encoding="utf-8").splitlines() if line.strip()]
     results: dict = {
-        "date": date.today().isoformat(),
+        "date": datetime.now(tz=UTC).date().isoformat(),
         "divisors": DIVISORS,
         "multiplier": MULTIPLIER,
         "models": models,
@@ -171,8 +171,8 @@ def main() -> int:
             flag = "" if row["safe"] in (True, None) else "  <-- UNDER-COUNT"
             print(
                 f"{sample['n']:>2} {sample['id']:<16} {family:<16} "
-                f"tok={str(actual):<5} adj={str(adjusted):<5} "
-                f"c/t={str(row['chars_per_token_adjusted']):<6} "
+                f"tok={actual!s:<5} adj={adjusted!s:<5} "
+                f"c/t={row['chars_per_token_adjusted']!s:<6} "
                 f"est={row['estimated_tokens']:<4}{flag}"
                 + (f"  [{row['error']}]" if row["error"] else "")
             )
