@@ -118,7 +118,7 @@ describe("buildContext licence gate (§11)", () => {
     );
     expect(sources).toEqual([]);
     expect(JSON.stringify(sources)).not.toContain("Restricted text");
-    expect(dropped).toEqual([{ label: "John 3:16 (WEB)", kind: "bible", reason: "licence", detail: "blocked by this work's licence" }]);
+    expect(dropped).toEqual([{ label: "John 3:16 (WEB)", kind: "bible", reason: "licence", detail: "policyBlocked" }]);
   });
 
   it("treats unknown as never eligible, not a soft state", async () => {
@@ -138,7 +138,7 @@ describe("buildContext licence gate (§11)", () => {
       new AbortController().signal,
     );
     expect(sources).toEqual([]);
-    expect(dropped[0].detail).toBe("turn on privacy routing");
+    expect(dropped[0].detail).toBe("turnOnPrivacyRouting");
   });
 
   it("blocks allowed_no_training when privacy routing is on but logging is not confirmed", async () => {
@@ -151,7 +151,7 @@ describe("buildContext licence gate (§11)", () => {
       new AbortController().signal,
     );
     expect(sources).toEqual([]);
-    expect(dropped[0].detail).toContain("logging");
+    expect(dropped[0].detail).toBe("confirmLoggingDisabled");
   });
 
   it("admits allowed_no_training once privacy routing is on and logging is confirmed", async () => {

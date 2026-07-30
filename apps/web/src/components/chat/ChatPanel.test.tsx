@@ -1,7 +1,30 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { StudySource } from "../../chat/types";
 import i18n from "../../i18n";
+
+// This suite exercises the M9.2-era connect/model/stream/stop mechanics, not the M9.3
+// retrieval pipeline (that lives in context.test.ts, ContextPicker.test.tsx). Mocking
+// buildContext keeps `body.messages` predictable without stubbing every /api/v1 route
+// the real ContextPicker's default-selected panes would otherwise hit.
+const buildContextMock = vi.fn();
+vi.mock("../../chat/context", () => ({ buildContext: (...args: unknown[]) => buildContextMock(...args) }));
+// ContextPicker (rendered inside ChatPanel) also calls usePassage/useGeneralBook, even
+// though the store's single default pane never exercises the code paths that use them.
+vi.mock("../../data/hooks", () => ({
+  useWorks: () => [],
+  usePassage: (workId: string, osis: string, chapter: number) => ({
+    workId,
+    osis,
+    chapter,
+    loading: false,
+    error: false,
+    data: null,
+  }),
+  useGeneralBook: () => ({ loading: false, error: false, data: null }),
+}));
+
 import { ChatPanel } from "./ChatPanel";
 
 const SENTINEL_KEY = "sk-or-v1-TESTSENTINEL0123456789abcdef";
@@ -58,6 +81,7 @@ beforeEach(async () => {
     return Promise.reject(new Error(`unexpected fetch: ${url}`));
   });
   vi.stubGlobal("fetch", fetchMock);
+  buildContextMock.mockReset().mockResolvedValue({ sources: [], dropped: [] });
 });
 
 afterEach(() => {
@@ -148,6 +172,10 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
 
+    // send() now awaits buildContext() before the completions fetch, so the fetch call
+    // (and therefore resolveFetch's assignment) lands a tick after the click, not
+    // synchronously within it.
+    await waitFor(() => expect(resolveFetch).not.toBeNull());
     await act(async () => {
       resolveFetch?.(
         sseResponse(
@@ -262,6 +290,7 @@ describe("ChatPanel", () => {
     const secondSendCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
     const body = JSON.parse(secondSendCall[1].body as string);
     expect(body.messages).toEqual([
+      { role: "system", content: expect.stringContaining("No sources were supplied") },
       { role: "user", content: "first" },
       { role: "user", content: "second" },
     ]);
@@ -322,5 +351,93 @@ describe("ChatPanel", () => {
     // The model catalogue fetch resolves after render; wait for it so its state update
     // is not left dangling outside an act() boundary.
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+  });
+});
+
+describe("ChatPanel grounded flow (M9.3)", () => {
+  function source(overrides: Partial<StudySource> = {}): StudySource {
+    return {
+      id: "S1",
+      kind: "bible",
+      workId: "web",
+      label: "John 3:16 (WEB)",
+      canonicalTarget: { kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 },
+      language: "en",
+      excerpt: "16 For God so loved the world.",
+      contentVersion: "v1",
+      estimatedTokens: 10,
+      ...overrides,
+    };
+  }
+
+  it("shows the pre-send summary on the user's message, matching what buildContext actually returned", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText(/John 3:16 \(WEB\)/)).toBeInTheDocument());
+    expect(screen.getByText(/10 tokens/)).toBeInTheDocument();
+  });
+
+  it("renders a citation from the manifest as clickable and reports navigation", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"See [S1]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const citation = await screen.findByRole("button", { name: /John 3:16/ });
+    expect(citation).toHaveTextContent("[S1]");
+  });
+
+  it("calls onCitationNavigate when a resolved citation is clicked", async () => {
+    const onCitationNavigate = vi.fn();
+    render(<ChatPanel onClose={() => {}} onCitationNavigate={onCitationNavigate} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
+    fireEvent.change(screen.getByLabelText("OpenRouter API key"), { target: { value: SENTINEL_KEY } });
+    fetchMock.mockImplementationOnce(() => Promise.resolve(keyInfoResponse()));
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() => expect(screen.getByText("Connected to OpenRouter.")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"See [S1]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const citation = await screen.findByRole("button", { name: /John 3:16/ });
+    fireEvent.click(citation);
+    expect(onCitationNavigate).toHaveBeenCalled();
+  });
+
+  it("shows a Sources panel with the exact excerpt sent for the cited source", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok [S1]"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText("Sources")).toBeInTheDocument());
+    expect(screen.getByText("16 For God so loved the world.")).toBeInTheDocument();
+  });
+
+  it("never resolves a fabricated citation the model produces but the manifest never granted", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source({ id: "S1" })], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"Fabricated [S9]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await screen.findByText("[S9]");
+    expect(screen.queryByRole("button", { name: /\[S9\]/ })).not.toBeInTheDocument();
   });
 });

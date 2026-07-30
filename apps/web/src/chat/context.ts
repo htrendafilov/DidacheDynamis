@@ -19,7 +19,14 @@ import {
   strongEntryToText,
 } from "./normalize";
 import { estimateTokens } from "./tokens";
-import type { CanonicalTarget, ContextChip, DroppedSource, SourceKind, StudySource } from "./types";
+import type {
+  CanonicalTarget,
+  ContextChip,
+  DroppedSource,
+  LicenceReasonCode,
+  SourceKind,
+  StudySource,
+} from "./types";
 
 const PER_SOURCE_CAP_TOKENS = 2000;
 const TOTAL_BUDGET_TOKENS = 8000;
@@ -41,7 +48,9 @@ function workById(works: Work[], workId: string): Work | undefined {
   return works.find((w) => w.id === workId);
 }
 
-function policyEligible(policy: Work["ai_context_policy"], privacyRouting: boolean): boolean {
+// Exported for ContextPicker (§5), which needs to render a chip's disabled state and
+// reason synchronously, without running the full retrieval pipeline just to find out.
+export function policyEligible(policy: Work["ai_context_policy"], privacyRouting: boolean): boolean {
   switch (policy) {
     case "allowed":
       return true;
@@ -53,13 +62,11 @@ function policyEligible(policy: Work["ai_context_policy"], privacyRouting: boole
   }
 }
 
-function licenceDetail(policy: Work["ai_context_policy"], privacyRouting: boolean): string {
+export function licenceDetail(policy: Work["ai_context_policy"], privacyRouting: boolean): LicenceReasonCode {
   if (policy === "allowed_no_training") {
-    return privacyRouting
-      ? "confirm OpenRouter logging is disabled for this session"
-      : "turn on privacy routing";
+    return privacyRouting ? "confirmLoggingDisabled" : "turnOnPrivacyRouting";
   }
-  return policy === "unknown" ? "this work's AI-use licence is unrecorded" : "blocked by this work's licence";
+  return policy === "unknown" ? "policyUnknown" : "policyBlocked";
 }
 
 // Strips tags for a note excerpt; notes store sanitized HTML, and normalize.ts's "never
@@ -70,7 +77,9 @@ function htmlToText(html: string): string {
   return (doc.body.textContent ?? "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function findSection(sections: GeneralBookSection[], sectionId: string): GeneralBookSection | null {
+// Exported for ContextPicker (§5), which needs a book chip's real section title, not
+// just its id, and would otherwise have to duplicate this tree walk.
+export function findSection(sections: GeneralBookSection[], sectionId: string): GeneralBookSection | null {
   for (const section of sections) {
     if (section.section_id === sectionId) return section;
     const found = findSection(section.children, sectionId);

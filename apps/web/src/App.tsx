@@ -54,6 +54,7 @@ export default function App() {
   const [searchReturnAvailable, setSearchReturnAvailable] = useState(false);
   const [restoreSearchResultFocus, setRestoreSearchResultFocus] = useState(false);
   const [assistantEverOpened, setAssistantEverOpened] = useState(false);
+  const [assistantReturnAvailable, setAssistantReturnAvailable] = useState(false);
   const [deepLinkError, setDeepLinkError] = useState(false);
   const [activeMobile, setActiveMobile] = useState(0);
   const initializeDropbox = useDropboxSync((state) => state.initialize);
@@ -213,6 +214,9 @@ export default function App() {
         searchReturnAvailable={
           isNarrow && searchReturnAvailable && activeWorkspace !== "search"
         }
+        assistantReturnAvailable={
+          isNarrow && assistantReturnAvailable && activeWorkspace !== "assistant"
+        }
         onToggleSearch={() => {
           setActiveWorkspace((current) => {
             const opening = current !== "search";
@@ -227,7 +231,10 @@ export default function App() {
         onToggleAssistant={() => {
           setActiveWorkspace((current) => {
             const opening = current !== "assistant";
-            if (opening) setAssistantEverOpened(true);
+            if (opening) {
+              setAssistantEverOpened(true);
+              setAssistantReturnAvailable(false);
+            }
             return opening ? "assistant" : null;
           });
         }}
@@ -332,6 +339,18 @@ export default function App() {
               onClose={() => {
                 setActiveWorkspace(null);
                 requestAnimationFrame(() => assistantButtonRef.current?.focus());
+              }}
+              onCitationNavigate={(paneType) => {
+                // Per m9.3-grounded-assistant.md §7: on mobile, opening a citation closes
+                // the drawer and exposes a "Back to assistant" control — mirroring
+                // SearchDrawer's onNavigate, including selecting the destination pane.
+                if (paneType) {
+                  const destination = useStore.getState().panes.findIndex((pane) => pane.type === paneType);
+                  if (destination >= 0) setActiveMobile(destination);
+                }
+                if (!isNarrow) return;
+                setActiveWorkspace(null);
+                setAssistantReturnAvailable(true);
               }}
             />
           </Suspense>

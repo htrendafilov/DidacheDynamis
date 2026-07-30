@@ -46,9 +46,18 @@ export type ContextChip =
 
 export type DropReason = "licence" | "unavailable" | "over-cap" | "budget" | "duplicate";
 
+// Stable, locale-independent codes — never a human sentence — so the UI layer (which has
+// useTranslation) can localize them and history.ts can store them without baking English
+// text into saved data.
+export type LicenceReasonCode =
+  | "turnOnPrivacyRouting"
+  | "confirmLoggingDisabled"
+  | "policyUnknown"
+  | "policyBlocked";
+
 export interface DroppedSource {
   label: string;
   kind: SourceKind;
   reason: DropReason;
-  detail?: string; // e.g. "turn on privacy routing" for a blocked allowed_no_training work
+  detail?: LicenceReasonCode; // set only when reason === "licence"
 }
