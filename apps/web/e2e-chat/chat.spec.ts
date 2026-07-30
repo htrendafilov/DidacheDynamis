@@ -93,9 +93,7 @@ test("no chat chunk is requested until Assistant is opened", async ({ page }) =>
   await expect.poll(() => chatChunkRequests.length).toBeGreaterThan(0);
 });
 
-test("connect, pick a model, send a message, stream it, stop, and disconnect", async ({
-  page,
-}) => {
+test("connect, pick a model, send a message, stream it, and disconnect", async ({ page }) => {
   await mockOpenRouter(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant" }).click();
@@ -122,6 +120,51 @@ test("connect, pick a model, send a message, stream it, stop, and disconnect", a
 
   await page.getByRole("button", { name: "Disconnect" }).click();
   await expect(page.getByRole("button", { name: "Connect" })).toBeVisible();
+});
+
+test("Stop cancels an in-flight request immediately, without waiting for a response", async ({
+  page,
+}) => {
+  await mockOpenRouter(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Assistant" }).click();
+  await expect(page.getByRole("option", { name: /Free Models Router/ })).toBeAttached();
+
+  await page
+    .getByRole("checkbox", { name: /eligible OpenRouter account/i })
+    .check();
+  await page.getByLabel("OpenRouter API key").fill(SENTINEL_KEY);
+  await page.getByRole("button", { name: "Connect" }).click();
+  await expect(page.getByText("Connected to OpenRouter.")).toBeVisible();
+  await page.getByLabel("Model", { exact: true }).selectOption("openrouter/free");
+
+  // Replace the completions mock with one that never responds, so nothing but a real Stop
+  // click can end this request -- proves Stop cancels the actual network request, not just
+  // something the UI stops listening to.
+  await page.unroute("https://openrouter.ai/api/v1/chat/completions");
+  await page.route("https://openrouter.ai/api/v1/chat/completions", () => {
+    // Deliberately never calls fulfill/continue/abort.
+  });
+
+  await page.getByLabel("Your question").fill("Explain John 3:16");
+
+  const [failedRequest] = await Promise.all([
+    page.waitForEvent(
+      "requestfailed",
+      (req) => req.url() === "https://openrouter.ai/api/v1/chat/completions",
+    ),
+    (async () => {
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+      await page.getByRole("button", { name: "Stop" }).click();
+    })(),
+  ]);
+  expect(failedRequest.failure()?.errorText ?? "").toMatch(/abort/i);
+
+  // Takes effect immediately: the route above never resolves, so this can only pass if
+  // Stop -- not a response -- is what ended the request.
+  await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+  await expect(page.getByText("Hello, world.")).not.toBeVisible();
 });
 
 test("Escape closes the Assistant and returns focus to its TopBar button", async ({ page }) => {

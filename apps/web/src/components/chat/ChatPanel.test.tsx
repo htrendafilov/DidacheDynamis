@@ -127,7 +127,7 @@ describe("ChatPanel", () => {
     expect(sessionStorage.getItem("bible-chat-key-openrouter")).toBeNull();
   });
 
-  it("sends a message, streams the visible answer, and lets Stop abort mid-stream", async () => {
+  it("sends a message and streams the visible answer", async () => {
     await connectAndSelectModel();
 
     fireEvent.change(screen.getByLabelText("Your question"), {
@@ -166,6 +166,53 @@ describe("ChatPanel", () => {
 
     await waitFor(() => expect(screen.getByText("Здравей")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+  });
+
+  it("clicking Stop mid-stream aborts immediately, keeping the partial answer and flagging it incomplete", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+
+    let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c;
+      },
+    });
+    fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+      // Stop has nothing to abort if the outgoing request wasn't given a real signal.
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      return Promise.resolve(new Response(stream, { status: 200 }));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await act(async () => {
+      controller!.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Здра"}}]}\n\n'));
+    });
+    await waitFor(() => expect(screen.getByText("Здра")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+
+    // Takes effect immediately -- no waiting for the stream to close or [DONE] to arrive,
+    // which never happens in this test (the mocked stream is still open).
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Your question")).not.toBeDisabled();
+
+    // The partial answer is kept, not discarded, and flagged so the reader knows it was cut
+    // short rather than a complete response.
+    expect(screen.getByText("Здра")).toBeInTheDocument();
+    expect(screen.getByText("Answer incomplete")).toBeInTheDocument();
+
+    // A chunk arriving after Stop must not be appended: the reader was actually cancelled,
+    // not just ignored by the UI.
+    await act(async () => {
+      try {
+        controller!.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"вей"}}]}\n\n'));
+      } catch {
+        // The stream is expected to already be closed/errored by the cancel.
+      }
+    });
+    expect(screen.queryByText("Здравей")).not.toBeInTheDocument();
   });
 
   it("shows the actual answering model even when it differs from the requested one", async () => {
