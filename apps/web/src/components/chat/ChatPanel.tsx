@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { buildManifest, navigationIntent, type SourceManifest } from "../../chat/citations";
@@ -11,6 +11,18 @@ import {
 import { buildContext } from "../../chat/context";
 import { connectedProviders, disconnect as disconnectProvider } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
+import {
+  clearAll as clearAllHistory,
+  clearThread as clearThreadHistory,
+  createThread,
+  exportHistory,
+  getMessages as getHistoryMessages,
+  getRun,
+  listThreads,
+  saveMessage,
+  saveRun,
+  serializeManifest,
+} from "../../chat/history";
 import { buildMessages } from "../../chat/prompt";
 import type { ContextChip, StudySource } from "../../chat/types";
 import { useWorks } from "../../data/hooks";
@@ -19,6 +31,20 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatSettings, initialLoggingConfirmed } from "./ChatSettings";
 import { ChatSources } from "./ChatSources";
 import { ContextPicker, summarizeContext } from "./ContextPicker";
+
+const HISTORY_NOTICE_KEY = "bible-chat-history-notice-dismissed";
+
+function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 interface DisplayMessage {
   id: string;
@@ -75,7 +101,73 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [chips, setChips] = useState<ContextChip[]>([]);
+  const [privateSession, setPrivateSession] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [historyNoticeDismissed, setHistoryNoticeDismissed] = useState(
+    () => localStorage.getItem(HISTORY_NOTICE_KEY) === "1",
+  );
   const abortRef = useRef<AbortController | null>(null);
+
+  // Reload finds saved history: on mount (never in a private session), pick up the most
+  // recently updated thread and restore its messages, including each assistant answer's
+  // manifest, so old citations still resolve and its Sources panel still shows.
+  useEffect(() => {
+    if (privateSession) return;
+    let alive = true;
+    (async () => {
+      const threads = await listThreads();
+      const latest = threads[0];
+      if (!latest || !alive) return;
+      const stored = await getHistoryMessages(latest.id);
+      const restored: DisplayMessage[] = await Promise.all(
+        stored.map(async (m) => {
+          if (m.role !== "assistant") return { id: m.id, role: m.role, text: m.text };
+          const run = await getRun(m.id);
+          return {
+            id: m.id,
+            role: m.role,
+            text: m.text,
+            incomplete: m.incomplete,
+            actualModel: run?.actualModel,
+            usage: run?.usage,
+            manifest: run ? buildManifest(JSON.parse(run.sourceManifestJson) as StudySource[]) : [],
+          };
+        }),
+      );
+      if (!alive) return;
+      setThreadId(latest.id);
+      setMessages(restored);
+    })();
+    return () => {
+      alive = false;
+    };
+    // Intentionally mount-only: switching privateSession mid-session does not reload —
+    // it only changes whether future sends persist.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dismissHistoryNotice = () => {
+    localStorage.setItem(HISTORY_NOTICE_KEY, "1");
+    setHistoryNoticeDismissed(true);
+  };
+
+  const clearThisThread = async () => {
+    if (!window.confirm(t("chat.history.clearThreadConfirm"))) return;
+    if (threadId) await clearThreadHistory(threadId);
+    setThreadId(null);
+    setMessages([]);
+  };
+
+  const clearAllHistoryAndReset = async () => {
+    if (!window.confirm(t("chat.history.clearAllConfirm"))) return;
+    await clearAllHistory();
+    setThreadId(null);
+    setMessages([]);
+  };
+
+  const exportJson = async () => {
+    downloadJson("bible-chat-history.json", await exportHistory());
+  };
 
   const disconnect = () => {
     abortRef.current?.abort();
@@ -134,6 +226,14 @@ export function ChatPanel({
     ]);
     setStreaming(true);
 
+    let currentThreadId = threadId;
+    if (!privateSession) {
+      currentThreadId ??= await createThread(userText);
+      setThreadId(currentThreadId);
+      await saveMessage({ id: userId, threadId: currentThreadId, role: "user", text: userText, createdAt: Date.now() });
+    }
+
+    let assistantText = "";
     try {
       const { sources, dropped } = await buildContext(
         chips,
@@ -167,6 +267,7 @@ export function ChatPanel({
         },
         {
           onDelta: (text) => {
+            assistantText += text;
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + text } : m)),
             );
@@ -199,6 +300,23 @@ export function ChatPanel({
             : m,
         ),
       );
+      if (!privateSession && currentThreadId) {
+        await saveMessage({
+          id: assistantId,
+          threadId: currentThreadId,
+          role: "assistant",
+          text: assistantText,
+          createdAt: Date.now(),
+          incomplete: meta.incomplete,
+        });
+        await saveRun({
+          messageId: assistantId,
+          sourceManifestJson: serializeManifest(sources),
+          contentVersion: sources[0]?.contentVersion ?? "unknown",
+          actualModel: meta.actualModel ?? undefined,
+          usage: meta.usage ?? undefined,
+        });
+      }
     } catch (err) {
       const kind = err instanceof ChatError ? err.kind : err instanceof DOMException && err.name === "AbortError" ? "aborted" : "network";
       setMessages((prev) => (kind === "aborted" ? prev : prev.map((m) => (m.id === assistantId ? { ...m, errorKind: kind } : m))));
@@ -220,6 +338,35 @@ export function ChatPanel({
       </div>
 
       <p className="chat-disclaimer">{t("chat.disclaimer")}</p>
+
+      {!historyNoticeDismissed && (
+        <aside className="chat-history-notice" role="note">
+          <p>{t("chat.history.firstUseNotice")}</p>
+          <button type="button" onClick={dismissHistoryNotice}>
+            {t("common.dismiss")}
+          </button>
+        </aside>
+      )}
+
+      <div className="chat-history-controls">
+        <label>
+          <input
+            type="checkbox"
+            checked={privateSession}
+            onChange={(e) => setPrivateSession(e.target.checked)}
+          />
+          {t("chat.history.privateSession")}
+        </label>
+        <button type="button" onClick={() => void clearThisThread()} disabled={messages.length === 0}>
+          {t("chat.history.clearThread")}
+        </button>
+        <button type="button" onClick={() => void clearAllHistoryAndReset()}>
+          {t("chat.history.clearAll")}
+        </button>
+        <button type="button" onClick={() => void exportJson()}>
+          {t("chat.history.exportJson")}
+        </button>
+      </div>
 
       <ChatSettings
         connected={connected}

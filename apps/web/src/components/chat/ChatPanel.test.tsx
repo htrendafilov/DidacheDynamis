@@ -25,6 +25,7 @@ vi.mock("../../data/hooks", () => ({
   useGeneralBook: () => ({ loading: false, error: false, data: null }),
 }));
 
+import { clearAll as clearChatHistory } from "../../chat/history";
 import { ChatPanel } from "./ChatPanel";
 
 const SENTINEL_KEY = "sk-or-v1-TESTSENTINEL0123456789abcdef";
@@ -76,6 +77,8 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(async () => {
   await i18n.changeLanguage("en");
   sessionStorage.clear();
+  localStorage.clear();
+  await clearChatHistory();
   fetchMock = vi.fn().mockImplementation((url: string) => {
     if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
     return Promise.reject(new Error(`unexpected fetch: ${url}`));
@@ -193,7 +196,7 @@ describe("ChatPanel", () => {
     });
 
     await waitFor(() => expect(screen.getByText("Здравей")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
   });
 
   it("clicking Stop mid-stream aborts immediately, keeping the partial answer and flagging it incomplete", async () => {
@@ -439,5 +442,61 @@ describe("ChatPanel grounded flow (M9.3)", () => {
 
     await screen.findByText("[S9]");
     expect(screen.queryByRole("button", { name: /\[S9\]/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatPanel history (M9.3 step 6)", () => {
+  it("finds saved history on reload: a new mount restores the previous thread's messages", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+
+    // Simulate a reload: unmount and mount a fresh ChatPanel — nothing but Dexie persists.
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getAllByText("hi").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("ok").length).toBeGreaterThan(0);
+  });
+
+  it("a private session never touches Dexie: nothing is there to find after reload", async () => {
+    await connectAndSelectModel();
+    fireEvent.click(screen.getByRole("checkbox", { name: /private session/i }));
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "secret" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+
+    const { listThreads } = await import("../../chat/history");
+    expect(await listThreads()).toEqual([]);
+  });
+
+  it("Clear this conversation removes it from Dexie and from the visible messages", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear this conversation" }));
+
+    await waitFor(() => expect(screen.queryByText("ok")).not.toBeInTheDocument());
+    const { listThreads } = await import("../../chat/history");
+    await waitFor(async () => expect(await listThreads()).toEqual([]));
+  });
+
+  it("shows the first-use notice once, and dismissing it persists across mounts", async () => {
+    const { unmount } = render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    expect(screen.getByText(/not synced to Dropbox/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/not synced to Dropbox/)).not.toBeInTheDocument();
+    unmount();
+
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    expect(screen.queryByText(/not synced to Dropbox/)).not.toBeInTheDocument();
   });
 });
