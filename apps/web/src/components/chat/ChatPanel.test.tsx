@@ -531,11 +531,18 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(screen.getByText("No context selected. The assistant will answer from the question alone.")).toBeInTheDocument();
 
     // Simulate a reload: unmount and mount a fresh ChatPanel — nothing but Dexie persists.
     render(<ChatPanel onClose={() => {}} />);
     await waitFor(() => expect(screen.getAllByText("hi").length).toBeGreaterThan(0));
     expect(screen.getAllByText("ok").length).toBeGreaterThan(0);
+    // The pre-send summary (§5, §9: stored with the turn) survives the reload too, not
+    // just the message text — it lived only in React state until a second saveMessage()
+    // call persisted it once buildContext resolved.
+    expect(
+      screen.getAllByText("No context selected. The assistant will answer from the question alone.").length,
+    ).toBeGreaterThan(0);
   });
 
   it("a private session never touches Dexie: nothing is there to find after reload", async () => {

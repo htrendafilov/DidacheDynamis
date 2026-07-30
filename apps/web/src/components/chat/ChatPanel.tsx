@@ -127,7 +127,9 @@ export function ChatPanel({
       const stored = await getHistoryMessages(latest.id);
       const restored: DisplayMessage[] = await Promise.all(
         stored.map(async (m) => {
-          if (m.role !== "assistant") return { id: m.id, role: m.role, text: m.text };
+          if (m.role !== "assistant") {
+            return { id: m.id, role: m.role, text: m.text, contextSummary: m.contextSummary };
+          }
           const run = await getRun(m.id);
           return {
             id: m.id,
@@ -251,10 +253,11 @@ export function ChatPanel({
     setStreaming(true);
 
     let currentThreadId = threadId;
+    const userCreatedAt = Date.now();
     if (!privateSession) {
       currentThreadId ??= await createThread(userText);
       setThreadId(currentThreadId);
-      await saveMessage({ id: userId, threadId: currentThreadId, role: "user", text: userText, createdAt: Date.now() });
+      await saveMessage({ id: userId, threadId: currentThreadId, role: "user", text: userText, createdAt: userCreatedAt });
     }
 
     let assistantText = "";
@@ -274,6 +277,19 @@ export function ChatPanel({
         t,
       );
       setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, contextSummary } : m)));
+      // buildContext only resolves after the user message is already saved (needed
+      // immediately, to have a thread to save it under), so the summary — required to be
+      // stored with the turn (§5, §9) — arrives via a second put to the same id.
+      if (!privateSession && currentThreadId) {
+        await saveMessage({
+          id: userId,
+          threadId: currentThreadId,
+          role: "user",
+          text: userText,
+          createdAt: userCreatedAt,
+          contextSummary,
+        });
+      }
 
       const answerLanguage = uiLang === "bg" ? "bg" : "en";
       const [system, user] = buildMessages(sources, userText, answerLanguage);

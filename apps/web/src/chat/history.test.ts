@@ -51,6 +51,26 @@ describe("history.ts", () => {
     expect(messages.map((m) => m.text)).toEqual(["What does John 3:16 mean?", "It means..."]);
   });
 
+  it("stores and updates the pre-send context summary on a user message via a second save to the same id", async () => {
+    const threadId = await createThread("q");
+    const userId = await saveMessage({ threadId, role: "user", text: "q", createdAt: 1 });
+    // First save (before buildContext resolves) has no summary yet.
+    expect((await getMessages(threadId))[0].contextSummary).toBeUndefined();
+
+    // Second save, same id, adds it — an upsert, not a new row.
+    await saveMessage({
+      id: userId,
+      threadId,
+      role: "user",
+      text: "q",
+      createdAt: 1,
+      contextSummary: "John 3:16 (WEB) — 10 tokens.",
+    });
+    const messages = await getMessages(threadId);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].contextSummary).toBe("John 3:16 (WEB) — 10 tokens.");
+  });
+
   it("stores a run keyed by messageId, carrying only the resolved manifest and metadata", async () => {
     const threadId = await createThread("q");
     const messageId = await saveMessage({ threadId, role: "assistant", text: "It means [S1].", createdAt: 1 });

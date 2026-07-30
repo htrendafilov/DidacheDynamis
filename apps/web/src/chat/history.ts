@@ -29,6 +29,11 @@ export interface ChatHistoryMessage {
   text: string;
   createdAt: number;
   incomplete?: boolean;
+  // The pre-send summary (§5), set on the user message once buildContext resolves —
+  // which is after the message is first saved, so it arrives via a second saveMessage()
+  // call for the same id (an upsert, not a new row). Absent if the turn errored before
+  // buildContext returned.
+  contextSummary?: string;
 }
 
 // One per assistant message (messageId is the primary key: a message has at most one run).
