@@ -129,6 +129,25 @@ describe("ContextPicker", () => {
     expect(screen.getByText(/G0025/)).toBeInTheDocument();
   });
 
+  it("offers a cross-references chip for the selected verse, off by default, and includes it when toggled on", async () => {
+    const panes: Pane[] = [
+      pane({ type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 16 }),
+    ];
+    const onChipsChange = vi.fn();
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />);
+    const checkbox = await screen.findByRole("checkbox", { name: /Cross-references.*John 3:16/ });
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith(
+        expect.arrayContaining([
+          { kind: "xref", osis: "John", chapter: 3, verse: 16, previewWork: "web" },
+        ]),
+      ),
+    );
+  });
+
   it("shows a note chip for the current chapter with a personal-data warning, off by default", async () => {
     await db.notes.put({
       id: "note-1",

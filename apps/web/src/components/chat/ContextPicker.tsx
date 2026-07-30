@@ -60,7 +60,7 @@ function chipKey(chip: ContextChip): string {
     case "note":
       return `note:${chip.noteId}`;
     case "xref":
-      return `xref:${chip.osis}:${chip.chapter}:${chip.verse}`;
+      return `xref:${chip.previewWork}:${chip.osis}:${chip.chapter}:${chip.verse}`;
   }
 }
 
@@ -123,6 +123,53 @@ function StrongsChips({
         );
       })}
     </>
+  );
+}
+
+// Offers a cross-references chip for the selected verse — context.ts fully supports xref
+// chips (§4's relevance order even places them ahead of dictionary/book/notes), but until
+// now nothing in the picker ever constructed one, so users had no way to reach it. No
+// prefetch to check whether cross-references actually exist for this verse: like any
+// other chip, if buildContext finds none it is dropped as "unavailable", same as an empty
+// dictionary lookup.
+function XrefChip({
+  pane,
+  works,
+  privacyRouting,
+  enabled,
+  onToggle,
+}: {
+  pane: Pane;
+  works: Work[] | null;
+  privacyRouting: boolean;
+  enabled: Set<string>;
+  onToggle: (key: string) => void;
+}) {
+  const { t } = useTranslation();
+  const verse = pane.selectedVerse;
+  if (!verse) return null;
+  const chip: ContextChip = {
+    kind: "xref",
+    osis: pane.osis,
+    chapter: pane.chapter,
+    verse,
+    previewWork: pane.workId,
+  };
+  const key = chipKey(chip);
+  const { eligible, reason } = chipEligibility(chip, works, privacyRouting);
+  return (
+    <div className="context-candidate">
+      <label className={`context-chip${eligible ? "" : " disabled"}`}>
+        <input
+          type="checkbox"
+          checked={enabled.has(key) && eligible}
+          disabled={!eligible}
+          onChange={() => onToggle(key)}
+        />
+        {t("chat.context.xrefFor", { osis: pane.osis, chapter: pane.chapter, verse })}
+      </label>
+      {reason && <span className="context-chip-reason">{t(`chat.licence.${reason}`)}</span>}
+    </div>
   );
 }
 
@@ -322,6 +369,9 @@ export function ContextPicker({
       else if (k.startsWith("book:")) {
         const [, workId, sectionId] = k.split(":");
         byKey.set(k, { kind: "book", workId, sectionId });
+      } else if (k.startsWith("xref:")) {
+        const [, previewWork, osis, chapter, verse] = k.split(":");
+        byKey.set(k, { kind: "xref", previewWork, osis, chapter: Number(chapter), verse: Number(verse) });
       }
     }
     const active = [...byKey.entries()]
@@ -381,6 +431,16 @@ export function ContextPicker({
       ))}
       {bibleishPanes.map((pane) => (
         <StrongsChips
+          key={pane.id}
+          pane={pane}
+          works={works}
+          privacyRouting={privacyRouting}
+          enabled={enabled}
+          onToggle={toggle}
+        />
+      ))}
+      {bibleishPanes.map((pane) => (
+        <XrefChip
           key={pane.id}
           pane={pane}
           works={works}

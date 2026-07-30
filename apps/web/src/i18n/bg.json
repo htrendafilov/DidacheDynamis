@@ -260,6 +260,7 @@
   "chat.context.verses": "Стихове",
   "chat.context.versesPlaceholder": "напр. 16 или 16-18",
   "chat.context.strongsFor": "Стронг {{strongId}} ({{lemma}})",
+  "chat.context.xrefFor": "Кръстосани препратки ({{osis}} {{chapter}}:{{verse}})",
   "chat.context.notes": "Бележки",
   "chat.context.noteWarning": "Бележките може да съдържат лична информация. Включват се само за този въпрос.",
   "chat.context.summary": "{{labels}} — {{tokens}} токена.",

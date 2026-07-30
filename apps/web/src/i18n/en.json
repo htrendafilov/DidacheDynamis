@@ -260,6 +260,7 @@
   "chat.context.verses": "Verses",
   "chat.context.versesPlaceholder": "e.g. 16 or 16-18",
   "chat.context.strongsFor": "Strong's {{strongId}} ({{lemma}})",
+  "chat.context.xrefFor": "Cross-references ({{osis}} {{chapter}}:{{verse}})",
   "chat.context.notes": "Notes",
   "chat.context.noteWarning": "Notes may contain personal information. Included for this question only.",
   "chat.context.summary": "{{labels}} — {{tokens}} tokens.",
