@@ -19,6 +19,10 @@ describe("classifyHttpStatus", () => {
     expect(classifyHttpStatus(429, "")).toBe("rateLimit");
   });
 
+  it("maps 400 to badRequest, not the network fallback", () => {
+    expect(classifyHttpStatus(400, "")).toBe("badRequest");
+  });
+
   it("distinguishes the two meanings of OpenRouter's overloaded 404", () => {
     expect(
       classifyHttpStatus(
@@ -76,9 +80,10 @@ describe("isRetryable", () => {
     expect(isRetryable("malformedStream")).toBe(true);
   });
 
-  it("never retries auth, credit, or an aborted request", () => {
+  it("never retries auth, credit, a bad request, or an aborted request", () => {
     expect(isRetryable("auth")).toBe(false);
     expect(isRetryable("credit")).toBe(false);
+    expect(isRetryable("badRequest")).toBe(false); // malformed request; retrying it changes nothing
     expect(isRetryable("aborted")).toBe(false);
   });
 });

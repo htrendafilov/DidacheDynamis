@@ -5,7 +5,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ReadingSettings } from "./components/ReadingSettings";
 import { SEARCH_DEFAULT_WIDTH, SearchDrawer } from "./components/SearchDrawer";
-import { CHAT_DEFAULT_WIDTH } from "./components/chat/dimensions";
+import { CHAT_DEFAULT_WIDTH } from "./components/chatDimensions";
 import { TopBar } from "./components/TopBar";
 import { UpdateNotice } from "./components/UpdateNotice";
 import { api } from "./data/api";

@@ -1,9 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, clampChatWidth } from "./dimensions";
-
-export { CHAT_MIN_WIDTH, CHAT_MAX_WIDTH, CHAT_DEFAULT_WIDTH, clampChatWidth } from "./dimensions";
+import { CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, clampChatWidth } from "../chatDimensions";
 
 /**
  * The Assistant workspace shell, copied from SearchDrawer's mechanics

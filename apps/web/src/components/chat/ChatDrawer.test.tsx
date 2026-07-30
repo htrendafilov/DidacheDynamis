@@ -3,7 +3,8 @@ import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "../../i18n";
-import { CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, ChatDrawer, clampChatWidth } from "./ChatDrawer";
+import { CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, clampChatWidth } from "../chatDimensions";
+import { ChatDrawer } from "./ChatDrawer";
 
 beforeEach(async () => {
   await i18n.changeLanguage("en");

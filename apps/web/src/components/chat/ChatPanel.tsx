@@ -66,7 +66,13 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
     const userText = input.trim();
     setInput("");
-    const priorHistory: ClientChatMessage[] = messages.map((m) => ({ role: m.role, content: m.text }));
+    // A failed or aborted-before-any-content turn leaves an assistant message with empty
+    // text (errorKind set, or not — an immediate abort clears neither). Sending that
+    // upstream as {role:"assistant", content:""} gets rejected by Anthropic-routed models,
+    // and every later send in the conversation would 400 the same way.
+    const priorHistory: ClientChatMessage[] = messages
+      .filter((m) => !m.errorKind && m.text.trim().length > 0)
+      .map((m) => ({ role: m.role, content: m.text }));
     const assistantId = newMessageId();
     setMessages((prev) => [
       ...prev,

@@ -8,6 +8,7 @@ export type ChatErrorKind =
   | "modelUnavailable"
   | "privacyConstraint" // 404: no endpoint satisfies zdr/data_collection — COMMON, not a corner case
   | "emptyAnswer" // finish_reason "length" with no visible content (reasoning ate the budget)
+  | "badRequest" // 400 -> the request itself was malformed; retrying it verbatim cannot help
   | "network"
   | "malformedStream"
   | "aborted";
@@ -31,6 +32,7 @@ const GENERIC_MESSAGE: Record<ChatErrorKind, string> = {
   modelUnavailable: "The selected model is unavailable.",
   privacyConstraint: "No endpoint satisfies the requested privacy routing.",
   emptyAnswer: "The model produced no visible answer.",
+  badRequest: "The request was rejected as invalid.",
   network: "A network error occurred.",
   malformedStream: "The response stream could not be parsed.",
   aborted: "The request was cancelled.",
@@ -45,6 +47,7 @@ export function classifyHttpStatus(status: number, bodyText: string): ChatErrorK
   if (status === 401 || status === 403) return "auth";
   if (status === 402) return "credit";
   if (status === 429) return "rateLimit";
+  if (status === 400) return "badRequest";
   if (status === 404) {
     return PRIVACY_CONSTRAINT_PATTERN.test(bodyText) ? "privacyConstraint" : "modelUnavailable";
   }

@@ -240,6 +240,33 @@ describe("ChatPanel", () => {
     expect(screen.getByText(/BYOK/)).toBeInTheDocument();
   });
 
+  it("drops a failed turn's empty assistant reply from the history sent on the next message", async () => {
+    // An {role:"assistant", content:""} in history gets rejected by Anthropic-routed
+    // models with a 400 -- and since the bad turn stays in state, every later send would
+    // repeat the same 400 forever unless it is excluded here.
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "first" } });
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: "Invalid bearer token" } }), { status: 401 }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("The provider rejected the API key."),
+    );
+
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "second" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+
+    const secondSendCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const body = JSON.parse(secondSendCall[1].body as string);
+    expect(body.messages).toEqual([
+      { role: "user", content: "first" },
+      { role: "user", content: "second" },
+    ]);
+  });
+
   it("keeps a selected model sendable after a filter hides it from the visible list", async () => {
     await connectAndSelectModel(); // selects openrouter/free
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
