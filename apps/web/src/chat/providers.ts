@@ -15,13 +15,15 @@ export interface ModelReasoningCaps {
 export interface ProviderConfig {
   id: ProviderId;
   labelKey: string; // i18n key, not a literal
-  baseUrl: string; // no trailing slash
+  baseUrl: string; // API base, no trailing slash
+  siteUrl: string; // marketing/docs site base — model detail pages live at siteUrl/{modelId}
   modelsPath: string; // e.g. "/models" — unauthenticated catalogue, GET only
   modelsNeedAuth: boolean; // OpenRouter: false (usable before connecting)
   validatePath: string; // §1a — NOT modelsPath. Always authenticated; see m9.0-findings.md §11.
   extraHeaders: Record<string, string>;
   cspOrigin: string;
   keyHelpUrl: string; // where the user creates a dedicated, spend-limited key
+  termsUrl: string; // current Terms, including the Model Terms section (§8)
   privacyNoteKey: string; // i18n key describing this provider's retention posture
   supportsPrivacyRouting: true;
   // §4b — capability-driven, NOT an unconditional constant. `caps` comes from the
@@ -48,12 +50,14 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     id: "openrouter",
     labelKey: "chat.provider.openrouter",
     baseUrl: "https://openrouter.ai/api/v1",
+    siteUrl: "https://openrouter.ai",
     modelsPath: "/models",
     modelsNeedAuth: false,
     validatePath: "/key",
     extraHeaders: { "X-Title": "Bible Reader" },
     cspOrigin: "https://openrouter.ai",
     keyHelpUrl: "https://openrouter.ai/settings/keys",
+    termsUrl: "https://openrouter.ai/terms",
     privacyNoteKey: "chat.privacy.openrouterNote",
     supportsPrivacyRouting: true,
     suppressReasoning: suppressOpenRouterReasoning,
@@ -65,3 +69,13 @@ export function getProvider(id: ProviderId): ProviderConfig {
 }
 
 export const ALL_PROVIDERS: ProviderConfig[] = Object.values(PROVIDERS);
+
+/**
+ * A selected model's detail page (e.g. https://openrouter.ai/openrouter/free), confirmed
+ * live 2026-07-30. The catalogue exposes no machine-readable per-model terms field, so
+ * this link is the honest disclosure path — never claim verified model-specific
+ * eligibility (§1, definition of done).
+ */
+export function modelDetailUrl(provider: ProviderConfig, modelId: string): string {
+  return `${provider.siteUrl}/${modelId}`;
+}

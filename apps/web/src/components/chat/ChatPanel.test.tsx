@@ -17,6 +17,13 @@ function modelsResponse() {
           pricing: { prompt: "0", completion: "0" },
           supported_parameters: ["tools"],
         },
+        {
+          id: "anthropic/claude-haiku-4.5",
+          name: "Claude Haiku 4.5",
+          context_length: 200000,
+          pricing: { prompt: "0.000001", completion: "0.000005" },
+          supported_parameters: ["tools"],
+        },
       ],
     }),
     { status: 200 },
@@ -184,6 +191,53 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.getByText("Answered by cohere/north-mini-code:free")).toBeInTheDocument());
     expect(screen.getByText("42 tokens")).toBeInTheDocument();
     expect(screen.getByText(/BYOK/)).toBeInTheDocument();
+  });
+
+  it("keeps a selected model sendable after a filter hides it from the visible list", async () => {
+    await connectAndSelectModel(); // selects openrouter/free
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+
+    // Filter to something that matches only the OTHER model, not the selected one.
+    fireEvent.change(screen.getByLabelText("Filter models"), { target: { value: "claude" } });
+
+    const select = screen.getByLabelText("Model") as HTMLSelectElement;
+    // The selection must still resolve to a real, visible option -- never silently fall
+    // back to the empty placeholder while state disagrees with what is on screen.
+    expect(select.value).toBe("openrouter/free");
+    expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument();
+
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    const sendCall = fetchMock.mock.calls.find(([url]) => url.endsWith("/chat/completions"));
+    expect(sendCall).toBeDefined();
+    const body = JSON.parse(sendCall![1].body as string);
+    expect(body.model).toBe("openrouter/free"); // not silently switched to the visible model
+  });
+
+  it("links OpenRouter Terms, and a selected model's detail page with a Model Terms notice", async () => {
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+
+    const termsLink = screen.getByRole("link", { name: /OpenRouter Terms/ });
+    expect(termsLink).toHaveAttribute("href", "https://openrouter.ai/terms");
+
+    expect(screen.queryByText(/its own terms may apply/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+
+    const modelLink = screen.getByRole("link", { name: /Free Models Router on OpenRouter/ });
+    expect(modelLink).toHaveAttribute("href", "https://openrouter.ai/openrouter/free");
+    expect(screen.getByText(/this model's own terms may apply/)).toBeInTheDocument();
+  });
+
+  it("shows prompt/completion pricing for each model in the picker", async () => {
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("option", { name: /Claude Haiku 4\.5.*in \$1\.00\/M, out \$5\.00\/M/ }),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("renders in Bulgarian when the UI language is Bulgarian", async () => {

@@ -279,6 +279,23 @@ describe("streamChat", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
   });
 
+  it("lets an abort during the Retry-After backoff reject immediately, without waiting out the delay", async () => {
+    vi.useFakeTimers();
+    setKey("openrouter", "sk-test");
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(429, { error: { message: "rate limited" } }, { "Retry-After": "30" }),
+    );
+    const promise = streamChat(req({ signal: controller.signal }), handlers());
+    const assertion = expect(promise).rejects.toMatchObject({ kind: "aborted" });
+    // Flush microtasks so the retry loop reaches the backoff wait and registers its abort
+    // listener, without advancing real time -- Stop must not need the 30s delay to elapse.
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no second attempt after the abort
+  });
+
   it("never retries after the signal is already aborted", async () => {
     setKey("openrouter", "sk-test");
     const controller = new AbortController();

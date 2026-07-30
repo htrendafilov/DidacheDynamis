@@ -53,3 +53,46 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+
+  chat-smoke:
+    # Separate job (not an extra step in `smoke`) so it gets its own runner/workspace:
+    # playwright.chat.config.ts's webServer rebuilds the same apps/web/dist and
+    # data/content.sqlite as the default config, with VITE_CHAT_ENABLED=true baked in, and
+    # the two builds must not share a workspace (see the config file's own warning).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e apps/importer -e apps/api
+          (cd apps/web && npm ci)
+
+      - name: Install Playwright browser
+        run: (cd apps/web && npx playwright install --with-deps chromium)
+
+      - name: Run chat e2e tests
+        # No E2E_REUSE here, unlike `smoke`: the content DB + SPA must be built by this
+        # config's own webServer so the build actually has VITE_CHAT_ENABLED=true baked in,
+        # not reused from `smoke`'s flag-off build.
+        run: (cd apps/web && npm run e2e:chat)
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: playwright-report-chat
+          path: apps/web/playwright-report
+          retention-days: 7

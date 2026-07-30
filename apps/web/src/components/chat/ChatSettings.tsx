@@ -8,9 +8,21 @@ import {
   setLoggingConfirmed as storeLoggingConfirmed,
 } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
-import { getProvider } from "../../chat/providers";
+import { getProvider, modelDetailUrl } from "../../chat/providers";
 
 const provider = getProvider("openrouter");
+
+// Prices arrive as decimal strings, price per token (e.g. "0.00000003"); shown per
+// million tokens, which is what OpenRouter's own site uses and readers recognise.
+function formatPrice(pricing: { prompt: string; completion: string }): string {
+  const perMillion = (raw: string) => {
+    const value = Number(raw) * 1_000_000;
+    if (!Number.isFinite(value)) return "?";
+    if (value === 0) return "free";
+    return `$${value < 0.01 ? value.toPrecision(2) : value.toFixed(2)}/M`;
+  };
+  return `in ${perMillion(pricing.prompt)}, out ${perMillion(pricing.completion)}`;
+}
 
 /**
  * Connect / model-picker / privacy settings for the Assistant (plan/chat/m9.2-workspace-and-provider.md
@@ -99,6 +111,14 @@ export function ChatSettings({
     if (!needle) return true;
     return m.id.toLowerCase().includes(needle) || m.name.toLowerCase().includes(needle);
   });
+  // Filtering narrows what can be newly picked; it must not silently drop what is already
+  // picked. Without this, typing a filter that excludes the selected model removes its
+  // <option>, the <select> falls back to the empty placeholder, and Send still fires
+  // against the now-invisible model -- risky with billable models.
+  const selectableModels =
+    selectedModel && !filteredModels.some((m) => m.id === selectedModel.id)
+      ? [selectedModel, ...filteredModels]
+      : filteredModels;
 
   return (
     <section className="chat-settings" aria-label={t("chat.settings.title")}>
@@ -123,9 +143,14 @@ export function ChatSettings({
             />
             {t("chat.settings.termsAck")}
           </label>
-          <a href={provider.keyHelpUrl} target="_blank" rel="noreferrer">
-            {t("chat.settings.getKey")}
-          </a>
+          <div className="chat-settings-links">
+            <a href={provider.termsUrl} target="_blank" rel="noreferrer">
+              {t("chat.settings.termsLink")}
+            </a>
+            <a href={provider.keyHelpUrl} target="_blank" rel="noreferrer">
+              {t("chat.settings.getKey")}
+            </a>
+          </div>
 
           <label className="sr-only" htmlFor={keyInputId}>
             {t("chat.settings.keyLabel")}
@@ -185,20 +210,36 @@ export function ChatSettings({
           id={modelSelectId}
           value={selectedModel?.id ?? ""}
           onChange={(event) => {
-            const next = filteredModels.find((m) => m.id === event.target.value) ?? null;
+            // Resolve against the full catalogue, not the filtered subset: the filter
+            // box may since have changed, and the value must still match a real model.
+            const next = (models ?? []).find((m) => m.id === event.target.value) ?? null;
             onSelectModel(next);
           }}
         >
           <option value="">{t("chat.settings.modelPlaceholder")}</option>
-          {filteredModels.map((m) => (
+          {selectableModels.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name} ({m.id}) — {m.contextLength.toLocaleString()}
+              {m.name} ({m.id}) — {m.contextLength.toLocaleString()} ctx — {formatPrice(m.pricing)}
             </option>
           ))}
         </select>
         {modelsError && (
           <p role="alert" className="chat-settings-error">
             {t("chat.settings.modelsError")}
+          </p>
+        )}
+        {selectedModel && (
+          // The catalogue has no machine-readable per-model terms field, so this links
+          // out rather than claiming the app verified model-specific eligibility (§1).
+          <p className="chat-settings-model-terms">
+            <a
+              href={modelDetailUrl(provider, selectedModel.id)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("chat.settings.modelDetailLink", { model: selectedModel.name })}
+            </a>{" "}
+            {t("chat.settings.modelTermsNotice")}
           </p>
         )}
         {/* No default model is preselected: m9.0-findings.md §7a. */}

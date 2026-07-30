@@ -71,8 +71,24 @@ export interface KeyInfo {
 const MAX_RETRIES = 2;
 const CHAT_COMPLETIONS_PATH = "/chat/completions";
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// Abortable: a plain setTimeout would leave Stop inert for the whole Retry-After delay,
+// which can be tens of seconds on a real rate limit.
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new ChatError("aborted", "The request was cancelled."));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new ChatError("aborted", "The request was cancelled."));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 async function safeText(res: Response): Promise<string> {
@@ -296,7 +312,7 @@ export async function streamChat(
       retries++;
       const backoffMs =
         err.retryAfterSeconds != null ? err.retryAfterSeconds * 1000 : 2 ** retries * 500;
-      await sleep(backoffMs);
+      await sleep(backoffMs, req.signal);
     }
   }
 }

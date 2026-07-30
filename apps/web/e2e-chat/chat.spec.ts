@@ -132,7 +132,12 @@ test("Escape closes the Assistant and returns focus to its TopBar button", async
   await expect(page.getByRole("heading", { name: "Study Assistant" })).toBeVisible();
 
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("heading", { name: "Study Assistant" })).not.toBeVisible();
+  // Deliberately NOT page.getByRole() here: aria-hidden="true" removes the whole subtree
+  // from the accessibility tree, so a role-based query finds nothing and any assertion
+  // on it passes trivially -- true regardless of whether CSS actually hides the drawer.
+  // A raw CSS-class locator bypasses ARIA filtering and checks the real rendered state.
+  await expect(page.locator(".chat-drawer")).toHaveClass(/\bclosed\b/);
+  await expect(page.locator(".chat-drawer")).not.toBeVisible();
   await expect(assistantButton).toBeFocused();
 });
 
