@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildManifest, navigationIntent, parseCitations, resolve } from "./citations";
+import {
+  buildManifest,
+  navigationIntent,
+  parseCitations,
+  resolve,
+  stripCitationMarkers,
+} from "./citations";
 import type { StudySource } from "./types";
 
 function source(overrides: Partial<StudySource> = {}): StudySource {
@@ -119,5 +125,32 @@ describe("navigationIntent", () => {
   it("maps note to requestOpenNote", () => {
     const s = source({ kind: "note", workId: undefined, canonicalTarget: { kind: "note", noteId: "note-1", osis: "John", chapter: 3 } });
     expect(navigationIntent(s)).toEqual({ action: "requestOpenNote", noteId: "note-1", osis: "John", chapter: 3 });
+  });
+});
+
+describe("stripCitationMarkers", () => {
+  it("removes well-formed citation markers", () => {
+    expect(stripCitationMarkers("As shown in [S1] and [S2], the answer is clear.")).toBe(
+      "As shown in and, the answer is clear.",
+    );
+  });
+
+  it("removes malformed citation-attempt brackets too, not just well-formed ones", () => {
+    // A stale malformed marker is just as capable of confusing a model re-reading its own
+    // prior turn as a well-formed one — both get removed by the same broad match.
+    expect(stripCitationMarkers("See [S1,S2] here.")).toBe("See here.");
+  });
+
+  it("leaves ordinary bracketed text untouched", () => {
+    expect(stripCitationMarkers("See note [1] and [random].")).toBe("See note [1] and [random].");
+  });
+
+  it("leaves text with no citations untouched", () => {
+    expect(stripCitationMarkers("No citations here.")).toBe("No citations here.");
+  });
+
+  it("collapses the double space a removed marker would otherwise leave, without disturbing single spaces", () => {
+    expect(stripCitationMarkers("word [S1] word")).toBe("word word");
+    expect(stripCitationMarkers("word word")).toBe("word word");
   });
 });

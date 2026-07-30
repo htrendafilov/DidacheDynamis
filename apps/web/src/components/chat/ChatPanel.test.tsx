@@ -304,6 +304,35 @@ describe("ChatPanel", () => {
     expect(body.messages[2].content).toContain("second");
   });
 
+  it("strips citation markers from a prior turn's assistant text before replaying it as history — stale ids would otherwise collide with the fresh, unrelated manifest a later turn assigns", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "first" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"As shown in [S1], yes."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText(/As shown in/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "second" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+
+    const secondSendCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const body = JSON.parse(secondSendCall[1].body as string);
+    const priorAssistantMessage = body.messages.find(
+      (m: { role: string; content: string }) => m.role === "assistant",
+    );
+    expect(priorAssistantMessage.content).not.toContain("[S1]");
+    expect(priorAssistantMessage.content).toContain("As shown in");
+    // The rendered history is untouched — stripping only affects what is sent, not what
+    // the reader already saw. "[S1]" never resolved (turn one had no sources), so it
+    // rendered as its own inert text node, separate from the surrounding prose.
+    expect(screen.getByText("[S1]")).toBeInTheDocument();
+    expect(screen.getByText(/As shown in/)).toBeInTheDocument();
+  });
+
   it("keeps a selected model sendable after a filter hides it from the visible list", async () => {
     await connectAndSelectModel(); // selects openrouter/free
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });

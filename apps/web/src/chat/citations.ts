@@ -40,6 +40,22 @@ export function parseCitations(text: string): CitationToken[] {
   });
 }
 
+// StudySource ids are reassigned fresh every turn (context.ts assigns S1..Sn only after
+// budgeting, per turn) — they are NOT stable across a conversation. If a prior assistant
+// turn's raw text (containing "[S1]" meaning last turn's S1) is replayed verbatim as
+// history, a model can echo that id in a new answer meaning "the same source as before",
+// while the CURRENT manifest's S1 is a different, unrelated source — that resolves to
+// real, currently-sent content, so citations.ts's fabrication guard does not catch it; it
+// is a misattribution, not a fabrication. Strip every citation-shaped token from prior
+// turns before they re-enter context, so there is nothing id-shaped left to collide.
+export function stripCitationMarkers(text: string): string {
+  return text
+    .replace(CITATION_ATTEMPT, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+([,.;:!?])/g, "$1")
+    .trim();
+}
+
 // Resolves an id against the manifest. Zero matches (unknown) and more than one match
 // (a corrupt manifest — buildContext never produces this, but resolve does not trust
 // that) both return null rather than guessing.

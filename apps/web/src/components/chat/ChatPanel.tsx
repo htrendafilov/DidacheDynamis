@@ -1,7 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { buildManifest, navigationIntent, type SourceManifest } from "../../chat/citations";
+import {
+  buildManifest,
+  navigationIntent,
+  stripCitationMarkers,
+  type SourceManifest,
+} from "../../chat/citations";
 import {
   type ChatMessage as ClientChatMessage,
   type ChatModel,
@@ -214,9 +219,14 @@ export function ChatPanel({
 
     const userText = input.trim();
     setInput("");
+    // Strip citation markers before replaying prior turns: StudySource ids are reassigned
+    // fresh every turn, so a prior [S1] means nothing about the current manifest's S1, and
+    // a model that reuses it would have that reused id resolve to real but unrelated
+    // content — citations.ts's resolve() only guards against an id outside the manifest,
+    // not a misattribution to a real one that happens to share a stale id.
     const priorHistory: ClientChatMessage[] = messages
       .filter((m) => !m.errorKind && m.text.trim().length > 0)
-      .map((m) => ({ role: m.role, content: m.text }));
+      .map((m) => ({ role: m.role, content: stripCitationMarkers(m.text) }));
     const userId = newMessageId();
     const assistantId = newMessageId();
     setMessages((prev) => [
