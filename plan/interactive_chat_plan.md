@@ -13,6 +13,8 @@ Two earlier research notes (`interactive_chat_feature_proposal.md`, `interactive
 | Milestone | Brief |
 |---|---|
 | M9.0 — provider feasibility spike | [`chat/m9.0-spike.md`](chat/m9.0-spike.md) |
+| M9.0b-1 — estimator calibration (inside M9.3 week 1) | [`chat/m9.0b-1-estimator-calibration.md`](chat/m9.0b-1-estimator-calibration.md) |
+| M9.0b-2 — Bulgarian answer quality (after M9.3) | [`chat/m9.0b-2-bulgarian-quality.md`](chat/m9.0b-2-bulgarian-quality.md) |
 | M9.1 — content licence metadata | [`chat/m9.1-licence-metadata.md`](chat/m9.1-licence-metadata.md) |
 | M9.2 — workspace and provider foundation | [`chat/m9.2-workspace-and-provider.md`](chat/m9.2-workspace-and-provider.md) |
 | M9.3 — grounded study assistant | [`chat/m9.3-grounded-assistant.md`](chat/m9.3-grounded-assistant.md) |
@@ -346,7 +348,7 @@ const DIVISORS = {
 
 Two limits to carry forward, both recorded in `m9.0-findings.md` §5a:
 
-- The calibration used **six** samples against **two Gemini-family models**. `openrouter/free` routes to Cohere and NVIDIA models as well, and those were never measured — the `1.15` is a guess. [`chat/m9.0b-bulgarian-benchmark.md`](chat/m9.0b-bulgarian-benchmark.md) closes this; until it does, the estimate is trustworthy for Gemini only.
+- The calibration used **six** samples against **two Gemini-family models**. `openrouter/free` routes to Cohere and NVIDIA models as well, and those were never measured — the `1.15` is a guess. [`chat/m9.0b-1-estimator-calibration.md`](chat/m9.0b-1-estimator-calibration.md) closes this, inside M9.3 week 1; until it does, the estimate is trustworthy for Gemini only.
 - Every shipped request uses OpenRouter's `usage: { include: true }`. Use `total_tokens`, never `prompt + completion` — hidden reasoning can make the component counts incomplete.
 
 Log the estimate-vs-actual ratio locally during M9.3 and adjust the constants once.
@@ -558,7 +560,7 @@ Disposable spike against a production-like CSP page. Exit criteria are **written
 - Confirm whether Anthropic's `GET /v1/models` works through the OpenAI-compat layer. **✅ Historical check done; it is reachable, but no direct adapter ships.**
 - Test `zdr: true` + `data_collection: "deny"` against OpenRouter's catalogue, including the free router, and record the resulting availability. **✅ Done; the router passes and many named free models fail closed.**
 - Confirm current OpenRouter free-tier rate limits and whether `openrouter/free` still resolves. **✅ Done 2026-07-29.**
-- Calibrate `estimateTokens()` against real `usage.prompt_tokens` from ~10 representative prompts; fix the constants. **⚠ Partial — 6 samples, one tokenizer family. See M9.0b.**
+- Calibrate `estimateTokens()` against real `usage.prompt_tokens` from ~10 representative prompts; fix the constants. **⚠ Partial — 6 samples, one tokenizer family. See M9.0b-1.**
 - Draft the OpenRouter privacy and terms wording. **✅ Done in review and updated for the OpenRouter-only decision.**
 - Recheck provider terms — pricing and retention policies change. **✅ Rechecked 2026-07-29.** OpenRouter account eligibility, credit requirements, Model Terms flow-down, optional account logging, and BYOK boundaries are implementation requirements, not footnotes.
 - Verify `GET /api/v1/key` is browser-readable for key validation. **✅ Done 2026-07-29:** preflight returned 204 and an invalid-key GET returned a readable 401, both with `Access-Control-Allow-Origin: *`.
@@ -573,19 +575,23 @@ Disposable spike against a production-like CSP page. Exit criteria are **written
 
 > **Outcome: ship no default.** Row 1 was met — `openrouter/free` does satisfy ZDR + `data_collection: deny` — but the table assumed passing the privacy gate was *sufficient*. It is only necessary. The same free router produced unusable Bulgarian in two of four samples, one of them from a content-safety classifier that replied `"User"`. A default whose first answer is gibberish half the time reads as a broken app.
 >
-> This is the second-row action taken for a first-row finding, and it is deliberate. Recorded in [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §7a. Revisit only against the benchmark in M9.0b.
+> This is the second-row action taken for a first-row finding, and it is deliberate. Recorded in [`chat/m9.0-findings.md`](chat/m9.0-findings.md) §7a. Revisit only against the benchmark in M9.0b-2, which runs after M9.3.
 
 **Effort: 1 day.**
 
-### M9.0b — Bulgarian benchmark and estimator corpus (small, non-blocking)
+### M9.0b — split into two, because the halves have different urgency
 
-**Work order: [`chat/m9.0b-bulgarian-benchmark.md`](chat/m9.0b-bulgarian-benchmark.md).**
+M9.0b originally bundled the estimator calibration and the Bulgarian quality benchmark under one "must land before M9.3 exits". They share a corpus and nothing else, and only one of them is urgent. Split 2026-07-30.
 
-Closes the two M9.0 exit criteria that were met only partially: a reproducible ten-prompt corpus, checked in with raw outputs, that (a) calibrates the token estimator across four tokenizer families instead of one, and (b) scores Bulgarian answer quality properly instead of by four unsaved samples.
+**M9.0b-1 — estimator calibration. Work order: [`chat/m9.0b-1-estimator-calibration.md`](chat/m9.0b-1-estimator-calibration.md).**
 
-Does **not** block M9.2 — "no default model" already ships. Must land before M9.3 exits, because the estimator guards the §8.3 context budget.
+Calibrates the token divisors across four tokenizer families instead of one, and checks in the ten-prompt corpus both halves need. **Runs inside M9.3 week 1 and blocks M9.3 step 2 (`tokens.ts`)** — step 3 (`context.ts`) enforces the §8.3 budget entirely through these divisors, so measuring after step 3 means reworking it. Half a day.
 
-**Effort: half a day.**
+**M9.0b-2 — Bulgarian answer quality. Work order: [`chat/m9.0b-2-bulgarian-quality.md`](chat/m9.0b-2-bulgarian-quality.md).**
+
+**Runs after M9.3**, feeding the M9.4/M9.5 default-model decision. It cannot block anything — "no default model" already ships, so this can only propose an improvement. And run before M9.3 it measures the wrong artifact: the product sends *grounded* turns with a citation contract, so answer quality must be scored against the real pipeline, including a citation-fidelity axis that does not exist until M9.3.
+
+**Effort: half a day each.**
 
 ### M9.1 — content licence metadata (independent, ship first)
 
@@ -744,9 +750,9 @@ CI never uses a live key or a paid model. A manual production canary uses a pers
 | OpenAI models wanted | Reached through OpenRouter. `api.openai.com` answers the preflight but omits the header on the actual completions response, so no browser can read it; adding a proxy is a separate ADR |
 | Free model disappears or is rate-limited | Live catalogue, actual-model label, clear retry/model-change UI, published rate limits; no uptime promise |
 | No model satisfies the ZDR default | **Resolved at M9.0**: `openrouter/free` satisfies both constraints, so the default does not have to be weakened |
-| A privacy-compliant default produces unusable Bulgarian | Measured, not hypothetical: half the sampled free-router responses were unusable. **Resolved: no default model ships** (`chat/m9.0-findings.md` §7a). The answer-quality axis is independent of the privacy axis; M9.0b benchmarks it properly |
+| A privacy-compliant default produces unusable Bulgarian | Measured, not hypothetical: half the sampled free-router responses were unusable. **Resolved: no default model ships** (`chat/m9.0-findings.md` §7a). The answer-quality axis is independent of the privacy axis; M9.0b-2 benchmarks it properly, after M9.3, against grounded turns |
 | Hidden reasoning tokens consume the whole answer budget | `reasoning: {enabled: false}` when OpenRouter metadata does not mark reasoning mandatory, a typed `emptyAnswer` error, and `total_tokens` (not prompt+completion) for cost display |
-| The token estimator under-counts on an unmeasured tokenizer | The §8.3 budget is enforced with divisors calibrated on Gemini models only, plus an unmeasured 1.15 allowance, while `openrouter/free` routes to Cohere and NVIDIA models. M9.0b measures four families; until then the picker's supported set is the fallback lever |
+| The token estimator under-counts on an unmeasured tokenizer | The §8.3 budget is enforced with divisors calibrated on Gemini models only, plus an unmeasured 1.15 allowance, while `openrouter/free` routes to Cohere and NVIDIA models. M9.0b-1 measures four families inside M9.3 week 1; until then the picker's supported set is the fallback lever |
 | A key is accepted and fails on the first question | OpenRouter's `/models` needs no auth, so validating through it accepts anything. Connect uses authenticated `GET /api/v1/key` (`chat/m9.0-findings.md` §11) |
 | The user's OpenRouter account logs prompts | Cannot be detected or overridden by the SPA. Disclose it; require a session-scoped "logging is off" confirmation before any `allowed_no_training` source is eligible (§5.3) |
 | A user lacks rights to an input, or assumes ZDR means no processing | Source policy gates imported works; setup covers rights to questions/notes and discloses OpenRouter's anonymous ZDR categorization |
