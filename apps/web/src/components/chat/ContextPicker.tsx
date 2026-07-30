@@ -22,7 +22,30 @@ function workById(works: Work[] | null, workId: string | undefined): Work | unde
   return works.find((w) => w.id === workId);
 }
 
-// The one place that decides which Work governs a chip's licence and whether it is
+// Which work id(s) govern a chip's licence. Almost every kind depends on exactly one
+// work; xref is the exception — context.ts's real builder requires both the TSK-type
+// cross-reference work (mirrored here by work type rather than a hardcoded "tsk" id,
+// matching how BibleVersionSelector/ReadingSettings/etc. already discover works by type)
+// and the preview work to be eligible, since either could leak licensed text into the
+// prompt. There is no live xref response here to know in advance whether a preview will
+// actually be attached to any reference (context.ts's own gate is conditional on that),
+// so both are always required — conservative in the same direction the licence gate
+// itself is: a chip may render disabled in a case that would have been fine, never the
+// other way around.
+function chipWorkIds(chip: ContextChip, works: Work[] | null): (string | undefined)[] {
+  switch (chip.kind) {
+    case "lexicon":
+      return [strongLexiconWorkId(chip.strongId)];
+    case "xref":
+      return [works?.find((w) => w.type === "xref")?.id, chip.previewWork];
+    case "note":
+      return [];
+    default:
+      return [chip.workId];
+  }
+}
+
+// The one place that decides which Work(s) govern a chip's licence and whether it is
 // currently eligible. Used both for rendering (disabled + reason) and for emission, so
 // the two can never disagree — the bug this replaced was exactly that disagreement:
 // a chip could render disabled yet still be reconstructed and emitted regardless.
@@ -31,18 +54,13 @@ function chipEligibility(
   works: Work[] | null,
   privacyRouting: boolean,
 ): { eligible: boolean; reason?: LicenceReasonCode } {
-  const workId =
-    chip.kind === "lexicon"
-      ? strongLexiconWorkId(chip.strongId)
-      : chip.kind === "xref"
-        ? chip.previewWork
-        : chip.kind === "note"
-          ? undefined
-          : chip.workId;
-  const work = workById(works, workId);
-  if (!work) return { eligible: true };
-  const eligible = policyEligible(work.ai_context_policy, privacyRouting);
-  return eligible ? { eligible } : { eligible, reason: licenceDetail(work.ai_context_policy, privacyRouting) };
+  for (const workId of chipWorkIds(chip, works)) {
+    const work = workById(works, workId);
+    if (!work) continue; // unknown locally -> not this work's gate to block on
+    const eligible = policyEligible(work.ai_context_policy, privacyRouting);
+    if (!eligible) return { eligible, reason: licenceDetail(work.ai_context_policy, privacyRouting) };
+  }
+  return { eligible: true };
 }
 
 function chipKey(chip: ContextChip): string {

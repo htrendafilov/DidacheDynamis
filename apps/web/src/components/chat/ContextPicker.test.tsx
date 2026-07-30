@@ -148,6 +148,21 @@ describe("ContextPicker", () => {
     );
   });
 
+  it("disables the xref chip when the TSK-type work is blocked, even though the preview work is allowed", async () => {
+    // context.ts's real builder requires both the TSK cross-reference work and the
+    // preview work to be eligible (§4 step 2 in context.ts) — the picker must agree, or a
+    // chip can render enabled and then get silently dropped during buildContext.
+    works = [work("web"), work("tsk", { type: "xref", ai_context_policy: "prohibited" })];
+    const panes: Pane[] = [
+      pane({ type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 16 }),
+    ];
+    const onChipsChange = vi.fn();
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />);
+    const checkbox = await screen.findByRole("checkbox", { name: /Cross-references.*John 3:16/ });
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText(/does not allow AI use/)).toBeInTheDocument();
+  });
+
   it("shows a note chip for the current chapter with a personal-data warning, off by default", async () => {
     await db.notes.put({
       id: "note-1",
