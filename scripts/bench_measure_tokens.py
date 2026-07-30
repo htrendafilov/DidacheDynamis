@@ -40,13 +40,13 @@ URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODELS = {
     "gemini": "google/gemini-2.5-flash-lite",
     "llama-nemotron": "nvidia/nemotron-3-super-120b-a12b",
-    "cohere": "cohere/north-mini-code",
+    "cohere": "cohere/north-mini-code:free",
     "qwen": "qwen/qwen3-30b-a3b",
 }
 
-# Divisors currently proposed for chat/tokens.ts (m9.0-findings.md section 5).
+# Divisors + multiplier shipped in chat/tokens.ts (m9.0-findings.md sections 5, 5a).
 DIVISORS = {"dense": {"ascii": 2.0, "other": 2.5}, "prose": {"ascii": 3.5, "other": 2.5}}
-MULTIPLIER = 1.15
+MULTIPLIER = 1.6
 DENSE_KINDS = {"lexicon", "xref"}
 
 
@@ -64,9 +64,12 @@ def post(key: str, model: str, content: str, retries: int = 3) -> dict:
             "messages": [{"role": "user", "content": content}],
             "max_tokens": 1,
             "usage": {"include": True},
-            # Suppress reasoning where the model allows it, so thinking tokens
-            # cannot land in the accounting (m9.0-findings.md section 8).
-            "reasoning": {"enabled": False},
+            # max_tokens=1 already caps completion cost, so reasoning tokens
+            # cannot skew prompt_tokens measurement. Do NOT send
+            # reasoning.enabled=false here: at least one measured model
+            # (cohere/north-mini-code:free) silently drops the entire `usage`
+            # object from its response when that field is present, even
+            # though the call otherwise succeeds (m9.0b-1 re-run, 2026-07-30).
         }
     ).encode()
     request = urllib.request.Request(
@@ -175,7 +178,7 @@ def main() -> int:
             )
             time.sleep(0.4)  # stay inside the 20 req/min free-tier limit
 
-    out = args.out or ROOT / "plan" / "chat" / "bench" / f"results-{results['date']}.json"
+    out = (args.out or ROOT / "plan" / "chat" / "bench" / f"results-{results['date']}.json").resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"\nwrote {out.relative_to(ROOT)}")

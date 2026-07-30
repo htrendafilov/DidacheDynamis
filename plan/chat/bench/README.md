@@ -12,7 +12,7 @@ scoring. Build the corpus once; both halves read the same file.
 | File | What it is |
 |---|---|
 | `prompts.jsonl` | The corpus. One JSON object per line. Generated — do not hand-edit. |
-| `results-<date>.json` | Raw `usage.prompt_tokens` per (sample × tokenizer family). |
+| `results-<date>.json` | Raw `usage.prompt_tokens` per (sample × tokenizer family). Split across two files for 2026-07-30 — see below. |
 
 ## Licensing — why there is no Bulgarian scripture here
 
@@ -75,7 +75,7 @@ key afterwards** (work order DoD).
 Override the pins if a model has retired, and record the substitution here:
 
 ```bash
-python3 scripts/bench_measure_tokens.py --models gemini=google/gemini-2.5-flash-lite,cohere=cohere/north-mini-code
+python3 scripts/bench_measure_tokens.py --models gemini=google/gemini-2.5-flash-lite,cohere=cohere/north-mini-code:free
 ```
 
 ### Why two ratios are reported
@@ -99,21 +99,41 @@ appear, raise the multiplier in `apps/web/src/chat/tokens.ts` to the largest
 required value and record the measurement in
 [`../m9.0-findings.md`](../m9.0-findings.md) §5.
 
+### Result, 2026-07-30
+
+All four families measured. 14/40 (sample × family) cases under-counted at
+the old 1.15 multiplier — worst case `en-lexicon` on the Llama/Nemotron pin,
+needing ≥1.540. `MULTIPLIER` raised to **1.6** (zero under-counts, tightest
+margin 1.04×). Full writeup: [`../m9.0-findings.md`](../m9.0-findings.md) §5a.
+
+Results are split across two files because the Cohere pin needed a fix
+mid-run (see below) and was re-measured separately rather than repeating the
+other three families for no reason:
+
+- `results-2026-07-30.json` — Gemini, Llama/Nemotron, Qwen
+- `results-2026-07-30-cohere.json` — Cohere, re-run after both fixes below
+
+**Script bug found here:** `bench_measure_tokens.py` sent
+`"reasoning": {"enabled": false}` on every request. For
+`cohere/north-mini-code:free` this makes the response come back with **no
+`usage` object at all** — no error, the call just silently reports nothing
+usable — even though it succeeds and is billed. `max_tokens: 1` already caps
+completion cost regardless of reasoning, so the field was removed rather than
+made conditional; nothing was lost.
+
 ## Model pins
 
-One per tokenizer family; family coverage is the point, not model count. The
-shipped divisors were calibrated on two Gemini models with an **unmeasured**
-×1.15 covering everything else — while `openrouter/free` demonstrably routes to
-Cohere and NVIDIA models (`../m9.0-findings.md` §9).
+One per tokenizer family; family coverage is the point, not model count.
 
 | Family | Pin |
 |---|---|
 | Gemini | `google/gemini-2.5-flash-lite` |
 | Llama / Nemotron | `nvidia/nemotron-3-super-120b-a12b` |
-| Cohere | `cohere/north-mini-code` |
+| Cohere | `cohere/north-mini-code:free` (the non-`:free` pin 404s — retired) |
 | Qwen | `qwen/qwen3-30b-a3b` |
 
 If a family cannot be measured, the fallback is work-order §3: constrain the
 model picker to measured families. That costs `openrouter/free` — a dynamic
 router cannot promise a family — which is a smaller loss than it sounds, since
-no default model ships and the user picks explicitly anyway.
+no default model ships and the user picks explicitly anyway. Not needed for
+the 2026-07-30 run; all four families returned usable data.
