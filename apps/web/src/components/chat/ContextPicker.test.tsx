@@ -66,7 +66,7 @@ describe("ContextPicker", () => {
       pane({ type: "commentary", workId: "mhc", osis: "John", chapter: 3 }),
     ];
     const onChipsChange = vi.fn();
-    render(<ContextPicker panes={panes} privacyRouting={true} onChipsChange={onChipsChange} />);
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />);
     await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
     const calls = onChipsChange.mock.calls;
     const lastCall = calls[calls.length - 1][0];
@@ -79,7 +79,7 @@ describe("ContextPicker", () => {
   it("emits an updated chip set when a chip is toggled off", async () => {
     const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
     const onChipsChange = vi.fn();
-    render(<ContextPicker panes={panes} privacyRouting={true} onChipsChange={onChipsChange} />);
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />);
     const checkbox = await screen.findByRole("checkbox", { name: /John 3/ });
     expect(checkbox).toBeChecked();
     fireEvent.click(checkbox);
@@ -90,7 +90,7 @@ describe("ContextPicker", () => {
     works = [work("web", { ai_context_policy: "prohibited" })];
     const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
     const onChipsChange = vi.fn();
-    render(<ContextPicker panes={panes} privacyRouting={true} onChipsChange={onChipsChange} />);
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />);
     const checkbox = await screen.findByRole("checkbox", { name: /John 3/ });
     expect(checkbox).toBeDisabled();
     expect(screen.getByText(/does not allow AI use/)).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe("ContextPicker", () => {
         },
       ],
     };
-    render(<ContextPicker panes={panes} privacyRouting={true} onChipsChange={vi.fn()} />);
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={vi.fn()} />);
     expect(await screen.findByText(/G3439/)).toBeInTheDocument();
     expect(screen.getByText(/G0025/)).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe("ContextPicker", () => {
       updatedAt: Date.now(),
     });
     const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
-    render(<ContextPicker panes={panes} privacyRouting={true} onChipsChange={vi.fn()} />);
+    render(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={vi.fn()} />);
     const noteCheckbox = await screen.findByRole("checkbox", { name: "My thoughts" });
     expect(noteCheckbox).not.toBeChecked();
     expect(screen.getByText(/personal information/)).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe("ContextPicker", () => {
     const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
     const onChipsChange = vi.fn();
     const { rerender } = render(
-      <ContextPicker panes={panes} privacyRouting={true} onChipsChange={onChipsChange} />,
+      <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={true} onChipsChange={onChipsChange} />,
     );
     // Eligible and default-selected: privacyRouting is on and logging is confirmed.
     await waitFor(() =>
@@ -164,9 +164,36 @@ describe("ContextPicker", () => {
     );
     // Turning privacy routing off must drop it, visibly, without the user touching the
     // checkbox — this is the exact failure §11 exists to prevent.
-    rerender(<ContextPicker panes={panes} privacyRouting={false} onChipsChange={onChipsChange} />);
+    rerender(<ContextPicker panes={panes} privacyRouting={false} loggingConfirmed={true} onChipsChange={onChipsChange} />);
     await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([]));
     expect(screen.getByText(/turn on privacy routing/i)).toBeInTheDocument();
+    setLoggingConfirmed(false);
+  });
+
+  it("re-emits when loggingConfirmed changes on its own, privacyRouting untouched — the emission effect must not miss this dependency", async () => {
+    const { setLoggingConfirmed } = await import("../../chat/credentials");
+    setLoggingConfirmed(false);
+    works = [work("web", { ai_context_policy: "allowed_no_training" })];
+    const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
+    const onChipsChange = vi.fn();
+    const { rerender } = render(
+      <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    // Blocked: privacy routing is on, but logging is not confirmed yet.
+    await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([]));
+    expect(screen.getByText(/confirm OpenRouter logging/i)).toBeInTheDocument();
+
+    // Confirm logging (mirrors what ChatSettings' checkbox does: write to sessionStorage
+    // and update the loggingConfirmed prop in the same event) — privacyRouting is
+    // unchanged, so only loggingConfirmed distinguishes this render from the last.
+    setLoggingConfirmed(true);
+    rerender(<ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={true} onChipsChange={onChipsChange} />);
+
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith([
+        { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: undefined },
+      ]),
+    );
     setLoggingConfirmed(false);
   });
 });

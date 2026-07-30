@@ -213,10 +213,19 @@ function BookCandidateRow({
 export function ContextPicker({
   panes,
   privacyRouting,
+  loggingConfirmed,
   onChipsChange,
 }: {
   panes: Pane[];
   privacyRouting: boolean;
+  // Read internally by chipEligibility -> policyEligible -> satisfiesNoTraining, from
+  // sessionStorage, not from this prop's value directly. It exists solely so the
+  // emission effect below has something to list in its dependency array: React does not
+  // know to re-run an effect when a value it reads from storage changes, only when a
+  // listed dependency does. Without this, toggling the confirmation checkbox could leave
+  // an allowed_no_training chip rendering checked while ChatPanel's emitted chips stayed
+  // stale at whatever they were before the toggle.
+  loggingConfirmed: boolean;
   onChipsChange: (chips: ContextChip[]) => void;
 }) {
   const { t } = useTranslation();
@@ -323,7 +332,11 @@ export function ContextPicker({
     if (serialized === emittedRef.current) return;
     emittedRef.current = serialized;
     onChipsChange(active);
-  }, [enabled, paneCandidates, works, privacyRouting, onChipsChange]);
+    // loggingConfirmed is not read in this body — chipEligibility reads it from
+    // sessionStorage via satisfiesNoTraining — but must still be listed so toggling it
+    // re-runs this effect and re-emits against the now-current value. See the prop's doc
+    // comment above.
+  }, [enabled, paneCandidates, works, privacyRouting, loggingConfirmed, onChipsChange]);
 
   return (
     <fieldset className="context-picker">

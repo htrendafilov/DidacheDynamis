@@ -398,7 +398,12 @@ export function ChatPanel({
         onLoggingConfirmedChange={setLoggingConfirmedState}
       />
 
-      <ContextPicker panes={panes} privacyRouting={privacyRouting} onChipsChange={setChips} />
+      <ContextPicker
+        panes={panes}
+        privacyRouting={privacyRouting}
+        loggingConfirmed={loggingConfirmed}
+        onChipsChange={setChips}
+      />
 
       <ul className="chat-messages" aria-live="polite" aria-label={t("chat.messages")}>
         {messages.map((m) => (
