@@ -33,6 +33,7 @@ export interface Settings {
   bookMode?: BookReadingMode;
   strongs?: StrongsMode; // Strong's word lookup in Bible panes (off by default, M8.3)
   searchWidth?: number; // width (px) of the docked desktop search workspace
+  chatWidth?: number; // width (px) of the docked desktop Assistant workspace (M9.2)
 }
 
 interface AppState {

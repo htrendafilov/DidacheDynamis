@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 PORT="${E2E_PORT:-4321}"
 REUSE="${E2E_REUSE:-0}"
 
-if [ -x apps/importer/.venv/bin/bibleimport ]; then BI=apps/importer/.venv/bin/bibleimport; else BI="python3 -m bibleimport"; fi
+if [ -x apps/importer/.venv/bin/bibleimport ]; then BI=apps/importer/.venv/bin/bibleimport; else BI=bibleimport; fi
 
 if [ "$REUSE" != "1" ] || [ ! -f data/content.sqlite ]; then
   echo "e2e: building content.sqlite…"

@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ReadingSettings } from "./components/ReadingSettings";
 import { SEARCH_DEFAULT_WIDTH, SearchDrawer } from "./components/SearchDrawer";
+import { CHAT_DEFAULT_WIDTH } from "./components/chatDimensions";
 import { TopBar } from "./components/TopBar";
 import { UpdateNotice } from "./components/UpdateNotice";
 import { api } from "./data/api";
@@ -21,6 +22,13 @@ import {
 } from "./state/deeplink";
 import { useStore, type Pane } from "./state/store";
 import { installDropboxAutoSync, useDropboxSync } from "./sync/dropboxState";
+
+// Lazy: opening Search must not download chat code, and the flag stays off in production
+// until M9.3 exits (plan/chat/m9.2-workspace-and-provider.md §11).
+const ChatWorkspace = lazy(async () => {
+  const module = await import("./components/chat/ChatWorkspace");
+  return { default: module.ChatWorkspace };
+});
 
 function useIsNarrow(): boolean {
   const [narrow, setNarrow] = useState(
@@ -39,11 +47,13 @@ export default function App() {
   const { t, i18n: i18nInstance } = useTranslation();
   const panes = useStore((s) => s.panes);
   const settings = useStore((s) => s.settings);
-  const [showSearch, setShowSearch] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState<
+    "search" | "assistant" | "settings" | null
+  >(null);
   const [searchEverOpened, setSearchEverOpened] = useState(false);
   const [searchReturnAvailable, setSearchReturnAvailable] = useState(false);
   const [restoreSearchResultFocus, setRestoreSearchResultFocus] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [assistantEverOpened, setAssistantEverOpened] = useState(false);
   const [deepLinkError, setDeepLinkError] = useState(false);
   const [activeMobile, setActiveMobile] = useState(0);
   const initializeDropbox = useDropboxSync((state) => state.initialize);
@@ -54,11 +64,12 @@ export default function App() {
   const didInitDeepLink = useRef(false);
   const hadBookPane = useRef(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const assistantButtonRef = useRef<HTMLButtonElement>(null);
   const isNarrow = useIsNarrow();
 
   useEffect(() => {
     if (new URL(window.location.href).searchParams.get("state")?.startsWith("dbx-")) {
-      setShowSettings(true);
+      setActiveWorkspace("settings");
     }
     void initializeDropbox();
     return installDropboxAutoSync();
@@ -198,21 +209,30 @@ export default function App() {
     <div className="app">
       <TopBar
         searchButtonRef={searchButtonRef}
-        searchReturnAvailable={isNarrow && searchReturnAvailable && !showSearch}
+        assistantButtonRef={assistantButtonRef}
+        searchReturnAvailable={
+          isNarrow && searchReturnAvailable && activeWorkspace !== "search"
+        }
         onToggleSearch={() => {
-          setShowSearch((v) => {
-            if (!v) {
+          setActiveWorkspace((current) => {
+            const opening = current !== "search";
+            if (opening) {
               setSearchEverOpened(true);
               setRestoreSearchResultFocus(isNarrow && searchReturnAvailable);
               setSearchReturnAvailable(false);
             }
-            return !v;
+            return opening ? "search" : null;
           });
-          setShowSettings(false);
+        }}
+        onToggleAssistant={() => {
+          setActiveWorkspace((current) => {
+            const opening = current !== "assistant";
+            if (opening) setAssistantEverOpened(true);
+            return opening ? "assistant" : null;
+          });
         }}
         onToggleSettings={() => {
-          setShowSettings((v) => !v);
-          setShowSearch(false);
+          setActiveWorkspace((current) => (current === "settings" ? null : "settings"));
         }}
       />
       <UpdateNotice />
@@ -225,7 +245,7 @@ export default function App() {
         </aside>
       )}
 
-      {showSettings && (
+      {activeWorkspace === "settings" && (
         <div className="overlay-panel">
           <ReadingSettings />
         </div>
@@ -286,7 +306,7 @@ export default function App() {
         </main>
         {searchEverOpened && (
           <SearchDrawer
-            open={showSearch}
+            open={activeWorkspace === "search"}
             fullscreen={isNarrow}
             width={settings.searchWidth ?? SEARCH_DEFAULT_WIDTH}
             onWidthChange={(searchWidth) => setSettings({ searchWidth })}
@@ -296,11 +316,25 @@ export default function App() {
               if (isNarrow) setSearchReturnAvailable(true);
             }}
             onClose={() => {
-              setShowSearch(false);
+              setActiveWorkspace(null);
               requestAnimationFrame(() => searchButtonRef.current?.focus());
             }}
             restoreResultFocus={restoreSearchResultFocus}
           />
+        )}
+        {assistantEverOpened && (
+          <Suspense fallback={null}>
+            <ChatWorkspace
+              open={activeWorkspace === "assistant"}
+              fullscreen={isNarrow}
+              width={settings.chatWidth ?? CHAT_DEFAULT_WIDTH}
+              onWidthChange={(chatWidth) => setSettings({ chatWidth })}
+              onClose={() => {
+                setActiveWorkspace(null);
+                requestAnimationFrame(() => assistantButtonRef.current?.focus());
+              }}
+            />
+          </Suspense>
         )}
       </div>
     </div>

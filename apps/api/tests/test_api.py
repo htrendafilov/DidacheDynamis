@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -61,6 +62,21 @@ def test_security_headers(client):
     assert "script-src 'self'" in csp
     assert "api.dropboxapi.com" in csp  # sync allowed
     assert h.get("X-Content-Type-Options") == "nosniff"
+
+
+def test_csp_connect_src_is_an_exact_allowlist(client):
+    # A substring check alone would still pass if a wildcard were appended (e.g.
+    # "https://openrouter.ai https:"), so assert the whole directive matches exactly
+    # and separately reject any bare-scheme/global wildcard as a source.
+    csp = client.get("/api/v1/meta").headers.get("Content-Security-Policy", "")
+    match = re.search(r"connect-src [^;]*", csp)
+    assert match, csp
+    connect_src = match.group(0)
+    assert connect_src == (
+        "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com "
+        "https://openrouter.ai"
+    )
+    assert not re.search(r"(?:^|\s)(https:|\*)(?:\s|$)", connect_src)
 
 
 def test_api_allows_cross_origin_reads_but_not_the_spa(client):
