@@ -241,6 +241,7 @@ async function buildCandidate(
       if (hasPreview) requires.push({ workId: chip.previewWork, policy: previewWork?.ai_context_policy ?? "unknown" });
       const canonicalTarget: CanonicalTarget = {
         kind: "xref",
+        workId: chip.previewWork,
         osis: chip.osis,
         chapter: chip.chapter,
         verse: chip.verse,

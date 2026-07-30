@@ -15,7 +15,7 @@ export type CanonicalTarget =
   | { kind: "commentary"; workId: string; osis: string; chapter: number }
   | { kind: "dictionary"; workId: string; headword: string }
   | { kind: "lexicon"; strongId: string }
-  | { kind: "xref"; osis: string; chapter: number; verse: number }
+  | { kind: "xref"; workId: string; osis: string; chapter: number; verse: number }
   | { kind: "book"; workId: string; sectionId: string }
   | { kind: "note"; noteId: string; osis: string; chapter: number };
 
