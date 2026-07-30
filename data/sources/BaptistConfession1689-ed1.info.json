@@ -1,0 +1,591 @@
+{
+  "format_version": 1,
+  "work": {
+    "id": "baptist1689",
+    "title": "The Baptist Confession of Faith of 1689",
+    "language": "en",
+    "license": "Public Domain",
+    "license_basis": "CrossWire module metadata declares DistributionLicense=Public Domain; the underlying historical confession is public domain by age."
+  },
+  "base_source": {
+    "filename": "BaptistConfession1689.imp.gz",
+    "module": "CrossWire BaptistConfession1689",
+    "module_version": "1.0.2",
+    "module_date": "2020-06-01",
+    "source_url": "https://www.crosswire.org/ftpmirror/pub/sword/raw/mods.d/baptistconfession1689.conf",
+    "compressed_sha256": "b59db23d63355091d4ffc976334bbd514b2ef4545c303b7aba5e6d7e527b4c7b",
+    "decompressed_sha256": "0036485ee19cbda36c60734383e26b0d3a6ad4a2b897679353726ebe2ad84e41"
+  },
+  "revision": {
+    "id": "bible_app_bg-ed1",
+    "date": "2026-07-29",
+    "output_filename": "BaptistConfession1689-ed1.imp.gz",
+    "generator": "scripts/build_baptist_confession_1689_ed1.py",
+    "source_version": "CrossWire BaptistConfession1689 1.0.2 + bible_app_bg editorial revision 1 (2026-07-29)",
+    "attribution": "The Baptist Confession of Faith of 1689. Based on the public-domain CrossWire BaptistConfession1689 1.0.2 module, obtained from reformed.org with thanks to Ed Walsh. Obvious transcription omissions, Scripture-reference errors, and markup defects were corrected against the historical 1677 text. No doctrinal or stylistic modernization was intended. Editorial changes are recorded in the source info manifest.",
+    "editorial_policy": [
+      "Retain the CrossWire module's existing modernized spelling and punctuation.",
+      "Restore words demonstrably omitted or corrupted when compared with the historical text.",
+      "Correct displayed Scripture proofs and OSIS targets when the historical proof or the displayed reference makes the intended target unambiguous.",
+      "Retain valid later editorial proof additions and documented corrections of apparent errors in the historical printing.",
+      "Keep the original CrossWire export unchanged and generate this revision reproducibly from it."
+    ],
+    "decompressed_sha256": "bac6717a00586124c07016a7d0695372cff62038cc6e1a18be79b64fe5aae9d3",
+    "compressed_sha256": "0d952252aa798e4cd1c024ad70fa76f99b7a76310c803c05adc142a8568263fd"
+  },
+  "verification_sources": [
+    {
+      "id": "facsimile_1677",
+      "description": "Scan of an original 1677 printing, used for direct spot checks of text and marginal Scripture proofs.",
+      "url": "https://drive.google.com/file/d/1FE3NVgOVf0DKKKv98iqdl7rGpE-A_UgE/view"
+    },
+    {
+      "id": "ccel_near_facsimile",
+      "description": "Near-facsimile electronic transcription made from a microfilm copy of an original 1677 Confession, used for the systematic comparison.",
+      "url": "https://www.ccel.org/ccel/anonymous/bcf.vi.i.html"
+    },
+    {
+      "id": "crosswire_metadata",
+      "description": "CrossWire module metadata and public-domain distribution declaration.",
+      "url": "https://www.crosswire.org/ftpmirror/pub/sword/raw/mods.d/baptistconfession1689.conf"
+    }
+  ],
+  "corrections": [
+    {
+      "id": "C001",
+      "location": "Content",
+      "category": "markup",
+      "before": "<item><reference osisRef=\"BaptistConfession1689:Foreword\">FOREWORD</reference></reference></item>",
+      "after": "<item><reference osisRef=\"BaptistConfession1689:Foreword\">FOREWORD</reference></item>",
+      "reason": "Remove an unmatched closing reference tag."
+    },
+    {
+      "id": "C002",
+      "location": "1.2",
+      "category": "text",
+      "before": "<item> Ester</item>",
+      "after": "<item> Esther</item>",
+      "reason": "Correct the misspelled canonical book name."
+    },
+    {
+      "id": "C003",
+      "location": "1.2",
+      "category": "markup",
+      "before": "<item> The Song of</item> <item> Solomon</item>",
+      "after": "<item> The Song of Solomon</item>",
+      "reason": "Restore the single canonical book-list item."
+    },
+    {
+      "id": "C004",
+      "location": "1.2",
+      "category": "markup",
+      "before": "<item>Galatians<item>",
+      "after": "<item>Galatians</item>",
+      "reason": "Close the Galatians list item correctly."
+    },
+    {
+      "id": "C005",
+      "location": "1.1",
+      "category": "text",
+      "before": "His will unto His people being now completed.",
+      "after": "His will unto His people being now ceased.",
+      "reason": "Restore the historical reading; 'completed' changes the statement."
+    },
+    {
+      "id": "C006",
+      "location": "1.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"1John.2.20\">1 John 2,20</reference>\\.<reference osisRef=\"1John.2.27\">27</reference>",
+      "after": "<reference osisRef=\"1John.2.2\">1 John 2,2</reference>\\.<reference osisRef=\"1John.2.20\">20</reference>\\.<reference osisRef=\"1John.2.27\">27</reference>",
+      "reason": "Restore 1 John 2:2, present in the historical proof list."
+    },
+    {
+      "id": "C007",
+      "location": "1.9",
+      "category": "text",
+      "before": "(which are not many, but one)",
+      "after": "(which is not manifold, but one)",
+      "reason": "Restore the historical grammar and meaning."
+    },
+    {
+      "id": "C008",
+      "location": "3.1",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Jas.1.13\">James 1,13</reference>",
+      "after": "<reference osisRef=\"Jas.1.15\">James 1,15</reference>\\.<reference osisRef=\"Jas.1.17\">17</reference>",
+      "reason": "The 1677 marginal proof is James 1:15,17, confirmed directly in the facsimile."
+    },
+    {
+      "id": "C009",
+      "location": "3.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Matt.25.34\">Matt. 25,34</reference>",
+      "after": "<reference osisRef=\"Matt.25.41\">Matt. 25,41</reference>",
+      "reason": "The 1677 marginal proof is Matthew 25:41, confirmed directly in the facsimile."
+    },
+    {
+      "id": "C010",
+      "location": "3.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rev.3.1-Rev.3.22\">Jude 4</reference>",
+      "after": "<reference osisRef=\"Jude.1.4\">Jude 4</reference>",
+      "reason": "Make the OSIS target agree with the displayed and historical reference."
+    },
+    {
+      "id": "C011",
+      "location": "3.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Eph.2.5\">Eph. 2,5</reference>\\.<reference osisRef=\"Eph.2.12\">12</reference>",
+      "after": "<reference osisRef=\"Eph.1.6\">Eph. 1,6</reference>\\.<reference osisRef=\"Eph.1.12\">12</reference>",
+      "reason": "The 1677 marginal proofs are Ephesians 1:6,12, confirmed directly in the facsimile."
+    },
+    {
+      "id": "C012",
+      "location": "3.6",
+      "category": "scripture_reference",
+      "before": "<note><reference osisRef=\"1Pet.1.2\">1 Pet. 1,2</reference>; <reference osisRef=\"1Pet.1.2\">2</reference>; Thess. 2:13</note>",
+      "after": "<note><reference osisRef=\"1Pet.1.2\">1 Pet. 1,2</reference>; <reference osisRef=\"2Thess.2.13\">2 Thess. 2,13</reference></note>",
+      "reason": "Repair corrupted display text and add the missing OSIS link for 2 Thessalonians 2:13."
+    },
+    {
+      "id": "C013",
+      "location": "4.2",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Gen.1.1-Gen.1.31\">Gen. 1</reference>;<reference osisRef=\"Gen.26.1-Gen.26.35\">26</reference>",
+      "after": "<reference osisRef=\"Gen.1.26\">Gen. 1,26</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C014",
+      "location": "4.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Gen.2.17\">Gen. 2,17</reference></note>",
+      "after": "<reference osisRef=\"Gen.2.17\">Gen. 2,17</reference>; <reference osisRef=\"Gen.3.8-Gen.3.10\">3,8-10</reference></note>",
+      "reason": "Restore Genesis 3:8-10 from the historical proof list while retaining the corrected Genesis 2:17 reference."
+    },
+    {
+      "id": "C015",
+      "location": "5.1",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Eph.1.1-Eph.1.23\">Eph. 1</reference>;<reference osisRef=\"Col.1.1-Col.1.29\">11</reference>",
+      "after": "<reference osisRef=\"Eph.1.11\">Eph. 1,11</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C016",
+      "location": "5.4",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Gen.1.20\">Gen. 1,20</reference>",
+      "after": "<reference osisRef=\"Gen.50.20\">Gen. 50,20</reference>",
+      "reason": "Restore the historical proof reference."
+    },
+    {
+      "id": "C017",
+      "location": "5.4",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Ps.1.1-Ps.1.6\">Ps. 1</reference>;<reference osisRef=\"Ps.21.1-Ps.21.13\">21</reference>",
+      "after": "<reference osisRef=\"Ps.50.21\">Ps. 50,21</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C018",
+      "location": "5.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"2Chr.32.31\">31</reference>; <reference osisRef=\"2Cor.12.7-2Cor.12.9\">2 Cor. 12,7-9</reference>",
+      "after": "<reference osisRef=\"2Chr.32.31\">31</reference>; <reference osisRef=\"2Sam.24.1\">2 Sam. 24,1</reference>; <reference osisRef=\"2Cor.12.7-2Cor.12.9\">2 Cor. 12,7-9</reference>",
+      "reason": "Restore 2 Samuel 24:1 from the historical proof list."
+    },
+    {
+      "id": "C019",
+      "location": "5.6",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rom.1.1-Rom.1.32\">Rom. 1</reference>;<reference osisRef=\"1Cor.8.1-2Cor.10.18\">24-26</reference>\\.<reference osisRef=\"2Cor.12.1-2Cor.12.21\">28</reference>\\. <reference osisRef=\"2Cor.11.7\">11,7</reference>\\.<reference osisRef=\"2Cor.11.8\">8</reference>",
+      "after": "<reference osisRef=\"Rom.1.24-Rom.1.26\">Rom. 1,24-26</reference>\\.<reference osisRef=\"Rom.1.28\">28</reference>; <reference osisRef=\"Rom.11.7\">11,7</reference>\\.<reference osisRef=\"Rom.11.8\">8</reference>",
+      "reason": "Repair multiple corrupted OSIS targets in one historical proof group."
+    },
+    {
+      "id": "C020",
+      "location": "5.7",
+      "category": "text",
+      "before": "so after a more special manner it takes care",
+      "after": "so after a most special manner it takes care",
+      "reason": "Restore the historical superlative."
+    },
+    {
+      "id": "C021",
+      "location": "7.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Heb.11.1-Heb.11.40\">Heb. 11</reference>;<reference osisRef=\"Heb.6.1-Heb.6.20\">6</reference>\\.<reference osisRef=\"Heb.13.1-Heb.13.25\">13</reference>",
+      "after": "<reference osisRef=\"Heb.11.6\">Heb. 11,6</reference>\\.<reference osisRef=\"Heb.11.13\">13</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C022",
+      "location": "8.2",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Gal.4.1-Gal.4.31\">Gal. 4</reference>;<reference osisRef=\"Gal.4.1-Gal.4.31\">4</reference>",
+      "after": "<reference osisRef=\"Gal.4.4\">Gal. 4,4</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C023",
+      "location": "8.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Acts.2.1-Acts.2.47\">Acts 2</reference>;<reference osisRef=\"Rom.8.1-Rom.8.39\">36</reference>",
+      "after": "<reference osisRef=\"Acts.2.36\">Acts 2,36</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C024",
+      "location": "8.4",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Heb.10.5-Heb.10.10\">Heb. 10,5-10</reference>",
+      "after": "<reference osisRef=\"Heb.10.5-Heb.10.11\">Heb. 10,5-11</reference>",
+      "reason": "Restore verse 11 from the historical proof range."
+    },
+    {
+      "id": "C025",
+      "location": "8.6",
+      "category": "text",
+      "before": "signified to be the seed which should bruise the serpent's head",
+      "after": "signified to be the seed of the woman, which should bruise the serpent's head",
+      "reason": "Restore words omitted from the historical text."
+    },
+    {
+      "id": "C026",
+      "location": "8.9",
+      "category": "scripture_reference",
+      "before": "<note>Tim. 2:5</note>",
+      "after": "<note><reference osisRef=\"1Tim.2.5\">1 Tim. 2,5</reference></note>",
+      "reason": "Restore the missing book number and interactive OSIS link."
+    },
+    {
+      "id": "C027",
+      "location": "10.2",
+      "category": "text",
+      "before": "nor from any power or agency in the creature,<note><reference osisRef=\"2Tim.1.9\">2 Tim. 1,9</reference>; <reference osisRef=\"Eph.2.8\">Eph. 2,8</reference></note> being wholly passive therein",
+      "after": "nor from any power or agency in the creature co-working with his special grace,<note><reference osisRef=\"2Tim.1.9\">2 Tim. 1,9</reference>; <reference osisRef=\"Eph.2.8\">Eph. 2,8</reference></note> the creature being wholly passive therein",
+      "reason": "Restore a clause omitted from the historical text."
+    },
+    {
+      "id": "C028",
+      "location": "11.1",
+      "category": "text",
+      "before": "for their whole and sole righteousness by faith,<note>",
+      "after": "for their whole and sole righteousness, they receiving and resting on him and his righteousness by faith;<note>",
+      "reason": "Restore a clause omitted from the historical text."
+    },
+    {
+      "id": "C029",
+      "location": "11.5",
+      "category": "text",
+      "before": "until they humble themselves, beg pardon",
+      "after": "until they humble themselves, confess their sins, beg pardon",
+      "reason": "Restore words omitted from the historical text."
+    },
+    {
+      "id": "C030",
+      "location": "11.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Ps.34.18\">Ps. 51</reference>",
+      "after": "<reference osisRef=\"Ps.51.1-Ps.51.19\">Ps. 51</reference>",
+      "reason": "Make the OSIS target agree with the displayed and historical reference."
+    },
+    {
+      "id": "C031",
+      "location": "14.2",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Ps.72.7\">69,72</reference>",
+      "after": "<reference osisRef=\"Ps.119.72\">119,72</reference>",
+      "reason": "Restore the historical proof reference."
+    },
+    {
+      "id": "C032",
+      "location": "14.2",
+      "category": "text",
+      "before": "the truth consequently believed",
+      "after": "the truth thus believed",
+      "reason": "Restore the historical wording."
+    },
+    {
+      "id": "C033",
+      "location": "14.2",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Jer.50.2\">Isa. 116,2</reference>",
+      "after": "<reference osisRef=\"Isa.66.2\">Isa. 66,2</reference>",
+      "reason": "Restore the historical proof reference and correct its OSIS target."
+    },
+    {
+      "id": "C034",
+      "location": "14.2",
+      "category": "text",
+      "before": "the principle acts of saving faith",
+      "after": "the principal acts of saving faith",
+      "reason": "Correct a transcription typo."
+    },
+    {
+      "id": "C035",
+      "location": "15.1",
+      "category": "text",
+      "before": "and therein served divers pleasures",
+      "after": "and therein served divers lusts and pleasures",
+      "reason": "Restore words omitted from the historical text."
+    },
+    {
+      "id": "C036",
+      "location": "15.2",
+      "category": "text",
+      "before": "fall in to great sins",
+      "after": "fall into great sins",
+      "reason": "Correct a transcription spacing error."
+    },
+    {
+      "id": "C037",
+      "location": "16.3",
+      "category": "text",
+      "before": "Their ability to do good works is not all of themselves",
+      "after": "Their ability to do good works is not at all of themselves",
+      "reason": "Restore an omitted word that changes the force of the sentence."
+    },
+    {
+      "id": "C038",
+      "location": "16.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"John.15.4\">John 15,4</reference>\\.<reference osisRef=\"John.15.5\">5</reference>",
+      "after": "<reference osisRef=\"John.15.4\">John 15,4</reference>\\.<reference osisRef=\"John.15.6\">6</reference>",
+      "reason": "Restore the historical proof reference."
+    },
+    {
+      "id": "C039",
+      "location": "16.3",
+      "category": "text",
+      "before": "to work in them and to will and to do of his good pleasure",
+      "after": "to work in them to will and to do of his good pleasure",
+      "reason": "Remove a transcription conjunction that distorts the sentence."
+    },
+    {
+      "id": "C040",
+      "location": "16.3",
+      "category": "text",
+      "before": "yet they are not bound to perform any duty, unless upon a special motion of the Spirit, but they ought",
+      "after": "yet they are not hereupon to grow negligent, as if they were not bound to perform any duty unless upon a special motion of the Spirit; but they ought",
+      "reason": "Restore an omitted clause; the corrupt reading reverses the historical statement."
+    },
+    {
+      "id": "C041",
+      "location": "16.5",
+      "category": "text",
+      "before": "and because they are good they proceed from his Spirit",
+      "after": "and because as they are good they proceed from his Spirit",
+      "reason": "Restore the historical construction."
+    },
+    {
+      "id": "C042",
+      "location": "16.5",
+      "category": "text",
+      "before": "so much weekness and imperfection, that they cannot endure the severity of God’s punishment",
+      "after": "so much weakness and imperfection, that they cannot endure the severity of God’s judgment",
+      "reason": "Correct a spelling error and restore the historical theological term."
+    },
+    {
+      "id": "C043",
+      "location": "16.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Ps.43.2\">Ps. 43,2</reference>",
+      "after": "<reference osisRef=\"Ps.143.2\">Ps. 143,2</reference>",
+      "reason": "Restore the historical proof reference."
+    },
+    {
+      "id": "C044",
+      "location": "16.6",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Eph.1.5\">Eph. 1,5</reference>; <reference osisRef=\"1Pet.1.5\">1 Pet. 1,5</reference>",
+      "after": "<reference osisRef=\"Eph.1.6\">Eph. 1,6</reference>; <reference osisRef=\"1Pet.2.5\">1 Pet. 2,5</reference>",
+      "reason": "Restore both historical proof references."
+    },
+    {
+      "id": "C045",
+      "location": "16.6",
+      "category": "text",
+      "before": "not as thought they were",
+      "after": "not as though they were",
+      "reason": "Correct a transcription typo."
+    },
+    {
+      "id": "C046",
+      "location": "16.6",
+      "category": "text",
+      "before": "accompanied with many weaknesses and imperfection.",
+      "after": "accompanied with many weaknesses and imperfections.",
+      "reason": "Restore the historical plural."
+    },
+    {
+      "id": "C047",
+      "location": "16.7",
+      "category": "text",
+      "before": "for the matter of them they may things",
+      "after": "for the matter of them they may be things",
+      "reason": "Restore an omitted word."
+    },
+    {
+      "id": "C048",
+      "location": "16.7",
+      "category": "text",
+      "before": "they are therfore sinful",
+      "after": "they are therefore sinful",
+      "reason": "Correct a spelling error."
+    },
+    {
+      "id": "C049",
+      "location": "16.7",
+      "category": "text",
+      "before": "make a man meet to receive the grace from God",
+      "after": "make a man meet to receive grace from God",
+      "reason": "Restore the historical wording."
+    },
+    {
+      "id": "C050",
+      "location": "16.7",
+      "category": "text",
+      "before": "their neglect fo them",
+      "after": "their neglect of them",
+      "reason": "Correct a transposed-letter typo."
+    },
+    {
+      "id": "C051",
+      "location": "19.4",
+      "category": "text",
+      "before": "their general equity only being of modern use",
+      "after": "their general equity only being of moral use",
+      "reason": "Restore the historical word; 'modern' changes the meaning."
+    },
+    {
+      "id": "C052",
+      "location": "20.2",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rom.1.1-Rom.1.32\">Rom. 1</reference>;<reference osisRef=\"1Cor.1.1-1Cor.1.31\">17</reference>",
+      "after": "<reference osisRef=\"Rom.1.17\">Rom. 1,17</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C053",
+      "location": "20.3",
+      "category": "text",
+      "before": "which none ever made, or can do so",
+      "after": "which none ever did make, or can so do",
+      "reason": "Restore the historical grammar."
+    },
+    {
+      "id": "C054",
+      "location": "21.1",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Gal.3.1-Gal.3.29\">Gal. 3</reference>;<reference osisRef=\"Eph.3.1-Eph.3.21\">9</reference>\\.<reference osisRef=\"Col.4.1-Col.4.18\">14</reference>",
+      "after": "<reference osisRef=\"Gal.3.9\">Gal. 3,9</reference>\\.<reference osisRef=\"Gal.3.14\">14</reference>",
+      "reason": "Repair a chapter-and-verse parsing failure."
+    },
+    {
+      "id": "C055",
+      "location": "22.3",
+      "category": "text",
+      "before": "Prayer, with thanksgiving, being one part of natural worship",
+      "after": "Prayer, with thanksgiving, being one special part of natural worship",
+      "reason": "Restore a word omitted from the historical text."
+    },
+    {
+      "id": "C056",
+      "location": "22.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Ps.21.3\">Ps. 107</reference>",
+      "after": "<reference osisRef=\"Ps.107.1-Ps.107.43\">Ps. 107</reference>",
+      "reason": "Make the OSIS target agree with the displayed and historical reference."
+    },
+    {
+      "id": "C057",
+      "location": "22.8",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Neh.13.15-Neh.13.22\">Neh. 13,15-22</reference>",
+      "after": "<reference osisRef=\"Neh.13.15-Neh.13.23\">Neh. 13,15-23</reference>",
+      "reason": "Restore verse 23 from the historical proof range."
+    },
+    {
+      "id": "C058",
+      "location": "23.5",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Matt.19.1\">Matt. 19,1</reference>",
+      "after": "<reference osisRef=\"Matt.19.11\">Matt. 19,11</reference>",
+      "reason": "Restore the historical proof reference."
+    },
+    {
+      "id": "C059",
+      "location": "26.3",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rev.2.1-Rev.2.29\">Rev. 2</reference>\\.<reference osisRef=\"Rev.3.1-Rev.3.22\">3</reference>",
+      "after": "<reference osisRef=\"Rev.2.1-Rev.3.22\">Rev. 2-3</reference>",
+      "reason": "Clarify that the historical proof cites Revelation chapters 2 and 3, not Revelation 2:3."
+    },
+    {
+      "id": "C060",
+      "location": "26.14",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rev.6.1-Rev.10.11\">3 John 8-10</reference>",
+      "after": "<reference osisRef=\"3John.1.8-3John.1.10\">3 John 8-10</reference>",
+      "reason": "Make the OSIS target agree with the displayed and historical reference."
+    },
+    {
+      "id": "C061",
+      "location": "29.1",
+      "category": "text",
+      "before": "and of giving up into God, through Jesus Christ",
+      "after": "and of giving up unto God, through Jesus Christ",
+      "reason": "Restore the historical preposition."
+    },
+    {
+      "id": "C062",
+      "location": "30.1",
+      "category": "text",
+      "before": "the perpetual remembrance, and showing to all the world the sacrifice of himself in his death",
+      "after": "the perpetual remembrance, and showing forth the sacrifice of himself in his death",
+      "reason": "Restore the historical wording."
+    },
+    {
+      "id": "C063",
+      "location": "30.6",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Luke.14.6\">Luke 14,6</reference>\\.<reference osisRef=\"Luke.15.4\">39</reference>",
+      "after": "<reference osisRef=\"Luke.24.6\">Luke 24,6</reference>\\.<reference osisRef=\"Luke.24.39\">39</reference>",
+      "reason": "Restore both historical proof references and their OSIS targets."
+    },
+    {
+      "id": "C064",
+      "location": "31.1",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rev.5.1-Rev.5.14\">Jude 6</reference>\\. <reference osisRef=\"Rev.7.1-Rev.7.17\">7</reference>",
+      "after": "<reference osisRef=\"Jude.1.6\">Jude 6</reference>\\. <reference osisRef=\"Jude.1.7\">7</reference>",
+      "reason": "Make both OSIS targets agree with the displayed and historical references."
+    },
+    {
+      "id": "C065",
+      "location": "32.1",
+      "category": "scripture_reference",
+      "before": "<reference osisRef=\"Rev.5.1-Rev.5.14\">Jude 6</reference>",
+      "after": "<reference osisRef=\"Jude.1.6\">Jude 6</reference>",
+      "reason": "Make the OSIS target agree with the displayed and historical reference."
+    },
+    {
+      "id": "C066",
+      "location": "32.2",
+      "category": "text",
+      "before": "with everlasting rewards, in the presence of the Lord",
+      "after": "with everlasting reward, in the presence of the Lord",
+      "reason": "Restore the historical singular."
+    },
+    {
+      "id": "C067",
+      "location": "32.2",
+      "category": "text",
+      "before": "shall be cast aside into everlasting torments",
+      "after": "shall be cast into everlasting torments",
+      "reason": "Remove an intrusive word absent from the historical text."
+    }
+  ]
+}

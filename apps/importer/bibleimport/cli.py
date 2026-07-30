@@ -36,7 +36,7 @@ SOURCE_FILES = {
     "mhc": "MHC.imp.gz",
     "easton": "Easton.raw.imp.gz",
     "tsk": "crossreferences_kjv.tsv",
-    "baptist1689": "BaptistConfession1689.imp.gz",
+    "baptist1689": "BaptistConfession1689-ed1.imp.gz",
     "strongsgreek": "StrongsGreek.imp.gz",
     "strongshebrew": "StrongsHebrew.imp.gz",
 }
@@ -112,13 +112,21 @@ BAPTIST_1689_SPEC = BookSpec(
     language="en",
     license="Public Domain",
     attribution=(
-        "The Baptist Confession of Faith of 1689. Public-domain CrossWire SWORD module; "
-        "obtained from reformed.org with thanks to Ed Walsh."
+        "The Baptist Confession of Faith of 1689. Based on the public-domain CrossWire "
+        "BaptistConfession1689 1.0.2 module, obtained from reformed.org with thanks to "
+        "Ed Walsh. Obvious transcription omissions, Scripture-reference errors, and "
+        "markup defects were corrected against the historical 1677 text. No doctrinal "
+        "or stylistic modernization was intended. Editorial changes are recorded in "
+        "the source info manifest."
     ),
     source_url=(
-        "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=BaptistConfession1689"
+        "https://www.crosswire.org/ftpmirror/pub/sword/raw/mods.d/"
+        "baptistconfession1689.conf"
     ),
-    source_version="CrossWire BaptistConfession1689 1.0.2 (2020-06-01)",
+    source_version=(
+        "CrossWire BaptistConfession1689 1.0.2 + bible_app_bg editorial revision 1 "
+        "(2026-07-29)"
+    ),
     ai_context_policy="allowed",
 )
 

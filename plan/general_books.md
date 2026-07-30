@@ -7,6 +7,11 @@
 - CrossWire module **`BaptistConfession1689`**, type **RawGenBook**, **Public Domain** (v1.0.2, 2020;
   "obtained from reformed.org … with thanks to Ed Walsh"). No licensing friction — safe to bundle and
   redistribute, including in a future public repo (unlike KJV).
+- The importer uses a reproducible project revision, `BaptistConfession1689-ed1.imp.gz`, which
+  corrects documented omissions, proof-reference/OSIS errors, and markup defects against the
+  historical 1677 text. The unaltered CrossWire export remains committed as its provenance base;
+  the complete correction list and checksums live in
+  `data/sources/BaptistConfession1689-ed1.info.json`.
 - The actual official `mod2imp` export was verified during implementation: it contains 35 top-level
   keys (`/Content`, `/Foreword`, `/Chapter 1` … `/Chapter 32`, `/End`). Paragraphs are markup inside
   each chapter, not child keys. The adapter nevertheless supports slash-delimited child keys for
@@ -49,8 +54,9 @@ model or renderer needed.
   insert the `works` row + `book_sections` + `book_fts`, transactional.
 - Wire into the CLI: `bibleimport add-book …`, and include it in **`build-all`** + `SOURCE_FILES`
   (`cli.py`) so the Docker/native build stays the single source of truth.
-- Commit the PD source `data/sources/BaptistConfession1689.imp.gz` via **Git LFS** (matches `*.gz`
-  `.gitattributes` rule).
+- Commit both the unaltered PD provenance source `data/sources/BaptistConfession1689.imp.gz` and the
+  active reviewed `data/sources/BaptistConfession1689-ed1.imp.gz` via **Git LFS** (matches the
+  `*.gz` `.gitattributes` rule).
 
 ### API
 - `GET /api/v1/books` — list `book`-type works (id, title, attribution).
