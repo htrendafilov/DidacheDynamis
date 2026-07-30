@@ -16,9 +16,18 @@ const KIND_LABEL: Record<SourceKind, string> = {
   note: "Note",
 };
 
+// A source excerpt is third-party content (§10: Matthew Henry, Easton's, the 1689
+// Confession, and anything imported after them) — a compromised or adversarial work could
+// contain a literal `"""` run specifically to close this fence early and make whatever
+// follows look like it is outside the quoted data. Breaking up any such run keeps the
+// fence this function emits the only real one, regardless of excerpt content.
+function escapeFence(excerpt: string): string {
+  return excerpt.replace(/"""+/g, (run) => run.split("").join("​"));
+}
+
 function sourceBlock(s: StudySource): string {
   const lang = s.language ? ` · ${s.language}` : "";
-  return `[${s.id}] ${KIND_LABEL[s.kind]}${lang} · ${s.label}\n"""\n${s.excerpt}\n"""`;
+  return `[${s.id}] ${KIND_LABEL[s.kind]}${lang} · ${s.label}\n"""\n${escapeFence(s.excerpt)}\n"""`;
 }
 
 function sourcesSection(sources: StudySource[]): string {
