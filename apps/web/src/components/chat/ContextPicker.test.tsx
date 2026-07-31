@@ -5,7 +5,7 @@ import type { GeneralBook, Passage, Work } from "../../data/api";
 import { db } from "../../data/notes";
 import i18n from "../../i18n";
 import type { Pane } from "../../state/store";
-import { ContextPicker } from "./ContextPicker";
+import { ContextPicker, summarizeContext } from "./ContextPicker";
 
 let works: Work[] = [];
 let passageByPane: Record<string, Passage | undefined> = {};
@@ -229,5 +229,157 @@ describe("ContextPicker", () => {
       ]),
     );
     setLoggingConfirmed(false);
+  });
+
+  // The default-on seeding runs once and must, or later pane navigation would resurrect
+  // chips the reader deliberately turned off. That made chip identity load-bearing: keying
+  // a pane chip by the reference it happened to show meant every chapter turn minted a new
+  // key that nothing re-armed, so the picker went silently empty and every question after
+  // the reader's first chapter turn was answered with no context at all.
+  it("keeps a checked pane chip checked when the pane navigates to another chapter", async () => {
+    const paneId = "pane-bible-1";
+    const at = (chapter: number): Pane => ({ id: paneId, type: "bible", workId: "web", osis: "John", chapter });
+    const onChipsChange = vi.fn();
+    const { rerender } = render(
+      <ContextPicker panes={[at(3)]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith([
+        { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: undefined },
+      ]),
+    );
+
+    rerender(
+      <ContextPicker panes={[at(4)]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith([
+        { kind: "bible", workId: "web", osis: "John", chapter: 4, verses: undefined },
+      ]),
+    );
+  });
+
+  it("follows the pane when the reader switches bible version too", async () => {
+    const paneId = "pane-bible-1";
+    const at = (workId: string): Pane => ({ id: paneId, type: "bible", workId, osis: "John", chapter: 3 });
+    const onChipsChange = vi.fn();
+    const { rerender } = render(
+      <ContextPicker panes={[at("web")]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([expect.objectContaining({ workId: "web" })]));
+
+    works = [...works, work("bg1940")];
+    rerender(
+      <ContextPicker panes={[at("bg1940")]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith([expect.objectContaining({ workId: "bg1940" })]),
+    );
+  });
+
+  it("does not carry a typed verse range across a chapter change", async () => {
+    const paneId = "pane-bible-1";
+    const at = (chapter: number): Pane => ({ id: paneId, type: "bible", workId: "web", osis: "John", chapter });
+    const onChipsChange = vi.fn();
+    const { rerender } = render(
+      <ContextPicker panes={[at(3)]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "16-18" } });
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith([
+        { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "16-18" },
+      ]),
+    );
+
+    // "16-18" was typed about John 3. John 4 must not silently inherit it.
+    rerender(
+      <ContextPicker panes={[at(4)]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() =>
+      expect(onChipsChange).toHaveBeenLastCalledWith([
+        { kind: "bible", workId: "web", osis: "John", chapter: 4, verses: undefined },
+      ]),
+    );
+  });
+
+  it("still does not re-check a chip the reader turned off, after navigation", async () => {
+    const paneId = "pane-bible-1";
+    const at = (chapter: number): Pane => ({ id: paneId, type: "bible", workId: "web", osis: "John", chapter });
+    const onChipsChange = vi.fn();
+    const { rerender } = render(
+      <ContextPicker panes={[at(3)]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+
+    fireEvent.click(screen.getAllByRole("checkbox")[0]); // turn it off
+    await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([]));
+
+    rerender(
+      <ContextPicker panes={[at(4)]} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+    );
+    await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([]));
+  });
+});
+
+describe("summarizeContext", () => {
+  const t = (key: string, opts?: Record<string, unknown>) => i18n.t(key, opts ?? {});
+  const source = (label: string, estimatedTokens: number) => ({ label, estimatedTokens });
+
+  it("lists the sources and their token total", () => {
+    const summary = summarizeContext([source("John 3:16 (WEB)", 40), source("MHC — John 3", 900)], [], t);
+    expect(summary).toContain("John 3:16 (WEB), MHC — John 3");
+    expect(summary).toContain("940");
+  });
+
+  it("names why each source was dropped instead of only counting them", () => {
+    const summary = summarizeContext(
+      [source("John 3:16 (WEB)", 40)],
+      [
+        { label: "1689 Confession", kind: "book", reason: "over-cap" },
+        { label: "Easton: Grace", kind: "dictionary", reason: "duplicate" },
+      ],
+      t,
+    );
+    expect(summary).toMatch(/too large to send whole/i);
+    expect(summary).toContain("1689 Confession");
+    expect(summary).toMatch(/duplicate/i);
+    expect(summary).toContain("Easton: Grace");
+  });
+
+  // §11: a licence block must be readable, not a silent omission. Reporting "No context
+  // selected" for a turn where the gate blocked everything tells the reader they picked
+  // nothing, when in fact they picked several works and none were allowed to leave.
+  it("reports licence blocks even when nothing survived, with the actionable reason", () => {
+    const summary = summarizeContext(
+      [],
+      [
+        { label: "MHC — John 3", kind: "commentary", reason: "licence", detail: "turnOnPrivacyRouting" },
+      ],
+      t,
+    );
+    expect(summary).toMatch(/blocked by (its|their) licence/i);
+    expect(summary).toContain("MHC — John 3");
+    expect(summary).toContain(i18n.t("chat.licence.turnOnPrivacyRouting"));
+  });
+
+  it("reports dropped conversation turns", () => {
+    const summary = summarizeContext([source("John 3:16 (WEB)", 40)], [], t, 3);
+    expect(summary).toMatch(/3 earlier turns/i);
+  });
+
+  it("uses singular and plural forms correctly", () => {
+    const one = summarizeContext([], [{ label: "A", kind: "book", reason: "duplicate" }], t);
+    const many = summarizeContext(
+      [],
+      [
+        { label: "A", kind: "book", reason: "duplicate" },
+        { label: "B", kind: "book", reason: "duplicate" },
+      ],
+      t,
+    );
+    expect(one).toMatch(/1 duplicate source was removed/i);
+    expect(many).toMatch(/2 duplicate sources were removed/i);
   });
 });

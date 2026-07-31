@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { findSection, licenceDetail, policyEligible } from "../../chat/context";
-import type { ContextChip, LicenceReasonCode } from "../../chat/types";
+import type {
+  ContextChip,
+  DropReason,
+  DroppedSource,
+  LicenceReasonCode,
+  StudySource,
+} from "../../chat/types";
 import type { Work } from "../../data/api";
 import { useGeneralBook, usePassage, useWorks } from "../../data/hooks";
 import { db } from "../../data/notes";
@@ -15,6 +21,27 @@ interface Candidate {
   chip: ContextChip;
   label: string;
   defaultOn: boolean;
+}
+
+// A pane chip's identity is the PANE, not the reference the pane currently shows. §5 says
+// chips enumerate "every open pane's current reference", so when the reader turns to the
+// next chapter the same chip must follow the pane there, still checked.
+//
+// Keying by workId/osis/chapter instead meant every navigation minted a brand-new key while
+// `enabled` still held the old one. Because the default-on seeding runs once (and must, or
+// it would resurrect chips the reader deliberately turned off), nothing re-armed the new
+// key: from the first chapter turn onward the picker emitted no chips at all and every
+// question after that was answered with no context — the exact failure this milestone
+// exists to prevent, reached by simply reading on.
+const paneChipKey = (pane: Pane) => `pane:${pane.id}`;
+
+// Which reference a pane is showing, used to expire a verse-range edit that was typed for
+// a different chapter.
+const paneRef = (pane: Pane) => `${pane.osis}:${pane.chapter}`;
+
+interface VerseEdit {
+  ref: string;
+  verses: string;
 }
 
 function workById(works: Work[] | null, workId: string | undefined): Work | undefined {
@@ -296,7 +323,7 @@ export function ContextPicker({
   const { t } = useTranslation();
   const works = useWorks();
   const [enabled, setEnabled] = useState<Set<string>>(new Set());
-  const [verseEdits, setVerseEdits] = useState<Record<string, string>>({});
+  const [verseEdits, setVerseEdits] = useState<Record<string, VerseEdit>>({});
   const initialized = useRef(false);
 
   const paneCandidates = useMemo(() => {
@@ -304,34 +331,37 @@ export function ContextPicker({
     let sawBible = false;
     let sawCommentary = false;
     for (const pane of panes) {
+      const key = paneChipKey(pane);
+      const work = workById(works, pane.workId);
       if (pane.type === "bible") {
-        const chip: ContextChip = { kind: "bible", workId: pane.workId, osis: pane.osis, chapter: pane.chapter };
-        const key = chipKey(chip);
-        const verses = verseEdits[key] ?? (pane.selectedVerse ? String(pane.selectedVerse) : undefined);
-        const work = workById(works, pane.workId);
+        // A range typed for John 3 must not silently carry over to John 4; the edit is
+        // stamped with the reference it was typed against and ignored once that changes.
+        const edit = verseEdits[key];
+        const verses =
+          edit && edit.ref === paneRef(pane)
+            ? edit.verses
+            : pane.selectedVerse
+              ? String(pane.selectedVerse)
+              : undefined;
         list.push({
           key,
-          chip: { ...chip, verses },
+          chip: { kind: "bible", workId: pane.workId, osis: pane.osis, chapter: pane.chapter, verses },
           label: `${pane.osis} ${pane.chapter}${verses ? `:${verses}` : ""} (${work?.abbrev ?? pane.workId})`,
           defaultOn: !sawBible,
         });
         sawBible = true;
       } else if (pane.type === "commentary") {
-        const chip: ContextChip = { kind: "commentary", workId: pane.workId, osis: pane.osis, chapter: pane.chapter };
-        const work = workById(works, pane.workId);
         list.push({
-          key: chipKey(chip),
-          chip,
+          key,
+          chip: { kind: "commentary", workId: pane.workId, osis: pane.osis, chapter: pane.chapter },
           label: `${work?.abbrev ?? pane.workId} — ${pane.osis} ${pane.chapter}`,
           defaultOn: !sawCommentary,
         });
         sawCommentary = true;
       } else if (pane.type === "dictionary" && pane.headword) {
-        const chip: ContextChip = { kind: "dictionary", workId: pane.workId, headword: pane.headword };
-        const work = workById(works, pane.workId);
         list.push({
-          key: chipKey(chip),
-          chip,
+          key,
+          chip: { kind: "dictionary", workId: pane.workId, headword: pane.headword },
           label: `${pane.headword} (${work?.abbrev ?? pane.workId})`,
           defaultOn: false,
         });
@@ -411,6 +441,8 @@ export function ContextPicker({
       <legend>{t("chat.context.title")}</legend>
       {paneCandidates.map((c) => {
         const { eligible, reason } = chipEligibility(c.chip, works, privacyRouting);
+        // Hoisted so the "bible" narrowing survives into the onChange closure below.
+        const bible = c.chip.kind === "bible" ? c.chip : null;
         return (
           <div key={c.key} className="context-candidate">
             <label className={`context-chip${eligible ? "" : " disabled"}`}>
@@ -423,14 +455,21 @@ export function ContextPicker({
               {c.label}
             </label>
             {reason && <span className="context-chip-reason">{t(`chat.licence.${reason}`)}</span>}
-            {c.chip.kind === "bible" && eligible && (
+            {bible && eligible && (
               <label className="context-verses">
                 {t("chat.context.verses")}
                 <input
                   type="text"
                   placeholder={t("chat.context.versesPlaceholder")}
-                  value={verseEdits[c.key] ?? c.chip.verses ?? ""}
-                  onChange={(e) => setVerseEdits((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                  // bible.verses already resolves the edit-vs-selected-verse precedence,
+                  // including expiring an edit typed for a different chapter.
+                  value={bible.verses ?? ""}
+                  onChange={(e) =>
+                    setVerseEdits((prev) => ({
+                      ...prev,
+                      [c.key]: { ref: `${bible.osis}:${bible.chapter}`, verses: e.target.value },
+                    }))
+                  }
                 />
               </label>
             )}
@@ -474,13 +513,67 @@ export function ContextPicker({
   );
 }
 
+// Reported in a fixed order so the summary is stable turn to turn, and with licence first
+// because it is the only reason the reader can act on.
+const DROP_REASON_ORDER: DropReason[] = ["licence", "over-cap", "budget", "duplicate", "unavailable"];
+
+const DROP_REASON_KEY: Record<DropReason, string> = {
+  licence: "chat.context.dropped.licence",
+  "over-cap": "chat.context.dropped.overCap",
+  budget: "chat.context.dropped.budget",
+  duplicate: "chat.context.dropped.duplicate",
+  unavailable: "chat.context.dropped.unavailable",
+};
+
+/**
+ * The pre-send summary (§5): what is about to be sent, and what was left out and why.
+ *
+ * Takes the whole `dropped` array rather than a count. `buildContext` computes a reason —
+ * and, for a licence block, an actionable detail — for every source it discards, and all of
+ * that used to be reduced to a bare number. Worse, a turn where the licence gate blocked
+ * *everything* reported "No context selected", which reads as "you did not pick anything"
+ * when in fact the reader picked several works and none of them were allowed to leave the
+ * browser. §11 requires that to be visible, not a silent omission.
+ */
 export function summarizeContext(
-  sourceLabels: string[],
-  totalTokens: number,
-  droppedCount: number,
+  sources: readonly Pick<StudySource, "label" | "estimatedTokens">[],
+  dropped: readonly DroppedSource[],
   t: (key: string, opts?: Record<string, unknown>) => string,
+  droppedTurns = 0,
 ): string {
-  if (sourceLabels.length === 0) return t("chat.context.empty");
-  const summary = t("chat.context.summary", { labels: sourceLabels.join(", "), tokens: totalTokens });
-  return droppedCount > 0 ? `${summary} ${t("chat.context.droppedSummary", { count: droppedCount })}` : summary;
+  const parts: string[] = [];
+
+  if (sources.length === 0) {
+    parts.push(t("chat.context.empty"));
+  } else {
+    parts.push(
+      t("chat.context.summary", {
+        labels: sources.map((s) => s.label).join(", "),
+        tokens: sources.reduce((sum, s) => sum + s.estimatedTokens, 0),
+      }),
+    );
+  }
+
+  for (const reason of DROP_REASON_ORDER) {
+    const items = dropped.filter((d) => d.reason === reason);
+    if (items.length === 0) continue;
+    parts.push(
+      t(DROP_REASON_KEY[reason], {
+        count: items.length,
+        labels: items.map((d) => d.label).join(", "),
+      }),
+    );
+    // The licence detail names the fix ("turn on privacy routing"), which is the whole
+    // point of distinguishing allowed_no_training from prohibited.
+    if (reason === "licence") {
+      const details = [...new Set(items.map((d) => d.detail).filter((d) => d != null))];
+      for (const detail of details) parts.push(t(`chat.licence.${detail}`));
+    }
+  }
+
+  if (droppedTurns > 0) {
+    parts.push(t("chat.context.droppedTurns", { count: droppedTurns }));
+  }
+
+  return parts.join(" ");
 }
