@@ -87,6 +87,10 @@ beforeEach(async () => {
   sessionStorage.clear();
   localStorage.clear();
   await clearChatHistory();
+  // The zustand store is module state and outlives a test; a test that changes the context
+  // budget would otherwise silently reset the limits every later test asserts against.
+  const { useStore } = await import("../../state/store");
+  useStore.getState().setSettings({ chatPerSourceCap: undefined, chatTotalBudget: undefined });
   fetchMock = vi.fn().mockImplementation((url: string) => {
     if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
     return Promise.reject(new Error(`unexpected fetch: ${url}`));
@@ -698,6 +702,45 @@ describe("ChatPanel layout refit (M9.3b)", () => {
     // ChatDrawer's own Escape handler is registered on window; if the popover had not
     // stopped propagation, this is the handler that would have fired.
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps Send working when a budget field holds an out-of-range value", async () => {
+    // The model popover renders inside <form class="chat-composer">, so a settings control
+    // there with a min/max/step constraint can make the form :invalid — and an invalid form
+    // refuses to submit silently. That broke Send outright, with nothing on screen saying
+    // why. The form is noValidate; resolveContextBudget clamps instead.
+    await connectAndSelectModel();
+    openModelPicker();
+    fireEvent.change(screen.getByLabelText(/Largest single source/i), { target: { value: "999999" } });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+  });
+
+  it("tells the reader what an over-cap source would have cost, and the current limit", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({
+      sources: [],
+      dropped: [
+        { label: "MHC — Isa 10", kind: "commentary", reason: "over-cap", estimatedTokens: 21628 },
+      ],
+    });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(document.querySelector(".chat-context-summary")).toBeInTheDocument());
+    // "Too large" is not actionable; the figure and the current limit are.
+    const summary = document.querySelector(".chat-context-summary")!.textContent ?? "";
+    expect(summary).toContain("(~21,628)");
+    expect(summary).toMatch(/per-source limit is 6,000 tokens/i);
   });
 
   it("Escape from the gear button closes only the menu, leaving the workspace open", async () => {

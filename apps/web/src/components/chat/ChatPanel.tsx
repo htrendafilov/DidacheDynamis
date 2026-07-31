@@ -16,6 +16,7 @@ import {
 } from "../../chat/client";
 import { planRequestBudget } from "../../chat/budget";
 import { buildContext } from "../../chat/context";
+import { resolveContextBudget } from "../../chat/contextBudget";
 import { connectedProviders, disconnect as disconnectProvider } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
 import {
@@ -105,6 +106,8 @@ export function ChatPanel({
   const openBookSection = useStore((s) => s.openBookSection);
   const requestOpenNote = useStore((s) => s.requestOpenNote);
   const uiLang = useStore((s) => s.settings.uiLang);
+  const chatPerSourceCap = useStore((s) => s.settings.chatPerSourceCap);
+  const chatTotalBudget = useStore((s) => s.settings.chatTotalBudget);
   const works = useWorks();
 
   const [connected, setConnected] = useState(() => connectedProviders().includes("openrouter"));
@@ -311,11 +314,13 @@ export function ChatPanel({
 
     let assistantText = "";
     try {
+      const budgetLimits = resolveContextBudget({ chatPerSourceCap, chatTotalBudget });
       const { sources, dropped } = await buildContext(
         chips,
         works ?? [],
         privacyRouting,
         controller.signal,
+        budgetLimits,
       );
       const manifest = buildManifest(sources);
 
@@ -330,7 +335,13 @@ export function ChatPanel({
         contextLength: selectedModel.contextLength,
       });
 
-      const contextSummary = summarizeContext(sources, dropped, t, budget.droppedTurns);
+      const contextSummary = summarizeContext(
+        sources,
+        dropped,
+        t,
+        budget.droppedTurns,
+        budgetLimits.perSourceCap,
+      );
       setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, contextSummary } : m)));
       // buildContext only resolves after the user message is already saved (needed
       // immediately, to have a thread to save it under), so the summary — required to be
@@ -489,6 +500,12 @@ export function ChatPanel({
 
       <form
         className="chat-composer"
+        // The model popover and its settings render inside this form, so any control there
+        // with a min/max/step constraint can make the form :invalid — and an invalid form
+        // silently refuses to submit, which here means Send stops working with nothing on
+        // screen to explain it. Budget values are clamped by resolveContextBudget anyway,
+        // so browser constraint validation buys nothing and only adds that failure mode.
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void send();

@@ -331,6 +331,16 @@ export function ContextPicker({
     const list: Candidate[] = [];
     let sawBible = false;
     let sawCommentary = false;
+    // A commentary chip defaults to the verse selected in a Bible pane on the same
+    // reference (§4's relevance order: "commentary on that range"). Nothing ever supplied
+    // one before, so every commentary chip fetched a whole chapter — for Matthew Henry a
+    // median of 12,903 tokens against a 6,000 per-source cap, i.e. always dropped.
+    const selectedVerseAt = new Map<string, number>();
+    for (const pane of panes) {
+      if (pane.type === "bible" && pane.selectedVerse) {
+        selectedVerseAt.set(`${pane.osis}:${pane.chapter}`, pane.selectedVerse);
+      }
+    }
     for (const pane of panes) {
       const key = paneChipKey(pane);
       const work = workById(works, pane.workId);
@@ -352,10 +362,17 @@ export function ContextPicker({
         });
         sawBible = true;
       } else if (pane.type === "commentary") {
+        // Same edit-expiry rule as the Bible chip: a verse typed for Isa 10 must not follow
+        // the pane to Isa 11. Blank means the whole chapter, which is legitimate but large.
+        const edit = verseEdits[key];
+        const typed = edit && edit.ref === paneRef(pane) ? edit.verses.trim() : undefined;
+        const fallback = selectedVerseAt.get(paneRef(pane));
+        const raw = typed ?? (fallback ? String(fallback) : "");
+        const verse = /^\d+$/.test(raw) ? Number(raw) : undefined;
         list.push({
           key,
-          chip: { kind: "commentary", workId: pane.workId, osis: pane.osis, chapter: pane.chapter },
-          label: `${work?.abbrev ?? pane.workId} — ${pane.osis} ${pane.chapter}`,
+          chip: { kind: "commentary", workId: pane.workId, osis: pane.osis, chapter: pane.chapter, verse },
+          label: `${work?.abbrev ?? pane.workId} — ${pane.osis} ${pane.chapter}${verse ? `:${verse}` : ""}`,
           defaultOn: !sawCommentary,
         });
         sawCommentary = true;
@@ -489,6 +506,7 @@ export function ContextPicker({
         const { eligible, reason } = chipEligibility(c.chip, works, privacyRouting);
         // Hoisted so the "bible" narrowing survives into the onChange closure below.
         const bible = c.chip.kind === "bible" ? c.chip : null;
+        const commentary = c.chip.kind === "commentary" ? c.chip : null;
         return (
           <div key={c.key} className="context-candidate">
             <label className={`context-chip${eligible ? "" : " disabled"}`}>
@@ -514,6 +532,29 @@ export function ContextPicker({
                     setVerseEdits((prev) => ({
                       ...prev,
                       [c.key]: { ref: `${bible.osis}:${bible.chapter}`, verses: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+            )}
+            {commentary && eligible && (
+              <label className="context-verses">
+                {t("chat.context.commentaryVerse")}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={t("chat.context.commentaryVersePlaceholder")}
+                  // One verse, not a range: a commentary entry already spans the verses its
+                  // author grouped together, so asking for Isa 10:1 returns the entry
+                  // covering 1-4. Blank fetches the whole chapter.
+                  value={commentary.verse != null ? String(commentary.verse) : ""}
+                  onChange={(e) =>
+                    setVerseEdits((prev) => ({
+                      ...prev,
+                      [c.key]: {
+                        ref: `${commentary.osis}:${commentary.chapter}`,
+                        verses: e.target.value,
+                      },
                     }))
                   }
                 />
@@ -587,6 +628,7 @@ export function summarizeContext(
   dropped: readonly DroppedSource[],
   t: (key: string, opts?: Record<string, unknown>) => string,
   droppedTurns = 0,
+  perSourceCap?: number,
 ): string {
   const parts: string[] = [];
 
@@ -607,9 +649,20 @@ export function summarizeContext(
     parts.push(
       t(DROP_REASON_KEY[reason], {
         count: items.length,
-        labels: items.map((d) => d.label).join(", "),
+        // An over-cap drop names what the source would have cost. "Too large" leaves the
+        // reader guessing; "~21,600 tokens" tells them exactly what to raise the limit to.
+        labels: items
+          .map((d) =>
+            reason === "over-cap" && d.estimatedTokens != null
+              ? `${d.label} (~${d.estimatedTokens.toLocaleString()})`
+              : d.label,
+          )
+          .join(", "),
       }),
     );
+    if (reason === "over-cap" && perSourceCap != null) {
+      parts.push(t("chat.context.dropped.overCapHint", { cap: perSourceCap.toLocaleString() }));
+    }
     // The licence detail names the fix ("turn on privacy routing"), which is the whole
     // point of distinguishing allowed_no_training from prohibited.
     if (reason === "licence") {

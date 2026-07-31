@@ -60,4 +60,7 @@ export interface DroppedSource {
   kind: SourceKind;
   reason: DropReason;
   detail?: LicenceReasonCode; // set only when reason === "licence"
+  // Set only when reason === "over-cap": what the source would have cost, so the pre-send
+  // summary can name a figure the reader can act on instead of just "too large".
+  estimatedTokens?: number;
 }

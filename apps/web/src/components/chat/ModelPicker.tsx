@@ -9,6 +9,14 @@ import {
 } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
 import { getProvider, modelDetailUrl } from "../../chat/providers";
+import {
+  MAX_PER_SOURCE_CAP,
+  MAX_TOTAL_BUDGET,
+  MIN_PER_SOURCE_CAP,
+  MIN_TOTAL_BUDGET,
+  resolveContextBudget,
+} from "../../chat/contextBudget";
+import { useStore } from "../../state/store";
 
 const provider = getProvider("openrouter");
 
@@ -79,6 +87,13 @@ export function ModelPicker({
 
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  const setSettings = useStore((s) => s.setSettings);
+  const chatPerSourceCap = useStore((s) => s.settings.chatPerSourceCap);
+  const chatTotalBudget = useStore((s) => s.settings.chatTotalBudget);
+  // Clamped/defaulted for display, so the fields always show the values retrieval will
+  // actually use rather than whatever half-typed number is in storage.
+  const budget = resolveContextBudget({ chatPerSourceCap, chatTotalBudget });
 
   const chipRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -344,6 +359,38 @@ export function ModelPicker({
           )}
           {/* No default model is preselected: m9.0-findings.md §7a. */}
           <p className="chat-settings-quality-caveat">{t("chat.settings.noDefaultCaveat")}</p>
+
+          {/* Context budget (M9.3c, m9.3-grounded-assistant.md §4 "Budget calibration").
+              Outside the `connected` gate: a reader can size the budget before pasting a
+              key, and it governs retrieval, which works regardless of provider state. */}
+          <div className="chat-context-budget">
+            <p className="chat-settings-provider">{t("chat.budget.title")}</p>
+            <label>
+              {t("chat.budget.perSource")}
+              <input
+                type="number"
+                min={MIN_PER_SOURCE_CAP}
+                max={MAX_PER_SOURCE_CAP}
+                step={100}
+                value={budget.perSourceCap}
+                onKeyDown={suppressEnterSubmit}
+                onChange={(event) => setSettings({ chatPerSourceCap: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              {t("chat.budget.total")}
+              <input
+                type="number"
+                min={MIN_TOTAL_BUDGET}
+                max={MAX_TOTAL_BUDGET}
+                step={100}
+                value={budget.totalBudget}
+                onKeyDown={suppressEnterSubmit}
+                onChange={(event) => setSettings({ chatTotalBudget: Number(event.target.value) })}
+              />
+            </label>
+            <p className="chat-settings-quality-caveat">{t("chat.budget.help")}</p>
+          </div>
 
           {connected && (
             <div className="chat-settings-connected">

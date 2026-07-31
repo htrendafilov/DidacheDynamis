@@ -35,6 +35,10 @@ export interface Settings {
   strongs?: StrongsMode; // Strong's word lookup in Bible panes (off by default, M8.3)
   searchWidth?: number; // width (px) of the docked desktop search workspace
   chatWidth?: number; // width (px) of the docked desktop Assistant workspace (M9.2)
+  // Assistant context budget (M9.3c). Absent = the measured defaults in chat/contextBudget.ts;
+  // the reader raises these to fit whole commentary chapters, knowingly paying for them.
+  chatPerSourceCap?: number;
+  chatTotalBudget?: number;
 }
 
 interface AppState {
