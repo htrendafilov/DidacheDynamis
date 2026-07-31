@@ -45,6 +45,36 @@ describe("provider registry", () => {
       expect(body.reasoning).toEqual({ enabled: false });
     });
 
+    it("asks for the cheapest supported effort when reasoning cannot be disabled", () => {
+      // Sending nothing left the model at its own default effort ("medium" for
+      // google/gemini-3.6-flash), and those hidden tokens come out of max_tokens — observed
+      // in production as an answer that stopped mid-word.
+      const body: Record<string, unknown> = {};
+      getProvider("openrouter").suppressReasoning(body, {
+        mandatory: true,
+        supportedEfforts: ["high", "medium", "low", "minimal"],
+      });
+      expect(body.reasoning).toEqual({ effort: "minimal" });
+    });
+
+    it("falls back to the cheapest effort the model actually lists", () => {
+      const body: Record<string, unknown> = {};
+      getProvider("openrouter").suppressReasoning(body, {
+        mandatory: true,
+        supportedEfforts: ["high", "medium"],
+      });
+      expect(body.reasoning).toEqual({ effort: "medium" });
+    });
+
+    it("never sends a disable flag when reasoning is mandatory", () => {
+      const body: Record<string, unknown> = {};
+      getProvider("openrouter").suppressReasoning(body, {
+        mandatory: true,
+        supportedEfforts: ["low"],
+      });
+      expect(body.reasoning).not.toHaveProperty("enabled");
+    });
+
     it("does not send a disable flag when reasoning is mandatory", () => {
       const body: Record<string, unknown> = {};
       getProvider("openrouter").suppressReasoning(body, { mandatory: true });

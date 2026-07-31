@@ -10,6 +10,8 @@
 // dropped, never trimmed.
 
 export interface ContextBudget {
+  /** max_tokens for the answer. Shares the model's window with everything sent. */
+  maxAnswerTokens: number;
   /** A single source larger than this is dropped whole — never truncated. */
   perSourceCap: number;
   /** Ceiling on the sum of all kept sources. */
@@ -23,6 +25,14 @@ export const MIN_PER_SOURCE_CAP = 500;
 export const MAX_PER_SOURCE_CAP = 32000;
 export const MIN_TOTAL_BUDGET = 500;
 export const MAX_TOTAL_BUDGET = 64000;
+
+// Was a hardcoded 1,500. Too small once a model reasons: reasoning tokens are drawn from
+// the same max_tokens as the visible answer, so a mandatory-reasoning model at default
+// effort spent nearly all of it and the answer stopped mid-word. 4,000 leaves room for a
+// substantial answer even when some of the budget goes to reasoning.
+export const DEFAULT_MAX_ANSWER_TOKENS = 4000;
+export const MIN_MAX_ANSWER_TOKENS = 256;
+export const MAX_MAX_ANSWER_TOKENS = 32000;
 
 /** Independent of the token budget: a hard ceiling on how many sources one turn may carry. */
 export const MAX_SOURCES = 12;
@@ -40,6 +50,7 @@ function clamp(value: number, min: number, max: number): number {
 export function resolveContextBudget(settings?: {
   chatPerSourceCap?: number;
   chatTotalBudget?: number;
+  chatMaxAnswerTokens?: number;
 }): ContextBudget {
   const rawPerSource = settings?.chatPerSourceCap;
   const rawTotal = settings?.chatTotalBudget;
@@ -49,7 +60,26 @@ export function resolveContextBudget(settings?: {
   const totalBudget = Number.isFinite(rawTotal)
     ? clamp(rawTotal as number, MIN_TOTAL_BUDGET, MAX_TOTAL_BUDGET)
     : DEFAULT_TOTAL_BUDGET;
-  return { perSourceCap, totalBudget: Math.max(totalBudget, perSourceCap) };
+  const rawAnswer = settings?.chatMaxAnswerTokens;
+  const maxAnswerTokens = Number.isFinite(rawAnswer)
+    ? clamp(rawAnswer as number, MIN_MAX_ANSWER_TOKENS, MAX_MAX_ANSWER_TOKENS)
+    : DEFAULT_MAX_ANSWER_TOKENS;
+  return { perSourceCap, totalBudget: Math.max(totalBudget, perSourceCap), maxAnswerTokens };
+}
+
+/**
+ * The answer budget actually sent, never above what the model itself allows. OpenRouter
+ * reports this per model (google/gemini-3.6-flash: 65,536; some models far less), and a
+ * max_tokens above the model's own ceiling is a request the provider rejects.
+ */
+export function effectiveMaxAnswerTokens(
+  budget: ContextBudget,
+  modelMaxCompletionTokens: number | null | undefined,
+): number {
+  if (!modelMaxCompletionTokens || !Number.isFinite(modelMaxCompletionTokens)) {
+    return budget.maxAnswerTokens;
+  }
+  return Math.min(budget.maxAnswerTokens, modelMaxCompletionTokens);
 }
 
 export const DEFAULT_CONTEXT_BUDGET: ContextBudget = resolveContextBudget();

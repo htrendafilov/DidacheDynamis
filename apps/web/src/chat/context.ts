@@ -389,7 +389,9 @@ export async function buildContext(
   signal: AbortSignal,
   // Reader-configurable (§4 "Budget calibration"). Optional so the many callers that do not
   // care about the setting — tests, mostly — keep the documented defaults.
-  budget: ContextBudget = DEFAULT_CONTEXT_BUDGET,
+  // Only the retrieval limits: how large the answer may be is not this function's concern,
+  // and requiring it here would force every caller to supply an irrelevant number.
+  budget: Pick<ContextBudget, "perSourceCap" | "totalBudget"> = DEFAULT_CONTEXT_BUDGET,
 ): Promise<{ sources: StudySource[]; dropped: DroppedSource[] }> {
   const meta = await api.meta();
   const contentVersion = meta.content_version ?? "unknown";

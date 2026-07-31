@@ -16,6 +16,8 @@ export interface ChatModel {
   id: string;
   name: string;
   contextLength: number;
+  /** The provider's own ceiling on a single completion; null when it does not report one. */
+  maxCompletionTokens: number | null;
   pricing: { prompt: string; completion: string };
   supportsTools: boolean;
   reasoning: ModelReasoningCaps | null;
@@ -47,6 +49,12 @@ export interface ChatUsage {
   // total without being recoverable by adding the visible component counts
   // (m9.0-findings.md §8a: prompt 20 + completion 4, total 136).
   totalTokens?: number;
+  // A count, never the text. The plan forbids storing chain-of-thought (§12) — this is
+  // billing metadata, and it is the only honest way to say how much of the output the
+  // reader never saw. OpenRouter reports it under completion_tokens_details, following
+  // OpenAI's schema, in which it is a component of completion_tokens rather than an
+  // addition to it.
+  reasoningTokens?: number;
   cost?: number;
   isByok?: boolean; // discloses an upstream BYOK endpoint OpenRouter selected
 }
@@ -136,6 +144,7 @@ interface RawOpenRouterModel {
   id: string;
   name: string;
   context_length: number;
+  top_provider?: { max_completion_tokens?: number | null };
   pricing: { prompt: string; completion: string };
   supported_parameters?: string[];
   reasoning?: {
@@ -150,6 +159,7 @@ function toChatModel(raw: RawOpenRouterModel): ChatModel {
     id: raw.id,
     name: raw.name,
     contextLength: raw.context_length,
+    maxCompletionTokens: raw.top_provider?.max_completion_tokens ?? null,
     pricing: raw.pricing,
     supportsTools: (raw.supported_parameters ?? []).includes("tools"),
     reasoning: raw.reasoning
@@ -205,6 +215,7 @@ interface StreamChunk {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
+    completion_tokens_details?: { reasoning_tokens?: number };
     cost?: number;
     is_byok?: boolean;
   };
@@ -215,6 +226,7 @@ function toChatUsage(raw: NonNullable<StreamChunk["usage"]>): ChatUsage {
     promptTokens: raw.prompt_tokens,
     completionTokens: raw.completion_tokens,
     totalTokens: raw.total_tokens,
+    reasoningTokens: raw.completion_tokens_details?.reasoning_tokens,
     cost: raw.cost,
     isByok: raw.is_byok,
   };
@@ -287,7 +299,11 @@ async function attemptStream(
     actualModel,
     finishReason,
     usage,
-    incomplete: !sawDone,
+    // finish_reason "length" means the answer was cut off at max_tokens. That ends the
+    // stream normally — [DONE] is still sent — so `!sawDone` alone reported it as complete,
+    // and the reader saw an answer stopping mid-word with nothing to say it had been
+    // truncated. In a study tool that can cut off mid-claim.
+    incomplete: !sawDone || finishReason === "length",
   };
 }
 

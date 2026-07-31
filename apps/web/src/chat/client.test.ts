@@ -92,6 +92,7 @@ describe("listModels", () => {
             context_length: 200000,
             pricing: { prompt: "0", completion: "0" },
             supported_parameters: ["tools", "max_tokens"],
+            top_provider: { max_completion_tokens: 8192 },
           },
           {
             id: "some/mandatory-reasoning",
@@ -110,6 +111,7 @@ describe("listModels", () => {
         id: "openrouter/free",
         name: "Free Models Router",
         contextLength: 200000,
+        maxCompletionTokens: 8192,
         pricing: { prompt: "0", completion: "0" },
         supportsTools: true,
         reasoning: null,
@@ -118,6 +120,7 @@ describe("listModels", () => {
         id: "some/mandatory-reasoning",
         name: "Mandatory Reasoner",
         contextLength: 1000,
+        maxCompletionTokens: null, // absent top_provider -> unknown, not zero
         pricing: { prompt: "1", completion: "2" },
         supportsTools: false,
         reasoning: { mandatory: true, supportedEfforts: ["low", "high"], supportsMaxTokens: undefined },
@@ -235,6 +238,63 @@ describe("streamChat", () => {
     );
     fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
     await expect(streamChat(req(), handlers())).rejects.toMatchObject({ kind: "emptyAnswer" });
+  });
+
+  it("parses reasoning_tokens from completion_tokens_details", async () => {
+    // OpenRouter reports it nested, following OpenAI's schema, where it is a component of
+    // completion_tokens rather than an addition to it. Reading the real field beats
+    // inferring one from total - prompt - completion, which holds only on some routes.
+    setKey("openrouter", "sk-test");
+    const stream = sseBody(
+      'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"length"}],' +
+        '"usage":{"prompt_tokens":2613,"completion_tokens":1500,"total_tokens":4113,' +
+        '"completion_tokens_details":{"reasoning_tokens":1380}}}\n\ndata: [DONE]\n\n',
+    );
+    fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    const meta = await streamChat(req(), handlers());
+    expect(meta.usage).toMatchObject({
+      promptTokens: 2613,
+      completionTokens: 1500,
+      totalTokens: 4113,
+      reasoningTokens: 1380,
+    });
+  });
+
+  it("leaves reasoningTokens undefined when the provider reports none", async () => {
+    setKey("openrouter", "sk-test");
+    const stream = sseBody(
+      'data: {"choices":[{"delta":{"content":"ok"}}],"usage":{"prompt_tokens":10,' +
+        '"completion_tokens":5,"total_tokens":15}}\n\ndata: [DONE]\n\n',
+    );
+    fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    const meta = await streamChat(req(), handlers());
+    expect(meta.usage?.reasoningTokens).toBeUndefined();
+  });
+
+  it("marks an answer cut off at max_tokens incomplete, even though the stream ended cleanly", async () => {
+    // finish_reason "length" ends the stream normally — [DONE] is still sent — so deriving
+    // `incomplete` from the missing [DONE] alone reported a truncated answer as complete.
+    // The reader saw a sentence stopping mid-word with nothing to say it had been cut off.
+    setKey("openrouter", "sk-test");
+    const stream = sseBody(
+      'data: {"choices":[{"delta":{"content":"half a thou"},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n',
+    );
+    fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    const h = handlers();
+    const meta = await streamChat(req(), h);
+    expect(h.deltas).toEqual(["half a thou"]);
+    expect(meta.finishReason).toBe("length");
+    expect(meta.incomplete).toBe(true);
+  });
+
+  it("does not mark a normally finished answer incomplete", async () => {
+    setKey("openrouter", "sk-test");
+    const stream = sseBody(
+      'data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+    );
+    fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    const meta = await streamChat(req(), handlers());
+    expect(meta.incomplete).toBe(false);
   });
 
   it("marks the result incomplete when the stream ends without [DONE]", async () => {

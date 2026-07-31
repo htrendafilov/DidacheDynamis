@@ -39,6 +39,7 @@ export interface Settings {
   // the reader raises these to fit whole commentary chapters, knowingly paying for them.
   chatPerSourceCap?: number;
   chatTotalBudget?: number;
+  chatMaxAnswerTokens?: number; // max_tokens for the answer (M9.3d)
 }
 
 interface AppState {
