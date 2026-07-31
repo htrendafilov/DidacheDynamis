@@ -15,6 +15,7 @@ import { satisfiesNoTraining } from "./credentials";
 import {
   crossReferencesToText,
   documentToText,
+  includedVerses,
   passageToText,
   strongEntryToText,
 } from "./normalize";
@@ -104,9 +105,19 @@ interface RequiredPolicy {
   policy: Work["ai_context_policy"];
 }
 
+// The inclusive verse span the excerpt actually covers. Set for `bible` candidates only,
+// and derived from the verses really returned rather than the requested range string —
+// dedup (§4.5) is about overlapping *content*, and a range can ask for verses a chapter
+// does not have.
+interface VerseSpan {
+  start: number;
+  end: number;
+}
+
 interface Candidate {
   source: Omit<StudySource, "id">;
   requires: RequiredPolicy[];
+  verseSpan?: VerseSpan;
 }
 
 function fallbackLabel(chip: ContextChip): string {
@@ -138,6 +149,7 @@ async function buildCandidate(
     case "bible": {
       const work = workById(works, chip.workId);
       const passage = await api.passage(chip.workId, chip.osis, chip.chapter, chip.verses, signal);
+      const included = includedVerses(passage, chip.verses);
       const excerpt = passageToText(passage, chip.verses);
       if (!excerpt) return null;
       // The first verse actually returned, not the requested range's parsed start: the
@@ -147,7 +159,11 @@ async function buildCandidate(
       // actually focuses and flashes real content (openPassage's verse param) instead of
       // landing on nothing — "retrieved as John 3:16" must mean the citation opens at
       // whatever verse 16's excerpt actually started with.
-      const verse = chip.verses ? passage.verses[0]?.verse : undefined;
+      const verse = chip.verses ? included[0]?.verse : undefined;
+      const verseNumbers = included.map((v) => v.verse);
+      const verseSpan: VerseSpan | undefined = verseNumbers.length
+        ? { start: Math.min(...verseNumbers), end: Math.max(...verseNumbers) }
+        : undefined;
       const canonicalTarget: CanonicalTarget = {
         kind: "bible",
         workId: chip.workId,
@@ -167,6 +183,7 @@ async function buildCandidate(
           estimatedTokens: estimateTokens(excerpt, "bible"),
         },
         requires: [{ workId: chip.workId, policy: work?.ai_context_policy ?? "unknown" }],
+        verseSpan,
       };
     }
     case "commentary": {
@@ -339,14 +356,29 @@ function normalizedExcerpt(text: string): string {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function isDuplicate(a: Omit<StudySource, "id">, b: Omit<StudySource, "id">): boolean {
-  if (normalizedExcerpt(a.excerpt) === normalizedExcerpt(b.excerpt)) return true;
-  return (
-    a.kind === b.kind &&
-    a.workId != null &&
-    a.workId === b.workId &&
-    JSON.stringify(a.canonicalTarget) === JSON.stringify(b.canonicalTarget)
-  );
+function spansOverlap(a: VerseSpan, b: VerseSpan): boolean {
+  return a.start <= b.end && b.start <= a.end;
+}
+
+function isDuplicate(a: Candidate, b: Candidate): boolean {
+  if (normalizedExcerpt(a.source.excerpt) === normalizedExcerpt(b.source.excerpt)) return true;
+  if (a.source.kind !== b.source.kind) return false;
+  if (a.source.workId == null || a.source.workId !== b.source.workId) return false;
+
+  // §4.5 says "same work + overlapping verse range", which identical-target comparison
+  // does not implement: John 3:16 and John 3:16-18 are different targets that share verse
+  // 16, so both used to survive and verse 16 was sent twice — paid for twice in the
+  // budget, and offered to the model as two independent witnesses to the same text.
+  const at = a.source.canonicalTarget;
+  const bt = b.source.canonicalTarget;
+  if (at.kind === "bible" && bt.kind === "bible") {
+    if (at.osis !== bt.osis || at.chapter !== bt.chapter) return false;
+    // A whole-chapter source has no span and overlaps every range in that chapter.
+    if (!a.verseSpan || !b.verseSpan) return true;
+    return spansOverlap(a.verseSpan, b.verseSpan);
+  }
+
+  return JSON.stringify(at) === JSON.stringify(bt);
 }
 
 export async function buildContext(
@@ -399,14 +431,30 @@ export async function buildContext(
     }
   }
 
-  // 4. Keep in relevance order until the total/count budget is spent.
+  // 4. Rank by relevance: fixed kind order, ties broken by the order the chips came in.
   const ranked = capped
     .map((c, index) => ({ c, index }))
     .sort((a, b) => KIND_PRIORITY[a.c.source.kind] - KIND_PRIORITY[b.c.source.kind] || a.index - b.index)
     .map(({ c }) => c);
+
+  // 5. Deduplicate BEFORE budgeting. The plan numbers dedup after the budget step, but
+  // that order lets a duplicate spend the 8,000-token / 12-source allowance and evict a
+  // distinct source that would otherwise have fit — the duplicate is then thrown away
+  // anyway, so the turn simply loses content for nothing. Ranked order first, so the copy
+  // that survives is the more relevant one.
+  const deduped: Candidate[] = [];
+  for (const c of ranked) {
+    if (deduped.some((d) => isDuplicate(d, c))) {
+      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
+    } else {
+      deduped.push(c);
+    }
+  }
+
+  // 6. Keep in relevance order until the total/count budget is spent.
   const kept: Candidate[] = [];
   let total = 0;
-  for (const c of ranked) {
+  for (const c of deduped) {
     if (kept.length >= MAX_SOURCES || total + c.source.estimatedTokens > TOTAL_BUDGET_TOKENS) {
       dropped.push({ label: c.source.label, kind: c.source.kind, reason: "budget" });
       continue;
@@ -415,18 +463,8 @@ export async function buildContext(
     total += c.source.estimatedTokens;
   }
 
-  // 5. Deduplicate overlapping excerpts.
-  const deduped: Candidate[] = [];
-  for (const c of kept) {
-    if (deduped.some((d) => isDuplicate(d.source, c.source))) {
-      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
-    } else {
-      deduped.push(c);
-    }
-  }
-
-  // 6. Assign S1..Sn only after all dropping, so ids are contiguous.
-  const sources: StudySource[] = deduped.map((c, i) => ({
+  // 7. Assign S1..Sn only after all dropping, so ids are contiguous.
+  const sources: StudySource[] = kept.map((c, i) => ({
     ...c.source,
     id: `S${i + 1}` as `S${number}`,
   }));

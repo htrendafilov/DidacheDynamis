@@ -13,6 +13,7 @@ import {
   type ChatUsage,
   streamChat,
 } from "../../chat/client";
+import { planRequestBudget } from "../../chat/budget";
 import { buildContext } from "../../chat/context";
 import { connectedProviders, disconnect as disconnectProvider } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
@@ -29,6 +30,7 @@ import {
   serializeManifest,
 } from "../../chat/history";
 import { buildMessages } from "../../chat/prompt";
+import { estimateProseTokens } from "../../chat/tokens";
 import type { ContextChip, StudySource } from "../../chat/types";
 import { useWorks } from "../../data/hooks";
 import { useStore, type PaneSourceType } from "../../state/store";
@@ -38,6 +40,10 @@ import { ChatSources } from "./ChatSources";
 import { ContextPicker, summarizeContext } from "./ContextPicker";
 
 const HISTORY_NOTICE_KEY = "bible-chat-history-notice-dismissed";
+
+// Reserved for the answer. Shares the model's context window with everything sent, which is
+// why budget.ts needs it to decide what fits.
+const MAX_COMPLETION_TOKENS = 1500;
 
 function downloadJson(filename: string, data: unknown): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -269,13 +275,19 @@ export function ChatPanel({
         controller.signal,
       );
       const manifest = buildManifest(sources);
-      const totalTokens = sources.reduce((sum, s) => sum + s.estimatedTokens, 0);
-      const contextSummary = summarizeContext(
-        sources.map((s) => s.label),
-        totalTokens,
-        dropped.length,
-        t,
-      );
+
+      const answerLanguage = uiLang === "bg" ? "bg" : "en";
+      const [system, user] = buildMessages(sources, userText, answerLanguage);
+
+      // Bound the whole request, not just its sources: the replayed conversation is
+      // unbounded on its own and the model's window has to hold all of it plus the answer.
+      const budget = planRequestBudget(priorHistory, {
+        fixedTokens: estimateProseTokens(system.content) + estimateProseTokens(user.content),
+        maxCompletionTokens: MAX_COMPLETION_TOKENS,
+        contextLength: selectedModel.contextLength,
+      });
+
+      const contextSummary = summarizeContext(sources, dropped, t, budget.droppedTurns);
       setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, contextSummary } : m)));
       // buildContext only resolves after the user message is already saved (needed
       // immediately, to have a thread to save it under), so the summary — required to be
@@ -291,16 +303,18 @@ export function ChatPanel({
         });
       }
 
-      const answerLanguage = uiLang === "bg" ? "bg" : "en";
-      const [system, user] = buildMessages(sources, userText, answerLanguage);
-      const requestMessages: ClientChatMessage[] = [system, ...priorHistory, user];
+      // Raised only after the summary is stored, so the reader can see what was too large.
+      if (budget.overflows) {
+        throw new ChatError("contextOverflow", "The selected context exceeds the model's window.");
+      }
+      const requestMessages: ClientChatMessage[] = [system, ...budget.history, user];
 
       const meta = await streamChat(
         {
           providerId: "openrouter",
           model: selectedModel.id,
           messages: requestMessages,
-          maxTokens: 1500,
+          maxTokens: MAX_COMPLETION_TOKENS,
           privacyRouting,
           reasoningCaps: selectedModel.reasoning,
           signal: controller.signal,

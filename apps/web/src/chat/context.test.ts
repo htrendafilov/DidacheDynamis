@@ -220,8 +220,12 @@ describe("buildContext budget (§4)", () => {
       { kind: "bible", workId: "web", osis: "John", chapter: 7 },
       { kind: "bible", workId: "web", osis: "John", chapter: 8 },
     ];
+    // Distinct text per chapter: these must be budget drops, not dedup drops. Identical
+    // text would (correctly, since dedup now runs first) collapse to a single source and
+    // leave the budget with room to spare, which is a different assertion entirely — see
+    // "deduplicates before spending the budget" below.
     apiMock.passage.mockImplementation((_w, osis, chapter) =>
-      Promise.resolve({ ...passage(big), osis, chapter: chapter as number }),
+      Promise.resolve({ ...passage(`chapter ${chapter} ${big}`), osis, chapter: chapter as number }),
     );
     const { sources, dropped } = await buildContext(
       chips,
@@ -276,6 +280,87 @@ describe("buildContext budget (§4)", () => {
     );
     expect(sources).toHaveLength(1);
     expect(dropped).toEqual([{ label: "Grace (EASTON)", kind: "dictionary", reason: "duplicate" }]);
+  });
+
+  it("deduplicates before spending the budget, so a duplicate cannot evict a distinct source", async () => {
+    // Five copies of one ~1829-token chapter plus one distinct dictionary entry. Budgeting
+    // first spends 4 x 1829 on the copies, hits the 8000 ceiling and drops the dictionary —
+    // then throws three of those copies away as duplicates anyway, so the turn ends with
+    // one chapter and loses the dictionary for nothing.
+    const big = "word ".repeat(800);
+    apiMock.passage.mockResolvedValue(passage(big));
+    apiMock.dictionaryEntry.mockResolvedValue({
+      work_id: "easton",
+      headword: "Grace",
+      body: { blocks: [{ kind: "paragraph", text: "Unmerited favour." }] },
+    } as DictionaryEntry);
+    const chips: ContextChip[] = [
+      ...Array.from({ length: 5 }, () => ({ kind: "bible" as const, workId: "web", osis: "John", chapter: 3 })),
+      { kind: "dictionary", workId: "easton", headword: "Grace" },
+    ];
+    const { sources, dropped } = await buildContext(
+      chips,
+      [work("web"), work("easton", { type: "dictionary" })],
+      true,
+      new AbortController().signal,
+    );
+    expect(sources.map((s) => s.kind)).toEqual(["bible", "dictionary"]);
+    expect(dropped.every((d) => d.reason === "duplicate")).toBe(true);
+    expect(dropped).toHaveLength(4);
+  });
+
+  it("treats overlapping verse ranges over the same chapter as duplicates", async () => {
+    // §4.5 is "same work + overlapping verse range", not "identical target". John 3:16 and
+    // John 3:16-18 share verse 16; sending both re-sends it and pays for it twice.
+    apiMock.passage.mockImplementation((_w, _osis, _chapter, verses) => {
+      const all = [16, 17, 18].map((verse) => ({
+        verse,
+        lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: `Verse ${verse} text.` }] }],
+      }));
+      const parts = verses ? verses.split("-") : [];
+      const [start, end] = parts.length ? [Number(parts[0]), Number(parts[parts.length - 1])] : [1, 999];
+      return Promise.resolve({
+        work_id: "web",
+        osis: "John",
+        chapter: 3,
+        headings: [],
+        verses: all.filter((v) => v.verse >= start && v.verse <= end),
+      } as Passage);
+    });
+    const chips: ContextChip[] = [
+      { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "16" },
+      { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "16-18" },
+    ];
+    const { sources, dropped } = await buildContext(chips, [work("web")], true, new AbortController().signal);
+    expect(sources).toHaveLength(1);
+    expect(dropped).toEqual([
+      { label: "John 3:16-18 (WEB)", kind: "bible", reason: "duplicate" },
+    ]);
+  });
+
+  it("keeps non-overlapping verse ranges over the same chapter", async () => {
+    apiMock.passage.mockImplementation((_w, _osis, _chapter, verses) => {
+      const all = [16, 17, 18, 19].map((verse) => ({
+        verse,
+        lines: [{ kind: "p", level: 1, para_start: true, runs: [{ t: `Verse ${verse} text.` }] }],
+      }));
+      const parts = verses ? verses.split("-") : [];
+      const [start, end] = parts.length ? [Number(parts[0]), Number(parts[parts.length - 1])] : [1, 999];
+      return Promise.resolve({
+        work_id: "web",
+        osis: "John",
+        chapter: 3,
+        headings: [],
+        verses: all.filter((v) => v.verse >= start && v.verse <= end),
+      } as Passage);
+    });
+    const chips: ContextChip[] = [
+      { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "16" },
+      { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "18-19" },
+    ];
+    const { sources, dropped } = await buildContext(chips, [work("web")], true, new AbortController().signal);
+    expect(sources).toHaveLength(2);
+    expect(dropped).toEqual([]);
   });
 });
 

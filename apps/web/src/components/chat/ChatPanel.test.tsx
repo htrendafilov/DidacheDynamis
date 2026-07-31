@@ -48,6 +48,13 @@ function modelsResponse() {
           pricing: { prompt: "0.000001", completion: "0.000005" },
           supported_parameters: ["tools"],
         },
+        {
+          id: "tiny/model",
+          name: "Tiny Window",
+          context_length: 4000,
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: [],
+        },
       ],
     }),
     { status: 200 },
@@ -586,5 +593,62 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     render(<ChatPanel onClose={() => {}} />);
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
     expect(screen.queryByText(/not synced to Dropbox/)).not.toBeInTheDocument();
+  });
+
+  it("refuses to send when the sources alone cannot fit the model's context window", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "tiny/model" } });
+
+    // ~2,290 estimated tokens of sources against a 4,000-token window, once 1,500 is
+    // reserved for the answer: this cannot fit, and the old code would have discovered
+    // that only from the provider's 400.
+    buildContextMock.mockResolvedValue({
+      sources: [
+        {
+          id: "S1",
+          kind: "commentary",
+          workId: "mhc",
+          label: "MHC — John 3",
+          canonicalTarget: { kind: "commentary", workId: "mhc", osis: "John", chapter: 3 },
+          language: "en",
+          excerpt: "word ".repeat(1000),
+          contentVersion: "v1",
+          estimatedTokens: 2286,
+        } satisfies StudySource,
+      ],
+      dropped: [],
+    });
+
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "Explain this" } });
+    const callsBefore = fetchMock.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/too large for this model/i),
+    );
+    // No request was attempted: the guard runs before the provider is contacted.
+    expect(fetchMock.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("tells the reader why a source was left out, not just that one was", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({
+      sources: [],
+      dropped: [
+        { label: "MHC — John 3", kind: "commentary", reason: "licence", detail: "turnOnPrivacyRouting" },
+      ],
+    });
+
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "Explain this" } });
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(sseResponse('data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    // §11: the block must be readable. "No context selected" alone would tell the reader
+    // they picked nothing, when in fact their pick was refused.
+    await waitFor(() => expect(screen.getByText(/blocked by (its|their) licence/i)).toBeInTheDocument());
+    expect(screen.getByText(/MHC — John 3/)).toBeInTheDocument();
+    expect(screen.getByText(/turn on privacy routing/i)).toBeInTheDocument();
   });
 });

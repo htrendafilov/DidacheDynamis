@@ -67,7 +67,24 @@ export const db = new ChatHistoryDB();
 export const MAX_TITLE_LENGTH = 200;
 export const MAX_MANIFEST_JSON_LENGTH = 200_000; // ~12 sources x ~8000 chars, generous headroom
 export const MAX_THREADS = 200;
-export const MAX_TOTAL_BYTES = 20_000_000; // ~20 MB, a coarse cap enforced after every save
+export const MAX_TOTAL_BYTES = 20_000_000; // ~20 MB, a coarse cap on the whole database
+
+// The byte cap needs every row to measure, so it cannot run on every write: at the cap
+// that is 20 MB read and stringified per saved message, three times per turn. Nothing can
+// cross a 20 MB cap without first writing this much, so amortizing the check over that
+// many bytes cannot overshoot by more than one interval.
+export const BYTE_CHECK_INTERVAL = 1_000_000;
+
+let bytesSinceFullCheck = Number.POSITIVE_INFINITY; // force a check on the first write
+
+function noteWrite(bytes: number): void {
+  bytesSinceFullCheck += bytes;
+}
+
+/** Test hook: restores the "check on the next write" state of a freshly loaded module. */
+export function resetRetentionCheckForTests(): void {
+  bytesSinceFullCheck = Number.POSITIVE_INFINITY;
+}
 
 let seq = 0;
 const newId = () => `${Date.now()}-${seq++}-${Math.random().toString(36).slice(2, 8)}`;
@@ -75,15 +92,19 @@ const newId = () => `${Date.now()}-${seq++}-${Math.random().toString(36).slice(2
 export async function createThread(title: string): Promise<string> {
   const id = newId();
   const now = Date.now();
-  await db.threads.add({ id, title: title.slice(0, MAX_TITLE_LENGTH), createdAt: now, updatedAt: now });
+  const thread = { id, title: title.slice(0, MAX_TITLE_LENGTH), createdAt: now, updatedAt: now };
+  await db.threads.add(thread);
+  noteWrite(JSON.stringify(thread).length);
   await enforceRetention();
   return id;
 }
 
 export async function saveMessage(message: Omit<ChatHistoryMessage, "id"> & { id?: string }): Promise<string> {
   const id = message.id ?? newId();
-  await db.messages.put({ ...message, id });
+  const row = { ...message, id };
+  await db.messages.put(row);
   await db.threads.update(message.threadId, { updatedAt: Date.now() });
+  noteWrite(JSON.stringify(row).length);
   await enforceRetention();
   return id;
 }
@@ -97,6 +118,11 @@ export async function saveRun(run: ChatRun): Promise<void> {
       ? run.sourceManifestJson.slice(0, MAX_MANIFEST_JSON_LENGTH)
       : run.sourceManifestJson;
   await db.runs.put({ ...run, sourceManifestJson: json });
+  // Runs are by far the largest rows, and retention used to be driven only by thread and
+  // message writes — so the bytes that actually fill the database were the ones that never
+  // triggered a check.
+  noteWrite(json.length);
+  await enforceRetention();
 }
 
 export function serializeManifest(sources: readonly StudySource[]): string {
@@ -153,27 +179,64 @@ export async function exportHistory(): Promise<ChatHistoryExport> {
 // Coarse retention: cap by thread count, then by total stored bytes (approximated as the
 // UTF-16 length of every row's JSON representation — exact enough for a local eviction
 // policy, not meant to match IndexedDB's actual on-disk size). Oldest threads first.
-async function estimatedTotalBytes(): Promise<number> {
-  const [threads, messages, runs] = await Promise.all([
-    db.threads.toArray(),
-    db.messages.toArray(),
-    db.runs.toArray(),
-  ]);
-  return (
-    JSON.stringify(threads).length + JSON.stringify(messages).length + JSON.stringify(runs).length
-  );
-}
 
-async function enforceRetention(): Promise<void> {
+// `threads` is the small table and updatedAt is indexed, so this stays cheap enough to run
+// on every write.
+async function enforceThreadCountCap(): Promise<void> {
   let threads = await db.threads.orderBy("updatedAt").toArray(); // oldest first
   while (threads.length > MAX_THREADS) {
     await clearThread(threads[0].id);
     threads = threads.slice(1);
   }
-  let total = await estimatedTotalBytes();
-  while (total > MAX_TOTAL_BYTES && threads.length > 0) {
-    await clearThread(threads[0].id);
-    threads = threads.slice(1);
-    total = await estimatedTotalBytes();
+}
+
+// One read of each table, sizes attributed to threads in a single pass, then eviction with
+// incremental subtraction. The previous version re-read and re-stringified all three tables
+// on *every iteration* of the eviction loop, having already done it once to get the
+// starting total — O(rows x evictions) against a 20 MB cap, on every saved message.
+async function enforceByteCap(): Promise<void> {
+  const [threads, messages, runs] = await Promise.all([
+    db.threads.toArray(),
+    db.messages.toArray(),
+    db.runs.toArray(),
+  ]);
+
+  const bytesByThread = new Map<string, number>();
+  const threadOfMessage = new Map<string, string>();
+  let total = 0;
+  const attribute = (threadId: string | undefined, bytes: number) => {
+    total += bytes;
+    if (threadId) bytesByThread.set(threadId, (bytesByThread.get(threadId) ?? 0) + bytes);
+  };
+
+  for (const thread of threads) attribute(thread.id, JSON.stringify(thread).length);
+  for (const message of messages) {
+    threadOfMessage.set(message.id, message.threadId);
+    attribute(message.threadId, JSON.stringify(message).length);
   }
+  // A run whose message is gone counts toward the total but belongs to no thread, so no
+  // eviction can reclaim it. Counting it anyway keeps the total honest rather than
+  // under-reporting the database's real size.
+  for (const run of runs) {
+    attribute(threadOfMessage.get(run.messageId), JSON.stringify(run).length);
+  }
+
+  if (total <= MAX_TOTAL_BYTES) return;
+
+  // Never evict the newest thread: a save large enough to breach the cap on its own would
+  // otherwise delete the very turn that was just written, and the reader would watch their
+  // question vanish as they asked it.
+  const oldestFirst = [...threads].sort((a, b) => a.updatedAt - b.updatedAt).slice(0, -1);
+  for (const thread of oldestFirst) {
+    if (total <= MAX_TOTAL_BYTES) break;
+    await clearThread(thread.id);
+    total -= bytesByThread.get(thread.id) ?? 0;
+  }
+}
+
+async function enforceRetention(): Promise<void> {
+  await enforceThreadCountCap();
+  if (bytesSinceFullCheck < BYTE_CHECK_INTERVAL) return;
+  bytesSinceFullCheck = 0;
+  await enforceByteCap();
 }

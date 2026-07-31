@@ -4,6 +4,7 @@ import type { StudySource } from "./types";
 import {
   MAX_MANIFEST_JSON_LENGTH,
   MAX_THREADS,
+  MAX_TOTAL_BYTES,
   clearAll,
   clearThread,
   createThread,
@@ -15,10 +16,12 @@ import {
   saveMessage,
   saveRun,
   serializeManifest,
+  resetRetentionCheckForTests,
 } from "./history";
 
 beforeEach(async () => {
   await clearAll();
+  resetRetentionCheckForTests();
 });
 
 function source(overrides: Partial<StudySource> = {}): StudySource {
@@ -154,4 +157,39 @@ describe("history.ts", () => {
     expect(remaining.some((t) => t.id === ids[0])).toBe(false); // the very first thread was evicted
     expect(remaining.some((t) => t.id === ids[ids.length - 1])).toBe(true); // the newest survives
   }, 20000);
+
+  it("evicts the oldest threads when the total-bytes cap is exceeded", async () => {
+    // Message text is the unbounded field (saveRun already truncates a manifest to
+    // MAX_MANIFEST_JSON_LENGTH), so it is what can actually drive the database past the
+    // cap. Three threads x ~7 MB clears the 20 MB ceiling; the thread-count cap is nowhere
+    // near being hit, so this isolates the byte cap.
+    const bulk = "x".repeat(7_000_000);
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const threadId = await createThread(`t${i}`);
+      ids.push(threadId);
+      await saveMessage({ id: `m${i}`, threadId, role: "assistant", text: bulk, createdAt: Date.now() + i });
+      await new Promise((r) => setTimeout(r, 2));
+    }
+    const remaining = await listThreads();
+    expect(remaining.some((t) => t.id === ids[ids.length - 1])).toBe(true); // newest survives
+    expect(remaining.some((t) => t.id === ids[0])).toBe(false); // oldest evicted first
+    expect(remaining.length).toBeLessThan(3);
+  }, 30000);
+
+  it("never evicts the thread that was just written, even when it alone breaches the cap", async () => {
+    // A single turn larger than the whole cap must not delete itself the moment it lands —
+    // the reader would watch their own question disappear as they asked it.
+    const threadId = await createThread("only thread");
+    await saveMessage({ id: "m1", threadId, role: "user", text: "q", createdAt: Date.now() });
+    await saveMessage({
+      id: "m2",
+      threadId,
+      role: "assistant",
+      text: "y".repeat(MAX_TOTAL_BYTES + 1_000),
+      createdAt: Date.now() + 1,
+    });
+    expect((await listThreads()).map((t) => t.id)).toEqual([threadId]);
+    expect(await getMessages(threadId)).toHaveLength(2);
+  }, 30000);
 });

@@ -40,6 +40,7 @@ describe("chat translations", () => {
       "privacyConstraint",
       "emptyAnswer",
       "badRequest",
+      "contextOverflow",
       "network",
       "malformedStream",
       "aborted",
