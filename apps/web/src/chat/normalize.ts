@@ -64,12 +64,17 @@ function verseText(v: Verse): string {
   return collapseWhitespace(`${v.verse} ${out}`);
 }
 
-export function passageToText(p: Passage, verses?: string): string {
+// The verses a given range string actually selects from this passage. Exported because
+// context.ts needs the same answer passageToText works from — the real verse span of the
+// excerpt, for overlap-based dedup (§4.5) and for the citation's focus verse — and
+// re-deriving it there would be a second copy of this filter that could drift.
+export function includedVerses(p: Passage, verses?: string): Verse[] {
   const wanted = verses ? parseVerseRange(verses) : null;
-  const included = wanted
-    ? p.verses.filter((v) => v.verse >= wanted.start && v.verse <= wanted.end)
-    : p.verses;
-  return included.map(verseText).join("\n");
+  return wanted ? p.verses.filter((v) => v.verse >= wanted.start && v.verse <= wanted.end) : p.verses;
+}
+
+export function passageToText(p: Passage, verses?: string): string {
+  return includedVerses(p, verses).map(verseText).join("\n");
 }
 
 function blockText(block: DocumentBlock): string {
