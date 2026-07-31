@@ -20,6 +20,19 @@ vi.mock("../data/hooks", () => ({
       source_url: null,
       source_version: "test",
     },
+    {
+      id: "baptist1689bg",
+      type: "book",
+      language: "bg",
+      title: "Баптистка изповед на вярата от 1689 г.",
+      abbrev: "1689 БГ",
+      direction: "ltr",
+      versification: "none",
+      license: "CC0 1.0 Universal",
+      attribution: "CC0 Bulgarian test fixture.",
+      source_url: null,
+      source_version: "test",
+    },
   ],
   useGeneralBook: () => ({
     loading: false,
@@ -102,6 +115,15 @@ describe("BookPane", () => {
 
     expect(source.compareDocumentPosition(book) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(book.compareDocumentPosition(contents) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("switches between the released English and Bulgarian works", () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Book" }), {
+      target: { value: "baptist1689bg" },
+    });
+
+    expect(useStore.getState().panes[0].workId).toBe("baptist1689bg");
   });
 
   it("turns sections as pages with previous and next controls", () => {

@@ -11,6 +11,7 @@ for future Bulgarian content live in [`plan/content_and_licensing.md`](../../pla
 | **Matthew Henry Commentary** | English | Public Domain | ✅ Unrestricted | Formatting & structure parsed from public domain source |
 | **Easton's Bible Dictionary** | English | Public Domain | ✅ Unrestricted | 1897 edition biblical dictionary |
 | **1689 London Baptist Confession** | English | Public Domain | ✅ Unrestricted | Historical reformed Baptist confession |
+| **Баптистка изповед на вярата от 1689 г.** | Bulgarian | CC0 1.0 Universal | ✅ Unrestricted | Reviewed Bulgarian translation and editorial revision |
 | **TSK Cross-References** | English | CC BY 4.0 | ✅ Permitted with attribution | Treasury of Scripture Knowledge cross-references |
 | **King James Version (KJV)** | English | CrossWire Dist. License / UK Crown Copyright | ⚠️ GPL Module License | Source module: `KJV.imp.gz` |
 | **Bulgarian Bible** | Bulgarian | **Not cleared** | ❌ Not shipped | Deferred until written permission or a verified public-domain source is obtained |

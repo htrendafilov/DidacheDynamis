@@ -29,7 +29,33 @@ _KNOWN_TAGS = {
 _BLOCK_TAGS = {"p", "item", "title"}
 _CHAPTER = re.compile(r"^chapter\s+\d+$", re.IGNORECASE)
 _NON_ID = re.compile(r"[^\w]+", re.UNICODE)
-_SMALL_TITLE_WORDS = {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "the", "to"}
+_SMALL_TITLE_WORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "by",
+    "for",
+    "in",
+    "of",
+    "on",
+    "the",
+    "to",
+    "в",
+    "за",
+    "и",
+    "към",
+    "на",
+    "но",
+    "от",
+    "по",
+    "при",
+    "с",
+    "се",
+    "след",
+    "чрез",
+}
 
 
 class _DocumentParser(HTMLParser):
@@ -154,19 +180,24 @@ def _section_slug(value: str) -> str:
     return slug
 
 
+def _title_case(value: str) -> str:
+    if not value.isupper():
+        return value
+    words = value.casefold().split()
+    return " ".join(
+        word if index and word in _SMALL_TITLE_WORDS else word[:1].upper() + word[1:]
+        for index, word in enumerate(words)
+    )
+
+
 def _display_title(leaf: str, body: dict) -> str:
     headings = [block["text"] for block in body["blocks"] if block["kind"] == "heading"]
     if leaf.casefold() == "content":
-        return "Contents"
-    if (_CHAPTER.match(leaf) and len(headings) >= 2) or leaf.casefold() == "end":
-        subject = headings[1] if _CHAPTER.match(leaf) else headings[0]
-        if subject.isupper():
-            words = subject.casefold().split()
-            subject = " ".join(
-                word if index and word in _SMALL_TITLE_WORDS else word[:1].upper() + word[1:]
-                for index, word in enumerate(words)
-            )
-        return f"{leaf} — {subject}" if _CHAPTER.match(leaf) else subject
+        return _title_case(headings[1]) if len(headings) >= 2 else "Contents"
+    if _CHAPTER.match(leaf) and len(headings) >= 2:
+        return f"{_title_case(headings[0])} — {_title_case(headings[1])}"
+    if leaf.casefold() in {"end", "foreword"} and headings:
+        return _title_case(headings[0])
     return leaf
 
 

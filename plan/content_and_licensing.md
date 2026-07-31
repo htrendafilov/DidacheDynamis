@@ -17,9 +17,8 @@ before shipping, and store that evidence with the work.
 | Baptist Confession of Faith of 1689 | General Book | EN | Public domain | CrossWire `BaptistConfession1689` 1.0.2 plus documented editorial revision 1; the unaltered export is retained as the provenance base. |
 | Баптистка изповед на вярата от 1689 г. | General Book / SWORD package | BG | CC0 1.0 Universal | Bulgarian translation and editorial revision released under CC0 on 2026-07-29; source chain, checksums, and correction record are committed with the work. |
 
-The hosted v1 reader remains English-only until the Bulgarian work is wired into the production
-import. The separately built Bulgarian SWORD package is redistributable now that its CC0 rights are
-recorded.
+The hosted v1 reader includes both the reviewed English Confession and its CC0 Bulgarian translation.
+The same Bulgarian source also builds the separately installable SWORD package.
 
 Production does not republish CCEL's downloadable XML editions: CCEL's policy asks users to contact
 them before republishing CCEL works. Its near-facsimile 1677 Confession transcription is used only
@@ -72,10 +71,10 @@ negotiated for) or as `allowed` (exceeding it). See
 [`interactive_chat_plan.md`](interactive_chat_plan.md) §8.5 and
 [`chat/m9.1-licence-metadata.md`](chat/m9.1-licence-metadata.md) for the full design.
 
-All eight works listed above (WEB, KJV, MHC, Easton's, TSK, the 1689 Confession, and the two Strong's
-lexicons) are `allowed` — each is public domain or CrossWire-licensed, and none of those grants
-restricts onward transmission to a third-party service. **A new work must state its policy explicitly
-at import time**: `bibleimport build`/`add-book --ai-context-policy
+All nine works listed above (WEB, KJV, MHC, Easton's, TSK, both language editions of the 1689
+Confession, and the two Strong's lexicons) are `allowed` — each is public domain, CC0, or
+CrossWire-licensed, and none of those grants restricts onward transmission to a third-party service.
+**A new work must state its policy explicitly at import time**: `bibleimport build`/`add-book --ai-context-policy
 {allowed,allowed_no_training,prohibited,unknown}` is a required CLI argument, and
 `WorkMeta.ai_context_policy` has no default in code, so a work cannot be imported without the question
 being answered. Default to `prohibited` unless the work's licence explicitly permits sending its text
@@ -165,5 +164,6 @@ license agreement is in hand. Everything below is the supporting analysis and fa
   display, search, and formatting rights described above.
 
 **Decision gate:** obtain ББД permission (A) — or fall back to B/C/D — and record the rights evidence
-(and any delivery/storage constraints) before importing/publishing the Bulgarian Bible. Until then it
-stays out of the shipped app; v1 ships English-only regardless.
+(and any delivery/storage constraints) before importing/publishing the Bulgarian Bible. Until then
+the Bulgarian Bible stays out of the shipped app; this does not affect the cleared CC0 Bulgarian
+Confession.

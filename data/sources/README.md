@@ -28,6 +28,9 @@ Rebuild the whole database in one step (the Docker build uses exactly this):
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 ```
 
+The release build imports both reviewed editions of the 1689 Confession: `baptist1689` (English) and
+`baptist1689bg` (Bulgarian, CC0).
+
 Or run the stages individually:
 
 ```

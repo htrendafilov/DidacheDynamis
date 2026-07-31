@@ -20,6 +20,20 @@ def test_baptist_confession_uses_reviewed_source_and_provenance():
     assert "No doctrinal or stylistic modernization" in spec.attribution
 
 
+def test_bulgarian_baptist_confession_is_a_cc0_release_source():
+    assert cli.SOURCE_FILES["baptist1689bg"] == "BaptistConfession1689_BG.imp.gz"
+    spec = cli.BAPTIST_1689_BG_SPEC
+    assert spec.work_id == "baptist1689bg"
+    assert spec.language == "bg"
+    assert spec.license == "CC0 1.0 Universal"
+    assert spec.ai_context_policy == "allowed"
+    assert "CC0 1.0 Universal" in spec.attribution
+    assert cli.GENERAL_BOOK_SPECS == (
+        ("baptist1689", cli.BAPTIST_1689_SPEC),
+        ("baptist1689bg", spec),
+    )
+
+
 def test_build_web_writes_default_diagnostics_and_audit_line(tmp_path, capsys):
     out = tmp_path / "content.sqlite"
 
