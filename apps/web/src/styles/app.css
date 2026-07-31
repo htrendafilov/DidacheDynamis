@@ -262,34 +262,49 @@ input[type="search"] {
   margin: 0;
   font-size: 1rem;
 }
+.chat-panel > * {
+  /* Stated explicitly (the default) so the next block added above the message list
+     cannot quietly start competing for space again — .chat-messages is the only child
+     meant to grow (plan/chat/m9.3b-chat-layout.md). */
+  flex: none;
+}
 .chat-disclaimer {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
   margin: 0;
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.8rem;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
 }
-
-.chat-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
-  overflow-y: auto;
-}
-.chat-settings-provider {
+.chat-disclaimer p {
   margin: 0;
-  font-weight: 600;
+  flex: 1;
+  min-width: 0;
 }
+.chat-disclaimer.collapsed p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-disclaimer-toggle {
+  flex: none;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
 .chat-settings-connect,
 .chat-settings-connected,
-.chat-settings-model,
 .chat-settings-privacy {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+.chat-settings-provider {
+  margin: 0;
+  font-weight: 600;
 }
 .chat-settings-privacy-note {
   color: var(--muted);
@@ -341,6 +356,28 @@ input[type="search"] {
   flex-direction: column;
   gap: 0.6rem;
 }
+
+/* Per-turn context strip: directly above the composer, one line collapsed. */
+.chat-context-strip {
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.chat-context-strip > summary {
+  padding: 0.4rem 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.chat-context-strip > summary::-webkit-details-marker {
+  display: none;
+}
+.chat-context-strip[open] {
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.chat-context-strip .context-picker {
+  padding: 0 0.75rem 0.6rem;
+}
 .chat-message {
   display: flex;
   flex-direction: column;
@@ -374,7 +411,9 @@ input[type="search"] {
 }
 
 .chat-composer {
+  position: relative;
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
   border-top: 1px solid var(--border);
@@ -384,6 +423,115 @@ input[type="search"] {
   min-height: 2.4rem;
   font: inherit;
   resize: vertical;
+}
+.chat-composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.chat-composer-toolbar > :last-child {
+  margin-left: auto;
+}
+
+/* Model + provider settings, reachable from a composer-toolbar chip
+   (plan/chat/m9.3b-chat-layout.md). */
+.chat-model-picker {
+  position: relative;
+}
+.chat-model-chip {
+  max-width: 14rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chat-model-popover {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 2;
+  width: max(20rem, 100%);
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.chat-drawer.fullscreen .chat-model-popover {
+  position: fixed;
+  inset: auto 0 0 0;
+  bottom: 0;
+  width: auto;
+  max-height: 80vh;
+  border-radius: 8px 8px 0 0;
+}
+.chat-model-search input {
+  width: 100%;
+}
+.chat-model-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.chat-model-option {
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.chat-model-option.active,
+.chat-model-option:hover {
+  background: var(--bg-alt);
+}
+.chat-model-option[aria-selected="true"] {
+  font-weight: 600;
+}
+
+/* Overflow (⚙) menu: private session, clear/export history. */
+.chat-overflow-menu {
+  position: relative;
+}
+.chat-overflow-menu-popover {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 14rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.chat-drawer.fullscreen .chat-overflow-menu-popover {
+  position: fixed;
+  inset: auto 0 0 0;
+  bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+.chat-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+}
+.chat-overflow-menu-popover button {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0.3rem 0.4rem;
+}
+.chat-overflow-menu-popover button:hover:not(:disabled) {
+  background: var(--bg-alt);
 }
 
 /* Verse briefly highlighted when opened from a search result. */

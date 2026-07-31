@@ -324,6 +324,7 @@ export function ContextPicker({
   const works = useWorks();
   const [enabled, setEnabled] = useState<Set<string>>(new Set());
   const [verseEdits, setVerseEdits] = useState<Record<string, VerseEdit>>({});
+  const [stripOpen, setStripOpen] = useState(false);
   const initialized = useRef(false);
 
   const paneCandidates = useMemo(() => {
@@ -436,8 +437,27 @@ export function ContextPicker({
     // comment above.
   }, [enabled, paneCandidates, works, privacyRouting, loggingConfirmed, onChipsChange]);
 
+  // A one-line preview of what the next turn will carry, without expanding the strip.
+  // Built only from what this level already knows (pane candidate labels), not a real
+  // token estimate — that needs the fetched excerpt, which only buildContext has, at send
+  // time. Lexicon/xref/note/book chips (labelled inside their own subcomponents, not
+  // here) are folded into a bare count rather than duplicating their label logic up here.
+  const enabledPaneLabels = paneCandidates.filter((c) => enabled.has(c.key)).map((c) => c.label);
+  const otherEnabledCount = enabled.size - enabledPaneLabels.length;
+  const stripLabels = otherEnabledCount > 0 ? [...enabledPaneLabels, `+${otherEnabledCount}`] : enabledPaneLabels;
+  const stripSummary =
+    enabled.size === 0
+      ? t("chat.context.stripEmpty")
+      : t("chat.context.stripSummary", { labels: stripLabels.join(", ") });
+
   return (
-    <fieldset className="context-picker">
+    <details
+      className="chat-context-strip"
+      open={stripOpen}
+      onToggle={(event) => setStripOpen(event.currentTarget.open)}
+    >
+      <summary>{stripSummary}</summary>
+      <fieldset className="context-picker">
       <legend>{t("chat.context.title")}</legend>
       {paneCandidates.map((c) => {
         const { eligible, reason } = chipEligibility(c.chip, works, privacyRouting);
@@ -509,7 +529,8 @@ export function ContextPicker({
       {bibleChapters.map(({ osis, chapter }) => (
         <NoteChips key={`${osis}:${chapter}`} osis={osis} chapter={chapter} enabled={enabled} onToggle={toggle} />
       ))}
-    </fieldset>
+      </fieldset>
+    </details>
   );
 }
 

@@ -26,6 +26,7 @@ vi.mock("../../data/hooks", () => ({
 }));
 
 import { clearAll as clearChatHistory } from "../../chat/history";
+import { ChatDrawer } from "./ChatDrawer";
 import { ChatPanel } from "./ChatPanel";
 
 const SENTINEL_KEY = "sk-or-v1-TESTSENTINEL0123456789abcdef";
@@ -99,8 +100,20 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
+// The model chip's accessible name is localized and changes once a model is selected
+// ("Select a model" / model name), so a CSS-class lookup is more robust here than a
+// role+name query would be across every call site.
+function openModelPicker() {
+  fireEvent.click(document.querySelector(".chat-model-chip") as HTMLElement);
+}
+
+function openOverflowMenu() {
+  fireEvent.click(document.querySelector(".chat-overflow-menu-button") as HTMLElement);
+}
+
 async function connectAndSelectModel() {
   render(<ChatPanel onClose={() => {}} />);
+  openModelPicker();
   await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
 
   fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
@@ -111,12 +124,14 @@ async function connectAndSelectModel() {
   fireEvent.click(screen.getByRole("button", { name: "Connect" }));
   await waitFor(() => expect(screen.getByText("Connected to OpenRouter.")).toBeInTheDocument());
 
-  fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+  // Selecting a model closes the popover, same as a real click would.
+  fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
 }
 
 describe("ChatPanel", () => {
   it("disables Connect until the terms acknowledgement is checked and a key is entered", async () => {
     render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
 
     const connectButton = screen.getByRole("button", { name: "Connect" });
@@ -143,6 +158,7 @@ describe("ChatPanel", () => {
 
   it("shows a typed error and does not connect on a rejected key", async () => {
     render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
@@ -340,18 +356,18 @@ describe("ChatPanel", () => {
     expect(screen.getByText(/As shown in/)).toBeInTheDocument();
   });
 
-  it("keeps a selected model sendable after a filter hides it from the visible list", async () => {
+  it("keeps a selected model sendable after a search filters it out of view", async () => {
     await connectAndSelectModel(); // selects openrouter/free
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
 
-    // Filter to something that matches only the OTHER model, not the selected one.
-    fireEvent.change(screen.getByLabelText("Filter models"), { target: { value: "claude" } });
+    // Search for something that matches only the OTHER model, not the selected one.
+    openModelPicker();
+    fireEvent.change(screen.getByLabelText("Search models"), { target: { value: "claude" } });
 
-    const select = screen.getByLabelText("Model") as HTMLSelectElement;
     // The selection must still resolve to a real, visible option -- never silently fall
-    // back to the empty placeholder while state disagrees with what is on screen.
-    expect(select.value).toBe("openrouter/free");
-    expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument();
+    // back to no selection while state disagrees with what is on screen.
+    const option = screen.getByRole("option", { name: /Free Models Router/ });
+    expect(option).toHaveAttribute("aria-selected", "true");
 
     fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -365,14 +381,17 @@ describe("ChatPanel", () => {
 
   it("links OpenRouter Terms, and a selected model's detail page with a Model Terms notice", async () => {
     render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
 
     const termsLink = screen.getByRole("link", { name: /OpenRouter Terms/ });
     expect(termsLink).toHaveAttribute("href", "https://openrouter.ai/terms");
 
     expect(screen.queryByText(/its own terms may apply/)).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+    fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
 
+    // Selecting the option closed the popover; the model-terms notice lives inside it.
+    fireEvent.click(screen.getByRole("button", { name: "Free Models Router" }));
     const modelLink = screen.getByRole("link", { name: /Free Models Router on OpenRouter/ });
     expect(modelLink).toHaveAttribute("href", "https://openrouter.ai/openrouter/free");
     expect(screen.getByText(/this model's own terms may apply/)).toBeInTheDocument();
@@ -380,6 +399,7 @@ describe("ChatPanel", () => {
 
   it("shows prompt/completion pricing for each model in the picker", async () => {
     render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
     await waitFor(() =>
       expect(
         screen.getByRole("option", { name: /Claude Haiku 4\.5.*in \$1\.00\/M, out \$5\.00\/M/ }),
@@ -394,6 +414,7 @@ describe("ChatPanel", () => {
     expect(screen.getByText(/Отговорите се генерират от външна AI услуга/)).toBeInTheDocument();
     // The model catalogue fetch resolves after render; wait for it so its state update
     // is not left dangling outside an act() boundary.
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
   });
 });
@@ -466,13 +487,14 @@ describe("ChatPanel grounded flow (M9.3)", () => {
   it("calls onCitationNavigate when a resolved citation is clicked", async () => {
     const onCitationNavigate = vi.fn();
     render(<ChatPanel onClose={() => {}} onCitationNavigate={onCitationNavigate} />);
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
     fireEvent.change(screen.getByLabelText("OpenRouter API key"), { target: { value: SENTINEL_KEY } });
     fetchMock.mockImplementationOnce(() => Promise.resolve(keyInfoResponse()));
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(screen.getByText("Connected to OpenRouter.")).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+    fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
 
     buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
@@ -514,21 +536,22 @@ describe("ChatPanel grounded flow (M9.3)", () => {
 describe("ChatPanel history (M9.3 step 6)", () => {
   it("disables both Clear controls while a turn is streaming, re-enabling once it settles", async () => {
     await connectAndSelectModel();
+    openOverflowMenu();
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
     let resolveFetch: ((value: Response) => void) | null = null;
     fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (resolveFetch = resolve)));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Clear all history" })).toBeDisabled());
-    expect(screen.getByRole("button", { name: "Clear this conversation" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Clear all history" })).toBeDisabled());
+    expect(screen.getByRole("menuitem", { name: "Clear this conversation" })).toBeDisabled();
 
     await waitFor(() => expect(resolveFetch).not.toBeNull());
     await act(async () => {
       resolveFetch?.(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
     });
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Clear all history" })).not.toBeDisabled());
-    expect(screen.getByRole("button", { name: "Clear this conversation" })).not.toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Clear all history" })).not.toBeDisabled());
+    expect(screen.getByRole("menuitem", { name: "Clear this conversation" })).not.toBeDisabled();
   });
 
   it("finds saved history on reload: a new mount restores the previous thread's messages", async () => {
@@ -554,6 +577,7 @@ describe("ChatPanel history (M9.3 step 6)", () => {
 
   it("a private session never touches Dexie: nothing is there to find after reload", async () => {
     await connectAndSelectModel();
+    openOverflowMenu();
     fireEvent.click(screen.getByRole("checkbox", { name: /private session/i }));
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "secret" } });
     fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
@@ -570,12 +594,13 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    openOverflowMenu();
     // Clear stays disabled until the turn (including its own history save) settles —
     // wait for that, not just for the visible text, before clicking it.
-    await waitFor(() => expect(screen.getByRole("button", { name: "Clear this conversation" })).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Clear this conversation" })).not.toBeDisabled());
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    fireEvent.click(screen.getByRole("button", { name: "Clear this conversation" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Clear this conversation" }));
 
     await waitFor(() => expect(screen.queryByText("ok")).not.toBeInTheDocument());
     const { listThreads } = await import("../../chat/history");
@@ -584,6 +609,7 @@ describe("ChatPanel history (M9.3 step 6)", () => {
 
   it("shows the first-use notice once, and dismissing it persists across mounts", async () => {
     const { unmount } = render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
     expect(screen.getByText(/not synced to Dropbox/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
@@ -591,13 +617,15 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     unmount();
 
     render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
     expect(screen.queryByText(/not synced to Dropbox/)).not.toBeInTheDocument();
   });
 
   it("refuses to send when the sources alone cannot fit the model's context window", async () => {
     await connectAndSelectModel();
-    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "tiny/model" } });
+    openModelPicker();
+    fireEvent.click(screen.getByRole("option", { name: /Tiny Window/ }));
 
     // ~2,290 estimated tokens of sources against a 4,000-token window, once 1,500 is
     // reserved for the answer: this cannot fit, and the old code would have discovered
@@ -650,5 +678,73 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     await waitFor(() => expect(screen.getByText(/blocked by (its|their) licence/i)).toBeInTheDocument());
     expect(screen.getByText(/MHC — John 3/)).toBeInTheDocument();
     expect(screen.getByText(/turn on privacy routing/i)).toBeInTheDocument();
+  });
+});
+
+describe("ChatPanel layout refit (M9.3b)", () => {
+  it("Escape inside the model popover closes only the popover, leaving the workspace open", async () => {
+    const onClose = vi.fn();
+    render(
+      <ChatDrawer open fullscreen={false} width={420} onWidthChange={() => {}} onClose={onClose}>
+        <ChatPanel onClose={onClose} />
+      </ChatDrawer>,
+    );
+    openModelPicker();
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Model and provider settings" }), { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Model and provider settings" })).not.toBeInTheDocument();
+    // ChatDrawer's own Escape handler is registered on window; if the popover had not
+    // stopped propagation, this is the handler that would have fired.
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("returns focus to the model chip when the popover closes", async () => {
+    render(<ChatPanel onClose={() => {}} />);
+    const chip = document.querySelector(".chat-model-chip") as HTMLElement;
+    fireEvent.click(chip);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(document.activeElement).toBe(chip);
+  });
+
+  it("never renders a remaining-credit figure anywhere after connecting (§7.2)", async () => {
+    await connectAndSelectModel();
+    openModelPicker();
+    expect(screen.queryByText(/credit remaining/i)).not.toBeInTheDocument();
+  });
+
+  it("composer toolbar shows the model chip's placeholder, then the selected model's name", async () => {
+    render(<ChatPanel onClose={() => {}} />);
+    expect(screen.getByRole("button", { name: "Select a model" })).toBeInTheDocument();
+
+    openModelPicker();
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
+
+    expect(screen.getByRole("button", { name: "Free Models Router" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select a model" })).not.toBeInTheDocument();
+  });
+
+  it("keeps .chat-messages as the last growable child of .chat-panel, with no popover markup mounted while closed", async () => {
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(document.querySelector(".chat-model-chip")).toBeInTheDocument());
+
+    const panel = document.querySelector(".chat-panel") as HTMLElement;
+    const directChildren = [...panel.children];
+    const messagesIndex = directChildren.findIndex((el) => el.classList.contains("chat-messages"));
+    expect(messagesIndex).toBeGreaterThan(-1);
+    // Only the collapsible context strip and the composer may follow the message list —
+    // neither is a growable content block competing with it for space.
+    expect(
+      directChildren.slice(messagesIndex + 1).every((el) => el.tagName === "DETAILS" || el.tagName === "FORM"),
+    ).toBe(true);
+
+    // The popover is closed by default: none of its markup, including the connect form,
+    // is in the DOM until the chip is clicked.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenRouter API key")).not.toBeInTheDocument();
   });
 });
