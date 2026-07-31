@@ -45,6 +45,9 @@ export interface ChatRun {
   contentVersion: string;
   actualModel?: string;
   usage?: ChatUsage;
+  // Why the answer stopped. Restored so a reloaded turn still shows *why* it is incomplete
+  // ("cut off at the answer limit" vs. "the stream ended early"), not just that it is.
+  finishReason?: string | null;
 }
 
 class ChatHistoryDB extends Dexie {

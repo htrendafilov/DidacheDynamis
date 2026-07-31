@@ -90,7 +90,11 @@ beforeEach(async () => {
   // The zustand store is module state and outlives a test; a test that changes the context
   // budget would otherwise silently reset the limits every later test asserts against.
   const { useStore } = await import("../../state/store");
-  useStore.getState().setSettings({ chatPerSourceCap: undefined, chatTotalBudget: undefined });
+  useStore.getState().setSettings({
+    chatPerSourceCap: undefined,
+    chatTotalBudget: undefined,
+    chatMaxAnswerTokens: undefined,
+  });
   fetchMock = vi.fn().mockImplementation((url: string) => {
     if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
     return Promise.reject(new Error(`unexpected fetch: ${url}`));
@@ -741,6 +745,53 @@ describe("ChatPanel layout refit (M9.3b)", () => {
     const summary = document.querySelector(".chat-context-summary")!.textContent ?? "";
     expect(summary).toContain("(~21,628)");
     expect(summary).toMatch(/per-source limit is 6,000 tokens/i);
+  });
+
+  it("flags an answer cut off at the answer limit, and says which limit", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse(
+        'data: {"choices":[{"delta":{"content":"half a thou"},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n',
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    // A truncation ends the stream cleanly, so this used to render as a finished answer.
+    await waitFor(() => expect(screen.getByText(/cut off at the answer limit/i)).toBeInTheDocument());
+  });
+
+  it("shows the prompt/completion split, not just the total", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse(
+        'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}],' +
+          '"usage":{"prompt_tokens":2613,"completion_tokens":1500,"total_tokens":4113}}\n\ndata: [DONE]\n\n',
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    // A completion sitting exactly on the answer limit is the signature of max_tokens
+    // truncation; without the split there is no way to see that from the UI.
+    await waitFor(() => expect(screen.getByText(/2,613 sent \+ 1,500 answered/)).toBeInTheDocument());
+  });
+
+  it("sends the configured answer budget as max_tokens, capped by the model's own ceiling", async () => {
+    const { useStore } = await import("../../state/store");
+    await connectAndSelectModel();
+    useStore.getState().setSettings({ chatMaxAnswerTokens: 12000 });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    const sendCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/chat/completions"));
+    const body = JSON.parse(sendCall![1].body as string);
+    // openrouter/free reports no top_provider ceiling in the fixture, so the setting stands.
+    expect(body.max_tokens).toBe(12000);
   });
 
   it("Escape from the gear button closes only the menu, leaving the workspace open", async () => {

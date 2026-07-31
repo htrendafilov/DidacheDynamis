@@ -10,10 +10,13 @@ import {
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
 import { getProvider, modelDetailUrl } from "../../chat/providers";
 import {
+  MAX_MAX_ANSWER_TOKENS,
   MAX_PER_SOURCE_CAP,
   MAX_TOTAL_BUDGET,
+  MIN_MAX_ANSWER_TOKENS,
   MIN_PER_SOURCE_CAP,
   MIN_TOTAL_BUDGET,
+  effectiveMaxAnswerTokens,
   resolveContextBudget,
 } from "../../chat/contextBudget";
 import { useStore } from "../../state/store";
@@ -91,9 +94,12 @@ export function ModelPicker({
   const setSettings = useStore((s) => s.setSettings);
   const chatPerSourceCap = useStore((s) => s.settings.chatPerSourceCap);
   const chatTotalBudget = useStore((s) => s.settings.chatTotalBudget);
+  const chatMaxAnswerTokens = useStore((s) => s.settings.chatMaxAnswerTokens);
   // Clamped/defaulted for display, so the fields always show the values retrieval will
   // actually use rather than whatever half-typed number is in storage.
-  const budget = resolveContextBudget({ chatPerSourceCap, chatTotalBudget });
+  const budget = resolveContextBudget({ chatPerSourceCap, chatTotalBudget, chatMaxAnswerTokens });
+  // What will actually be sent, after the selected model's own ceiling applies.
+  const answerTokens = effectiveMaxAnswerTokens(budget, selectedModel?.maxCompletionTokens);
 
   const chipRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -389,7 +395,25 @@ export function ModelPicker({
                 onChange={(event) => setSettings({ chatTotalBudget: Number(event.target.value) })}
               />
             </label>
+            <label>
+              {t("chat.budget.answer")}
+              <input
+                type="number"
+                min={MIN_MAX_ANSWER_TOKENS}
+                max={MAX_MAX_ANSWER_TOKENS}
+                step={100}
+                value={budget.maxAnswerTokens}
+                onKeyDown={suppressEnterSubmit}
+                onChange={(event) => setSettings({ chatMaxAnswerTokens: Number(event.target.value) })}
+              />
+            </label>
+            {answerTokens < budget.maxAnswerTokens && (
+              <p className="chat-settings-quality-caveat">
+                {t("chat.budget.answerCappedByModel", { tokens: answerTokens.toLocaleString() })}
+              </p>
+            )}
             <p className="chat-settings-quality-caveat">{t("chat.budget.help")}</p>
+            <p className="chat-settings-quality-caveat">{t("chat.budget.answerHelp")}</p>
           </div>
 
           {connected && (

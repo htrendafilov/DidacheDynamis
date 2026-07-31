@@ -16,6 +16,8 @@ export interface ChatModel {
   id: string;
   name: string;
   contextLength: number;
+  /** The provider's own ceiling on a single completion; null when it does not report one. */
+  maxCompletionTokens: number | null;
   pricing: { prompt: string; completion: string };
   supportsTools: boolean;
   reasoning: ModelReasoningCaps | null;
@@ -136,6 +138,7 @@ interface RawOpenRouterModel {
   id: string;
   name: string;
   context_length: number;
+  top_provider?: { max_completion_tokens?: number | null };
   pricing: { prompt: string; completion: string };
   supported_parameters?: string[];
   reasoning?: {
@@ -150,6 +153,7 @@ function toChatModel(raw: RawOpenRouterModel): ChatModel {
     id: raw.id,
     name: raw.name,
     contextLength: raw.context_length,
+    maxCompletionTokens: raw.top_provider?.max_completion_tokens ?? null,
     pricing: raw.pricing,
     supportsTools: (raw.supported_parameters ?? []).includes("tools"),
     reasoning: raw.reasoning
@@ -287,7 +291,11 @@ async function attemptStream(
     actualModel,
     finishReason,
     usage,
-    incomplete: !sawDone,
+    // finish_reason "length" means the answer was cut off at max_tokens. That ends the
+    // stream normally — [DONE] is still sent — so `!sawDone` alone reported it as complete,
+    // and the reader saw an answer stopping mid-word with nothing to say it had been
+    // truncated. In a study tool that can cut off mid-claim.
+    incomplete: !sawDone || finishReason === "length",
   };
 }
 

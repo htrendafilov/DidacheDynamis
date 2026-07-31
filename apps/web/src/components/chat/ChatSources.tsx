@@ -32,6 +32,17 @@ export function ChatSources({
       <p className="chat-sources-meta">
         {actualModel && <span>{t("chat.answeredBy", { model: actualModel })}</span>}
         {usage?.totalTokens != null && <span>{t("chat.tokensUsed", { count: usage.totalTokens })}</span>}
+        {/* The split is what makes a truncated answer diagnosable: a completion sitting
+            exactly on the answer limit is the signature of max_tokens cutting it off, and
+            a total far above prompt+completion is hidden reasoning (m9.0-findings.md §8a). */}
+        {usage?.promptTokens != null && usage?.completionTokens != null && (
+          <span className="chat-usage-split">
+            {t("chat.tokensSplit", {
+              prompt: usage.promptTokens.toLocaleString(),
+              completion: usage.completionTokens.toLocaleString(),
+            })}
+          </span>
+        )}
         <span>{t("chat.sources.contentVersion", { version: contentVersion })}</span>
       </p>
     </details>

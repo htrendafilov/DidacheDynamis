@@ -16,7 +16,7 @@ import {
 } from "../../chat/client";
 import { planRequestBudget } from "../../chat/budget";
 import { buildContext } from "../../chat/context";
-import { resolveContextBudget } from "../../chat/contextBudget";
+import { effectiveMaxAnswerTokens, resolveContextBudget } from "../../chat/contextBudget";
 import { connectedProviders, disconnect as disconnectProvider } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
 import {
@@ -44,10 +44,6 @@ import { initialLoggingConfirmed, ModelPicker } from "./ModelPicker";
 
 const HISTORY_NOTICE_KEY = "bible-chat-history-notice-dismissed";
 
-// Reserved for the answer. Shares the model's context window with everything sent, which is
-// why budget.ts needs it to decide what fits.
-const MAX_COMPLETION_TOKENS = 1500;
-
 function downloadJson(filename: string, data: unknown): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -65,6 +61,9 @@ interface DisplayMessage {
   role: "user" | "assistant";
   text: string;
   incomplete?: boolean;
+  // "length" means max_tokens cut the answer off — actionable (raise the answer budget),
+  // unlike a stream that simply ended early.
+  finishReason?: string | null;
   errorKind?: ChatErrorKind;
   // Routers substitute models (m9.0-findings.md §9: 5 requests, 5 different models), so
   // this is what actually answered, not what was requested — plan §17 requires it visible.
@@ -108,6 +107,7 @@ export function ChatPanel({
   const uiLang = useStore((s) => s.settings.uiLang);
   const chatPerSourceCap = useStore((s) => s.settings.chatPerSourceCap);
   const chatTotalBudget = useStore((s) => s.settings.chatTotalBudget);
+  const chatMaxAnswerTokens = useStore((s) => s.settings.chatMaxAnswerTokens);
   const works = useWorks();
 
   const [connected, setConnected] = useState(() => connectedProviders().includes("openrouter"));
@@ -151,6 +151,7 @@ export function ChatPanel({
             role: m.role,
             text: m.text,
             incomplete: m.incomplete,
+            finishReason: run?.finishReason,
             actualModel: run?.actualModel,
             usage: run?.usage,
             manifest: run ? buildManifest(JSON.parse(run.sourceManifestJson) as StudySource[]) : [],
@@ -314,7 +315,14 @@ export function ChatPanel({
 
     let assistantText = "";
     try {
-      const budgetLimits = resolveContextBudget({ chatPerSourceCap, chatTotalBudget });
+      const budgetLimits = resolveContextBudget({
+        chatPerSourceCap,
+        chatTotalBudget,
+        chatMaxAnswerTokens,
+      });
+      // Never above the model's own ceiling: a max_tokens larger than the model allows is
+      // a request the provider rejects outright.
+      const answerTokens = effectiveMaxAnswerTokens(budgetLimits, selectedModel.maxCompletionTokens);
       const { sources, dropped } = await buildContext(
         chips,
         works ?? [],
@@ -331,7 +339,7 @@ export function ChatPanel({
       // unbounded on its own and the model's window has to hold all of it plus the answer.
       const budget = planRequestBudget(priorHistory, {
         fixedTokens: estimateProseTokens(system.content) + estimateProseTokens(user.content),
-        maxCompletionTokens: MAX_COMPLETION_TOKENS,
+        maxCompletionTokens: answerTokens,
         contextLength: selectedModel.contextLength,
       });
 
@@ -368,7 +376,7 @@ export function ChatPanel({
           providerId: "openrouter",
           model: selectedModel.id,
           messages: requestMessages,
-          maxTokens: MAX_COMPLETION_TOKENS,
+          maxTokens: answerTokens,
           privacyRouting,
           reasoningCaps: selectedModel.reasoning,
           signal: controller.signal,
@@ -401,6 +409,7 @@ export function ChatPanel({
             ? {
                 ...m,
                 incomplete: meta.incomplete,
+                finishReason: meta.finishReason,
                 actualModel: meta.actualModel ?? m.actualModel,
                 usage: meta.usage ?? m.usage,
                 manifest,
@@ -423,6 +432,7 @@ export function ChatPanel({
           contentVersion: sources[0]?.contentVersion ?? "unknown",
           actualModel: meta.actualModel ?? undefined,
           usage: meta.usage ?? undefined,
+          finishReason: meta.finishReason,
         });
       }
     } catch (err) {
@@ -465,7 +475,11 @@ export function ChatPanel({
               <span className="chat-message-text">{m.text}</span>
             )}
             {m.contextSummary && <p className="chat-context-summary">{m.contextSummary}</p>}
-            {m.incomplete && <span className="chat-message-flag">{t("chat.incomplete")}</span>}
+            {m.incomplete && (
+              <span className="chat-message-flag">
+                {m.finishReason === "length" ? t("chat.truncatedByAnswerLimit") : t("chat.incomplete")}
+              </span>
+            )}
             {m.errorKind && (
               <span className="chat-message-flag" role="alert">
                 {t(`chat.error.${m.errorKind}`)}
@@ -479,6 +493,14 @@ export function ChatPanel({
                 {m.usage?.totalTokens != null && (
                   <span className="chat-message-usage">
                     {t("chat.tokensUsed", { count: m.usage.totalTokens })}
+                  </span>
+                )}
+                {m.usage?.promptTokens != null && m.usage?.completionTokens != null && (
+                  <span className="chat-usage-split">
+                    {t("chat.tokensSplit", {
+                      prompt: m.usage.promptTokens.toLocaleString(),
+                      completion: m.usage.completionTokens.toLocaleString(),
+                    })}
                   </span>
                 )}
                 {m.usage?.isByok && <span className="chat-message-byok">{t("chat.byok")}</span>}

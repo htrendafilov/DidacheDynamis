@@ -29,20 +29,41 @@ export interface ProviderConfig {
   // §4b — capability-driven, NOT an unconditional constant. `caps` comes from the
   // OpenRouter model catalogue; `null` follows the measured router fallback (send the
   // disable flag anyway, because openrouter/free was measured and needs it).
+  /** Configures the reasoning parameter: off where possible, otherwise as cheap as possible. */
   suppressReasoning(body: Record<string, unknown>, caps: ModelReasoningCaps | null): void;
 }
 
-function suppressOpenRouterReasoning(
+// Cheapest first. A model that cannot switch reasoning off can usually still be asked to
+// spend less on it, and every token it spends is taken from the same max_tokens the visible
+// answer draws on.
+const EFFORT_PREFERENCE = ["minimal", "low", "medium", "high"] as const;
+
+function lowestSupportedEffort(caps: ModelReasoningCaps): string | null {
+  const supported = caps.supportedEfforts;
+  if (!supported || supported.length === 0) return null;
+  return EFFORT_PREFERENCE.find((effort) => supported.includes(effort)) ?? null;
+}
+
+function applyOpenRouterReasoningPolicy(
   body: Record<string, unknown>,
   caps: ModelReasoningCaps | null,
 ): void {
   // caps === null: dynamic router, metadata omitted the field. Measured on
   // openrouter/free (m9.0-findings.md §8): sending the disable flag works and is
   // required, or hidden reasoning silently consumes the whole answer budget.
-  // caps.mandatory === true: the model rejects a disable flag outright — do not send one.
   if (caps === null || !caps.mandatory) {
     body.reasoning = { enabled: false };
+    return;
   }
+
+  // Mandatory reasoning: the model rejects a disable flag outright, so do not send one.
+  // Sending nothing at all — which is what this used to do — leaves the model at its own
+  // default effort ("medium" for google/gemini-3.6-flash), and those hidden tokens come out
+  // of max_tokens. Observed in production: ~1,400 of a 1,500-token answer budget spent on
+  // reasoning, leaving an answer that stopped mid-word. Ask for the least effort the model
+  // admits to supporting instead.
+  const effort = lowestSupportedEffort(caps);
+  if (effort) body.reasoning = { effort };
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
@@ -60,7 +81,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     termsUrl: "https://openrouter.ai/terms",
     privacyNoteKey: "chat.privacy.openrouterNote",
     supportsPrivacyRouting: true,
-    suppressReasoning: suppressOpenRouterReasoning,
+    suppressReasoning: applyOpenRouterReasoningPolicy,
   },
 };
 
