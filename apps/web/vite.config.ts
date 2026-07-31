@@ -50,5 +50,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"], // unit tests only; e2e/ is Playwright
+    // Must clear setup.ts's asyncUtilTimeout (5s), or a slow findBy* trips vitest's own
+    // 5s default first and reports a bare test timeout instead of the element it wanted.
+    testTimeout: 20000,
   },
 });
