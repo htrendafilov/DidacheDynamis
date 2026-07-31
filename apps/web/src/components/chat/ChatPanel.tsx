@@ -501,6 +501,9 @@ export function ChatPanel({
                       prompt: m.usage.promptTokens.toLocaleString(),
                       completion: m.usage.completionTokens.toLocaleString(),
                     })}
+                    {m.usage.reasoningTokens != null && m.usage.reasoningTokens > 0 && (
+                      <> {t("chat.tokensReasoning", { reasoning: m.usage.reasoningTokens.toLocaleString() })}</>
+                    )}
                   </span>
                 )}
                 {m.usage?.isByok && <span className="chat-message-byok">{t("chat.byok")}</span>}

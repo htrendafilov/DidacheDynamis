@@ -49,6 +49,12 @@ export interface ChatUsage {
   // total without being recoverable by adding the visible component counts
   // (m9.0-findings.md §8a: prompt 20 + completion 4, total 136).
   totalTokens?: number;
+  // A count, never the text. The plan forbids storing chain-of-thought (§12) — this is
+  // billing metadata, and it is the only honest way to say how much of the output the
+  // reader never saw. OpenRouter reports it under completion_tokens_details, following
+  // OpenAI's schema, in which it is a component of completion_tokens rather than an
+  // addition to it.
+  reasoningTokens?: number;
   cost?: number;
   isByok?: boolean; // discloses an upstream BYOK endpoint OpenRouter selected
 }
@@ -209,6 +215,7 @@ interface StreamChunk {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
+    completion_tokens_details?: { reasoning_tokens?: number };
     cost?: number;
     is_byok?: boolean;
   };
@@ -219,6 +226,7 @@ function toChatUsage(raw: NonNullable<StreamChunk["usage"]>): ChatUsage {
     promptTokens: raw.prompt_tokens,
     completionTokens: raw.completion_tokens,
     totalTokens: raw.total_tokens,
+    reasoningTokens: raw.completion_tokens_details?.reasoning_tokens,
     cost: raw.cost,
     isByok: raw.is_byok,
   };

@@ -240,6 +240,37 @@ describe("streamChat", () => {
     await expect(streamChat(req(), handlers())).rejects.toMatchObject({ kind: "emptyAnswer" });
   });
 
+  it("parses reasoning_tokens from completion_tokens_details", async () => {
+    // OpenRouter reports it nested, following OpenAI's schema, where it is a component of
+    // completion_tokens rather than an addition to it. Reading the real field beats
+    // inferring one from total - prompt - completion, which holds only on some routes.
+    setKey("openrouter", "sk-test");
+    const stream = sseBody(
+      'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"length"}],' +
+        '"usage":{"prompt_tokens":2613,"completion_tokens":1500,"total_tokens":4113,' +
+        '"completion_tokens_details":{"reasoning_tokens":1380}}}\n\ndata: [DONE]\n\n',
+    );
+    fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    const meta = await streamChat(req(), handlers());
+    expect(meta.usage).toMatchObject({
+      promptTokens: 2613,
+      completionTokens: 1500,
+      totalTokens: 4113,
+      reasoningTokens: 1380,
+    });
+  });
+
+  it("leaves reasoningTokens undefined when the provider reports none", async () => {
+    setKey("openrouter", "sk-test");
+    const stream = sseBody(
+      'data: {"choices":[{"delta":{"content":"ok"}}],"usage":{"prompt_tokens":10,' +
+        '"completion_tokens":5,"total_tokens":15}}\n\ndata: [DONE]\n\n',
+    );
+    fetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    const meta = await streamChat(req(), handlers());
+    expect(meta.usage?.reasoningTokens).toBeUndefined();
+  });
+
   it("marks an answer cut off at max_tokens incomplete, even though the stream ended cleanly", async () => {
     // finish_reason "length" ends the stream normally — [DONE] is still sent — so deriving
     // `incomplete` from the missing [DONE] alone reported a truncated answer as complete.

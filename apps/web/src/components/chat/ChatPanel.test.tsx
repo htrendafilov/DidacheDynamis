@@ -772,9 +772,29 @@ describe("ChatPanel layout refit (M9.3b)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    // A completion sitting exactly on the answer limit is the signature of max_tokens
-    // truncation; without the split there is no way to see that from the UI.
-    await waitFor(() => expect(screen.getByText(/2,613 sent \+ 1,500 answered/)).toBeInTheDocument());
+    // "output", not "answered": reasoning is billed inside completion_tokens, so calling
+    // the whole figure "answered" would claim 1,500 tokens of visible answer when most of
+    // it was never shown.
+    await waitFor(() =>
+      expect(screen.getByText(/2,613 sent \+ 1,500 output/)).toBeInTheDocument(),
+    );
+  });
+
+  it("separates reasoning from the output count when the provider reports it", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse(
+        'data: {"choices":[{"delta":{"content":"half a thou"},"finish_reason":"length"}],' +
+          '"usage":{"prompt_tokens":2613,"completion_tokens":1500,"total_tokens":4113,' +
+          '"completion_tokens_details":{"reasoning_tokens":1380}}}\n\ndata: [DONE]\n\n',
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    // The whole point: 1,380 of the 1,500 was thinking the reader never saw, which is why
+    // the answer stopped mid-word. Reported, not inferred.
+    await waitFor(() => expect(screen.getByText(/1,380 of it reasoning/)).toBeInTheDocument());
   });
 
   it("sends the configured answer budget as max_tokens, capped by the model's own ceiling", async () => {

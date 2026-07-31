@@ -32,15 +32,19 @@ export function ChatSources({
       <p className="chat-sources-meta">
         {actualModel && <span>{t("chat.answeredBy", { model: actualModel })}</span>}
         {usage?.totalTokens != null && <span>{t("chat.tokensUsed", { count: usage.totalTokens })}</span>}
-        {/* The split is what makes a truncated answer diagnosable: a completion sitting
-            exactly on the answer limit is the signature of max_tokens cutting it off, and
-            a total far above prompt+completion is hidden reasoning (m9.0-findings.md §8a). */}
+        {/* Makes a truncated answer diagnosable: an output count sitting exactly on the
+            answer limit is the signature of max_tokens cutting it off. "Output", not
+            "answered" — reasoning is billed inside completion_tokens, so most of it can be
+            text the reader never sees, which is exactly the case this display exists for. */}
         {usage?.promptTokens != null && usage?.completionTokens != null && (
           <span className="chat-usage-split">
             {t("chat.tokensSplit", {
               prompt: usage.promptTokens.toLocaleString(),
               completion: usage.completionTokens.toLocaleString(),
             })}
+            {usage.reasoningTokens != null && usage.reasoningTokens > 0 && (
+              <> {t("chat.tokensReasoning", { reasoning: usage.reasoningTokens.toLocaleString() })}</>
+            )}
           </span>
         )}
         <span>{t("chat.sources.contentVersion", { version: contentVersion })}</span>
