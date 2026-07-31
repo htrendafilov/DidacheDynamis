@@ -14,6 +14,7 @@ export function TopBar({
   searchButtonRef,
   assistantButtonRef,
   searchReturnAvailable = false,
+  assistantReturnAvailable = false,
 }: {
   onToggleSearch: () => void;
   onToggleSettings: () => void;
@@ -21,6 +22,7 @@ export function TopBar({
   searchButtonRef?: RefObject<HTMLButtonElement>;
   assistantButtonRef?: RefObject<HTMLButtonElement>;
   searchReturnAvailable?: boolean;
+  assistantReturnAvailable?: boolean;
 }) {
   const { t } = useTranslation();
   const addPane = useStore((s) => s.addPane);
@@ -35,7 +37,7 @@ export function TopBar({
         </button>
         {CHAT_ENABLED && (
           <button ref={assistantButtonRef} type="button" onClick={onToggleAssistant}>
-            {t("topbar.assistant")}
+            {t(assistantReturnAvailable ? "chat.backToAssistant" : "topbar.assistant")}
           </button>
         )}
         <button type="button" onClick={addPane} disabled={panes.length >= 3}>

@@ -304,21 +304,23 @@ export const api = {
   // attribution-less /works response from the browser cache.
   works: () => get<Work[]>("/works", { cache: "no-cache" }),
   books: (workId: string) => get<Book[]>(`/works/${workId}/books`),
-  passage: (workId: string, osis: string, chapter: number, verses?: string) =>
+  passage: (workId: string, osis: string, chapter: number, verses?: string, signal?: AbortSignal) =>
     get<Passage>(
       `/works/${workId}/passage/${osis}/${chapter}` +
         (verses ? `?verses=${encodeURIComponent(verses)}` : ""),
+      { signal },
     ),
-  commentary: (workId: string, osis: string, chapter: number, verse?: number) =>
+  commentary: (workId: string, osis: string, chapter: number, verse?: number, signal?: AbortSignal) =>
     get<CommentaryPassage>(
       `/commentary/${workId}/${osis}/${chapter}` + (verse ? `?verse=${verse}` : ""),
+      { signal },
     ),
   dictionaryHeadwords: (workId: string, prefix: string) =>
     get<DictionaryHeadword[]>(
       `/dictionary/${workId}/entries?prefix=${encodeURIComponent(prefix)}&limit=80`,
     ),
-  dictionaryEntry: (workId: string, headword: string) =>
-    get<DictionaryEntry>(`/dictionary/${workId}/entry/${encodeURIComponent(headword)}`),
+  dictionaryEntry: (workId: string, headword: string, signal?: AbortSignal) =>
+    get<DictionaryEntry>(`/dictionary/${workId}/entry/${encodeURIComponent(headword)}`, { signal }),
   lexiconEntry: (strongId: string) =>
     get<StrongEntry>(`/lexicon/${encodeURIComponent(strongId)}`),
   lexiconSources: () => get<StrongSource[]>("/lexicon/sources"),
@@ -350,10 +352,18 @@ export const api = {
     );
   },
   generalBooks: () => get<Work[]>("/books"),
-  generalBook: (workId: string) => get<GeneralBook>(`/book/${encodeURIComponent(workId)}`),
-  crossReferences: (osis: string, chapter: number, verse: number, previewWork = "web") =>
+  generalBook: (workId: string, signal?: AbortSignal) =>
+    get<GeneralBook>(`/book/${encodeURIComponent(workId)}`, { signal }),
+  crossReferences: (
+    osis: string,
+    chapter: number,
+    verse: number,
+    previewWork = "web",
+    signal?: AbortSignal,
+  ) =>
     get<CrossReferences>(
       `/xref/${osis}/${chapter}/${verse}?preview_work=${encodeURIComponent(previewWork)}`,
+      { signal },
     ),
   search: (
     q: string,

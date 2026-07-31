@@ -1,3 +1,4 @@
+import type { PaneSourceType } from "../../state/store";
 import { ChatDrawer } from "./ChatDrawer";
 import { ChatPanel } from "./ChatPanel";
 
@@ -13,12 +14,14 @@ export function ChatWorkspace({
   width,
   onWidthChange,
   onClose,
+  onCitationNavigate,
 }: {
   open: boolean;
   fullscreen: boolean;
   width: number;
   onWidthChange: (width: number) => void;
   onClose: () => void;
+  onCitationNavigate?: (paneType: PaneSourceType | null) => void;
 }) {
   return (
     <ChatDrawer
@@ -28,7 +31,7 @@ export function ChatWorkspace({
       onWidthChange={onWidthChange}
       onClose={onClose}
     >
-      <ChatPanel onClose={onClose} />
+      <ChatPanel onClose={onClose} onCitationNavigate={onCitationNavigate} />
     </ChatDrawer>
   );
 }

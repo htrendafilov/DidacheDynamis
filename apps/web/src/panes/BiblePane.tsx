@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BibleVersionSelector } from "../components/BibleVersionSelector";
@@ -20,7 +20,9 @@ export function BiblePane({ pane }: { pane: Pane }) {
   const requestOpenNote = useStore((s) => s.requestOpenNote);
   const clearFocusVerse = useStore((s) => s.clearFocusVerse);
   const clearStrongFocus = useStore((s) => s.clearStrongFocus);
-  const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
+  const selectedVerse = pane.selectedVerse ?? null;
+  const setSelectedVerse = (verse: number | null) =>
+    updatePane(pane.id, { selectedVerse: verse ?? undefined });
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const books = useBooks(pane.workId);
@@ -171,7 +173,7 @@ export function BiblePane({ pane }: { pane: Pane }) {
             layout={settings.verseLayout}
             wordsOfChrist={settings.wordsOfChrist}
             strongsEnabled={strongsEnabled}
-            onVerseClick={(verse) => setSelectedVerse((current) => (current === verse ? null : verse))}
+            onVerseClick={(verse) => setSelectedVerse(selectedVerse === verse ? null : verse)}
           />
         )}
         {selectedVerse !== null && (

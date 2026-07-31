@@ -1,7 +1,31 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { StudySource } from "../../chat/types";
 import i18n from "../../i18n";
+
+// This suite exercises the M9.2-era connect/model/stream/stop mechanics, not the M9.3
+// retrieval pipeline (that lives in context.test.ts, ContextPicker.test.tsx). Mocking
+// buildContext keeps `body.messages` predictable without stubbing every /api/v1 route
+// the real ContextPicker's default-selected panes would otherwise hit.
+const buildContextMock = vi.fn();
+vi.mock("../../chat/context", () => ({ buildContext: (...args: unknown[]) => buildContextMock(...args) }));
+// ContextPicker (rendered inside ChatPanel) also calls usePassage/useGeneralBook, even
+// though the store's single default pane never exercises the code paths that use them.
+vi.mock("../../data/hooks", () => ({
+  useWorks: () => [],
+  usePassage: (workId: string, osis: string, chapter: number) => ({
+    workId,
+    osis,
+    chapter,
+    loading: false,
+    error: false,
+    data: null,
+  }),
+  useGeneralBook: () => ({ loading: false, error: false, data: null }),
+}));
+
+import { clearAll as clearChatHistory } from "../../chat/history";
 import { ChatPanel } from "./ChatPanel";
 
 const SENTINEL_KEY = "sk-or-v1-TESTSENTINEL0123456789abcdef";
@@ -53,11 +77,14 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(async () => {
   await i18n.changeLanguage("en");
   sessionStorage.clear();
+  localStorage.clear();
+  await clearChatHistory();
   fetchMock = vi.fn().mockImplementation((url: string) => {
     if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
     return Promise.reject(new Error(`unexpected fetch: ${url}`));
   });
   vi.stubGlobal("fetch", fetchMock);
+  buildContextMock.mockReset().mockResolvedValue({ sources: [], dropped: [] });
 });
 
 afterEach(() => {
@@ -148,6 +175,10 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
 
+    // send() now awaits buildContext() before the completions fetch, so the fetch call
+    // (and therefore resolveFetch's assignment) lands a tick after the click, not
+    // synchronously within it.
+    await waitFor(() => expect(resolveFetch).not.toBeNull());
     await act(async () => {
       resolveFetch?.(
         sseResponse(
@@ -165,7 +196,7 @@ describe("ChatPanel", () => {
     });
 
     await waitFor(() => expect(screen.getByText("Здравей")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
   });
 
   it("clicking Stop mid-stream aborts immediately, keeping the partial answer and flagging it incomplete", async () => {
@@ -261,10 +292,45 @@ describe("ChatPanel", () => {
 
     const secondSendCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
     const body = JSON.parse(secondSendCall[1].body as string);
-    expect(body.messages).toEqual([
-      { role: "user", content: "first" },
-      { role: "user", content: "second" },
-    ]);
+    // Sources live in the user message, not the system message (prompt.ts §10 threat
+    // model), so the "no sources" text shows up on the new turn's user message, and
+    // priorHistory's "first" stays exactly as sent — never re-wrapped on replay.
+    expect(body.messages).toHaveLength(3);
+    expect(body.messages[0].role).toBe("system");
+    expect(body.messages[0].content).not.toContain("No sources were supplied");
+    expect(body.messages[1]).toEqual({ role: "user", content: "first" });
+    expect(body.messages[2].role).toBe("user");
+    expect(body.messages[2].content).toContain("No sources were supplied for this question.");
+    expect(body.messages[2].content).toContain("second");
+  });
+
+  it("strips citation markers from a prior turn's assistant text before replaying it as history — stale ids would otherwise collide with the fresh, unrelated manifest a later turn assigns", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "first" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"As shown in [S1], yes."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText(/As shown in/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "second" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+
+    const secondSendCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const body = JSON.parse(secondSendCall[1].body as string);
+    const priorAssistantMessage = body.messages.find(
+      (m: { role: string; content: string }) => m.role === "assistant",
+    );
+    expect(priorAssistantMessage.content).not.toContain("[S1]");
+    expect(priorAssistantMessage.content).toContain("As shown in");
+    // The rendered history is untouched — stripping only affects what is sent, not what
+    // the reader already saw. "[S1]" never resolved (turn one had no sources), so it
+    // rendered as its own inert text node, separate from the surrounding prose.
+    expect(screen.getByText("[S1]")).toBeInTheDocument();
+    expect(screen.getByText(/As shown in/)).toBeInTheDocument();
   });
 
   it("keeps a selected model sendable after a filter hides it from the visible list", async () => {
@@ -322,5 +388,203 @@ describe("ChatPanel", () => {
     // The model catalogue fetch resolves after render; wait for it so its state update
     // is not left dangling outside an act() boundary.
     await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+  });
+});
+
+describe("ChatPanel grounded flow (M9.3)", () => {
+  function source(overrides: Partial<StudySource> = {}): StudySource {
+    return {
+      id: "S1",
+      kind: "bible",
+      workId: "web",
+      label: "John 3:16 (WEB)",
+      canonicalTarget: { kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 },
+      language: "en",
+      excerpt: "16 For God so loved the world.",
+      contentVersion: "v1",
+      estimatedTokens: 10,
+      ...overrides,
+    };
+  }
+
+  it("shows the pre-send summary on the user's message, matching what buildContext actually returned", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText(/John 3:16 \(WEB\)/)).toBeInTheDocument());
+    expect(screen.getByText(/10 tokens/)).toBeInTheDocument();
+  });
+
+  it("renders a citation from the manifest as clickable and reports navigation", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"See [S1]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const citation = await screen.findByRole("button", { name: /John 3:16/ });
+    expect(citation).toHaveTextContent("[S1]");
+  });
+
+  it("clicking an xref citation opens the anchor verse and selects it, so the existing cross-reference panel shows the actual reference list", async () => {
+    const xrefSource = source({
+      id: "S1",
+      kind: "xref",
+      workId: "web",
+      label: "2 cross-references (John 3:16)",
+      canonicalTarget: { kind: "xref", workId: "web", osis: "John", chapter: 3, verse: 16 },
+      excerpt: "Rom 5:8\n1John 4:9-10",
+    });
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [xrefSource], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"See [S1]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const citation = await screen.findByRole("button", { name: /cross-references/ });
+    const { useStore } = await import("../../state/store");
+    fireEvent.click(citation);
+
+    const pane = useStore.getState().panes.find((p) => p.type === "bible" && p.osis === "John" && p.chapter === 3);
+    expect(pane?.selectedVerse).toBe(16);
+  });
+
+  it("calls onCitationNavigate when a resolved citation is clicked", async () => {
+    const onCitationNavigate = vi.fn();
+    render(<ChatPanel onClose={() => {}} onCitationNavigate={onCitationNavigate} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
+    fireEvent.change(screen.getByLabelText("OpenRouter API key"), { target: { value: SENTINEL_KEY } });
+    fetchMock.mockImplementationOnce(() => Promise.resolve(keyInfoResponse()));
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() => expect(screen.getByText("Connected to OpenRouter.")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"See [S1]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const citation = await screen.findByRole("button", { name: /John 3:16/ });
+    fireEvent.click(citation);
+    expect(onCitationNavigate).toHaveBeenCalled();
+  });
+
+  it("shows a Sources panel with the exact excerpt sent for the cited source", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source()], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok [S1]"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText("Sources")).toBeInTheDocument());
+    expect(screen.getByText("16 For God so loved the world.")).toBeInTheDocument();
+  });
+
+  it("never resolves a fabricated citation the model produces but the manifest never granted", async () => {
+    await connectAndSelectModel();
+    buildContextMock.mockResolvedValue({ sources: [source({ id: "S1" })], dropped: [] });
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(
+      sseResponse('data: {"choices":[{"delta":{"content":"Fabricated [S9]."}}]}\n\ndata: [DONE]\n\n'),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await screen.findByText("[S9]");
+    expect(screen.queryByRole("button", { name: /\[S9\]/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatPanel history (M9.3 step 6)", () => {
+  it("disables both Clear controls while a turn is streaming, re-enabling once it settles", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    let resolveFetch: ((value: Response) => void) | null = null;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (resolveFetch = resolve)));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear all history" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Clear this conversation" })).toBeDisabled();
+
+    await waitFor(() => expect(resolveFetch).not.toBeNull());
+    await act(async () => {
+      resolveFetch?.(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear all history" })).not.toBeDisabled());
+    expect(screen.getByRole("button", { name: "Clear this conversation" })).not.toBeDisabled();
+  });
+
+  it("finds saved history on reload: a new mount restores the previous thread's messages", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(screen.getByText("No context selected. The assistant will answer from the question alone.")).toBeInTheDocument();
+
+    // Simulate a reload: unmount and mount a fresh ChatPanel — nothing but Dexie persists.
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getAllByText("hi").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("ok").length).toBeGreaterThan(0);
+    // The pre-send summary (§5, §9: stored with the turn) survives the reload too, not
+    // just the message text — it lived only in React state until a second saveMessage()
+    // call persisted it once buildContext resolved.
+    expect(
+      screen.getAllByText("No context selected. The assistant will answer from the question alone.").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("a private session never touches Dexie: nothing is there to find after reload", async () => {
+    await connectAndSelectModel();
+    fireEvent.click(screen.getByRole("checkbox", { name: /private session/i }));
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "secret" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+
+    const { listThreads } = await import("../../chat/history");
+    expect(await listThreads()).toEqual([]);
+  });
+
+  it("Clear this conversation removes it from Dexie and from the visible messages", async () => {
+    await connectAndSelectModel();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
+    fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    // Clear stays disabled until the turn (including its own history save) settles —
+    // wait for that, not just for the visible text, before clicking it.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear this conversation" })).not.toBeDisabled());
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear this conversation" }));
+
+    await waitFor(() => expect(screen.queryByText("ok")).not.toBeInTheDocument());
+    const { listThreads } = await import("../../chat/history");
+    await waitFor(async () => expect(await listThreads()).toEqual([]));
+  });
+
+  it("shows the first-use notice once, and dismissing it persists across mounts", async () => {
+    const { unmount } = render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    expect(screen.getByText(/not synced to Dropbox/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/not synced to Dropbox/)).not.toBeInTheDocument();
+    unmount();
+
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    expect(screen.queryByText(/not synced to Dropbox/)).not.toBeInTheDocument();
   });
 });

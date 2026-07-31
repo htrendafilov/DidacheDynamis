@@ -1,15 +1,55 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  buildManifest,
+  navigationIntent,
+  stripCitationMarkers,
+  type SourceManifest,
+} from "../../chat/citations";
 import {
   type ChatMessage as ClientChatMessage,
   type ChatModel,
   type ChatUsage,
   streamChat,
 } from "../../chat/client";
+import { buildContext } from "../../chat/context";
 import { connectedProviders, disconnect as disconnectProvider } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
+import {
+  clearAll as clearAllHistory,
+  clearThread as clearThreadHistory,
+  createThread,
+  exportHistory,
+  getMessages as getHistoryMessages,
+  getRun,
+  listThreads,
+  saveMessage,
+  saveRun,
+  serializeManifest,
+} from "../../chat/history";
+import { buildMessages } from "../../chat/prompt";
+import type { ContextChip, StudySource } from "../../chat/types";
+import { useWorks } from "../../data/hooks";
+import { useStore, type PaneSourceType } from "../../state/store";
+import { ChatMessage } from "./ChatMessage";
 import { ChatSettings, initialLoggingConfirmed } from "./ChatSettings";
+import { ChatSources } from "./ChatSources";
+import { ContextPicker, summarizeContext } from "./ContextPicker";
+
+const HISTORY_NOTICE_KEY = "bible-chat-history-notice-dismissed";
+
+function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 interface DisplayMessage {
   id: string;
@@ -21,6 +61,10 @@ interface DisplayMessage {
   // this is what actually answered, not what was requested — plan §17 requires it visible.
   actualModel?: string;
   usage?: ChatUsage;
+  // Captured at send time and immutable thereafter (§7): a later context change must
+  // never retroactively change what an old citation in THIS message resolves to.
+  manifest?: SourceManifest;
+  contextSummary?: string; // shown on the user message it was sent with (§5)
 }
 
 const newMessageId = () =>
@@ -29,16 +73,31 @@ const newMessageId = () =>
     : `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /**
- * The Assistant content rendered inside ChatDrawer (plan/chat/m9.2-workspace-and-provider.md).
- * M9.2 scope only: connect, pick a model, send a plain message, stream it, stop it, disconnect.
- * No context/grounding/citations/history here — that is M9.3. The actual answering model
- * and usage ARE shown per message, though (plan §17): a router can substitute models, so
- * that is a base acceptance criterion, not part of M9.3's Sources panel.
+ * The Assistant content rendered inside ChatDrawer. Grounded per M9.3: the picked context
+ * is retrieved and budgeted (context.ts), assembled into a system contract plus labelled
+ * source blocks (prompt.ts), and every citation in the streamed answer resolves only
+ * against the manifest captured for that exact turn (citations.ts).
  */
-export function ChatPanel({ onClose }: { onClose: () => void }) {
+export function ChatPanel({
+  onClose,
+  onCitationNavigate,
+}: {
+  onClose: () => void;
+  onCitationNavigate?: (paneType: PaneSourceType | null) => void;
+}) {
   const { t } = useTranslation();
   const headingId = useId();
   const composerId = useId();
+
+  const panes = useStore((s) => s.panes);
+  const updatePane = useStore((s) => s.updatePane);
+  const openPassage = useStore((s) => s.openPassage);
+  const openCommentary = useStore((s) => s.openCommentary);
+  const openDictionary = useStore((s) => s.openDictionary);
+  const openBookSection = useStore((s) => s.openBookSection);
+  const requestOpenNote = useStore((s) => s.requestOpenNote);
+  const uiLang = useStore((s) => s.settings.uiLang);
+  const works = useWorks();
 
   const [connected, setConnected] = useState(() => connectedProviders().includes("openrouter"));
   const [selectedModel, setSelectedModel] = useState<ChatModel | null>(null);
@@ -47,7 +106,76 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [chips, setChips] = useState<ContextChip[]>([]);
+  const [privateSession, setPrivateSession] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [historyNoticeDismissed, setHistoryNoticeDismissed] = useState(
+    () => localStorage.getItem(HISTORY_NOTICE_KEY) === "1",
+  );
   const abortRef = useRef<AbortController | null>(null);
+
+  // Reload finds saved history: on mount (never in a private session), pick up the most
+  // recently updated thread and restore its messages, including each assistant answer's
+  // manifest, so old citations still resolve and its Sources panel still shows.
+  useEffect(() => {
+    if (privateSession) return;
+    let alive = true;
+    (async () => {
+      const threads = await listThreads();
+      const latest = threads[0];
+      if (!latest || !alive) return;
+      const stored = await getHistoryMessages(latest.id);
+      const restored: DisplayMessage[] = await Promise.all(
+        stored.map(async (m) => {
+          if (m.role !== "assistant") {
+            return { id: m.id, role: m.role, text: m.text, contextSummary: m.contextSummary };
+          }
+          const run = await getRun(m.id);
+          return {
+            id: m.id,
+            role: m.role,
+            text: m.text,
+            incomplete: m.incomplete,
+            actualModel: run?.actualModel,
+            usage: run?.usage,
+            manifest: run ? buildManifest(JSON.parse(run.sourceManifestJson) as StudySource[]) : [],
+          };
+        }),
+      );
+      if (!alive) return;
+      setThreadId(latest.id);
+      setMessages(restored);
+    })();
+    return () => {
+      alive = false;
+    };
+    // Intentionally mount-only: switching privateSession mid-session does not reload —
+    // it only changes whether future sends persist.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dismissHistoryNotice = () => {
+    localStorage.setItem(HISTORY_NOTICE_KEY, "1");
+    setHistoryNoticeDismissed(true);
+  };
+
+  const clearThisThread = async () => {
+    if (!window.confirm(t("chat.history.clearThreadConfirm"))) return;
+    if (threadId) await clearThreadHistory(threadId);
+    setThreadId(null);
+    setMessages([]);
+  };
+
+  const clearAllHistoryAndReset = async () => {
+    if (!window.confirm(t("chat.history.clearAllConfirm"))) return;
+    await clearAllHistory();
+    setThreadId(null);
+    setMessages([]);
+  };
+
+  const exportJson = async () => {
+    downloadJson("bible-chat-history.json", await exportHistory());
+  };
 
   const disconnect = () => {
     abortRef.current?.abort();
@@ -59,6 +187,47 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
   const canSend = connected && selectedModel !== null && input.trim().length > 0 && !streaming;
 
+  const navigateToSource = (source: StudySource) => {
+    const intent = navigationIntent(source);
+    let paneType: PaneSourceType | null = null;
+    switch (intent.action) {
+      case "openPassage":
+        openPassage(intent.workId, intent.osis, intent.chapter, intent.verse);
+        paneType = "bible";
+        // An xref source's canonicalTarget is its anchor verse, not any one of the
+        // (possibly several) cross-references it summarizes — there is no single "the
+        // target reference" to jump to. Selecting the anchor verse instead opens the
+        // existing cross-reference tools panel (BiblePane's useCrossReferences), which
+        // shows the actual reference list the excerpt was built from.
+        if (source.kind === "xref" && intent.verse != null) {
+          const pane = useStore
+            .getState()
+            .panes.find(
+              (p) => p.type === "bible" && p.workId === intent.workId && p.osis === intent.osis && p.chapter === intent.chapter,
+            );
+          if (pane) updatePane(pane.id, { selectedVerse: intent.verse });
+        }
+        break;
+      case "openCommentary":
+        openCommentary(intent.workId, intent.osis, intent.chapter);
+        paneType = "commentary";
+        break;
+      case "openDictionary":
+        openDictionary(intent.workId, intent.headword);
+        paneType = "dictionary";
+        break;
+      case "openBookSection":
+        openBookSection(intent.workId, intent.sectionId);
+        paneType = "book";
+        break;
+      case "requestOpenNote":
+        requestOpenNote(intent.noteId, intent.osis, intent.chapter);
+        paneType = "notes";
+        break;
+    }
+    onCitationNavigate?.(paneType);
+  };
+
   const send = async () => {
     if (!canSend || !selectedModel) return;
     const controller = new AbortController();
@@ -66,27 +235,71 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
     const userText = input.trim();
     setInput("");
-    // A failed or aborted-before-any-content turn leaves an assistant message with empty
-    // text (errorKind set, or not — an immediate abort clears neither). Sending that
-    // upstream as {role:"assistant", content:""} gets rejected by Anthropic-routed models,
-    // and every later send in the conversation would 400 the same way.
+    // Strip citation markers before replaying prior turns: StudySource ids are reassigned
+    // fresh every turn, so a prior [S1] means nothing about the current manifest's S1, and
+    // a model that reuses it would have that reused id resolve to real but unrelated
+    // content — citations.ts's resolve() only guards against an id outside the manifest,
+    // not a misattribution to a real one that happens to share a stale id.
     const priorHistory: ClientChatMessage[] = messages
       .filter((m) => !m.errorKind && m.text.trim().length > 0)
-      .map((m) => ({ role: m.role, content: m.text }));
+      .map((m) => ({ role: m.role, content: stripCitationMarkers(m.text) }));
+    const userId = newMessageId();
     const assistantId = newMessageId();
     setMessages((prev) => [
       ...prev,
-      { id: newMessageId(), role: "user", text: userText },
+      { id: userId, role: "user", text: userText },
       { id: assistantId, role: "assistant", text: "" },
     ]);
     setStreaming(true);
 
+    let currentThreadId = threadId;
+    const userCreatedAt = Date.now();
+    if (!privateSession) {
+      currentThreadId ??= await createThread(userText);
+      setThreadId(currentThreadId);
+      await saveMessage({ id: userId, threadId: currentThreadId, role: "user", text: userText, createdAt: userCreatedAt });
+    }
+
+    let assistantText = "";
     try {
+      const { sources, dropped } = await buildContext(
+        chips,
+        works ?? [],
+        privacyRouting,
+        controller.signal,
+      );
+      const manifest = buildManifest(sources);
+      const totalTokens = sources.reduce((sum, s) => sum + s.estimatedTokens, 0);
+      const contextSummary = summarizeContext(
+        sources.map((s) => s.label),
+        totalTokens,
+        dropped.length,
+        t,
+      );
+      setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, contextSummary } : m)));
+      // buildContext only resolves after the user message is already saved (needed
+      // immediately, to have a thread to save it under), so the summary — required to be
+      // stored with the turn (§5, §9) — arrives via a second put to the same id.
+      if (!privateSession && currentThreadId) {
+        await saveMessage({
+          id: userId,
+          threadId: currentThreadId,
+          role: "user",
+          text: userText,
+          createdAt: userCreatedAt,
+          contextSummary,
+        });
+      }
+
+      const answerLanguage = uiLang === "bg" ? "bg" : "en";
+      const [system, user] = buildMessages(sources, userText, answerLanguage);
+      const requestMessages: ClientChatMessage[] = [system, ...priorHistory, user];
+
       const meta = await streamChat(
         {
           providerId: "openrouter",
           model: selectedModel.id,
-          messages: [...priorHistory, { role: "user", content: userText }],
+          messages: requestMessages,
           maxTokens: 1500,
           privacyRouting,
           reasoningCaps: selectedModel.reasoning,
@@ -94,6 +307,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         },
         {
           onDelta: (text) => {
+            assistantText += text;
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + text } : m)),
             );
@@ -116,12 +330,35 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, incomplete: meta.incomplete, actualModel: meta.actualModel ?? m.actualModel, usage: meta.usage ?? m.usage }
+            ? {
+                ...m,
+                incomplete: meta.incomplete,
+                actualModel: meta.actualModel ?? m.actualModel,
+                usage: meta.usage ?? m.usage,
+                manifest,
+              }
             : m,
         ),
       );
+      if (!privateSession && currentThreadId) {
+        await saveMessage({
+          id: assistantId,
+          threadId: currentThreadId,
+          role: "assistant",
+          text: assistantText,
+          createdAt: Date.now(),
+          incomplete: meta.incomplete,
+        });
+        await saveRun({
+          messageId: assistantId,
+          sourceManifestJson: serializeManifest(sources),
+          contentVersion: sources[0]?.contentVersion ?? "unknown",
+          actualModel: meta.actualModel ?? undefined,
+          usage: meta.usage ?? undefined,
+        });
+      }
     } catch (err) {
-      const kind = err instanceof ChatError ? err.kind : "network";
+      const kind = err instanceof ChatError ? err.kind : err instanceof DOMException && err.name === "AbortError" ? "aborted" : "network";
       setMessages((prev) => (kind === "aborted" ? prev : prev.map((m) => (m.id === assistantId ? { ...m, errorKind: kind } : m))));
     } finally {
       setStreaming(false);
@@ -142,6 +379,43 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
       <p className="chat-disclaimer">{t("chat.disclaimer")}</p>
 
+      {!historyNoticeDismissed && (
+        <aside className="chat-history-notice" role="note">
+          <p>{t("chat.history.firstUseNotice")}</p>
+          <button type="button" onClick={dismissHistoryNotice}>
+            {t("common.dismiss")}
+          </button>
+        </aside>
+      )}
+
+      <div className="chat-history-controls">
+        <label>
+          <input
+            type="checkbox"
+            checked={privateSession}
+            onChange={(e) => setPrivateSession(e.target.checked)}
+          />
+          {t("chat.history.privateSession")}
+        </label>
+        {/* Disabled while streaming: send()'s in-flight closure still has currentThreadId
+            captured and, after the turn finishes, saves the assistant message/run under it
+            regardless of what happens elsewhere — clearing that thread mid-turn would leave
+            those writes to resurrect it as orphaned data, visible in a later Export JSON. */}
+        <button
+          type="button"
+          onClick={() => void clearThisThread()}
+          disabled={messages.length === 0 || streaming}
+        >
+          {t("chat.history.clearThread")}
+        </button>
+        <button type="button" onClick={() => void clearAllHistoryAndReset()} disabled={streaming}>
+          {t("chat.history.clearAll")}
+        </button>
+        <button type="button" onClick={() => void exportJson()}>
+          {t("chat.history.exportJson")}
+        </button>
+      </div>
+
       <ChatSettings
         connected={connected}
         onConnected={() => setConnected(true)}
@@ -154,10 +428,22 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         onLoggingConfirmedChange={setLoggingConfirmedState}
       />
 
+      <ContextPicker
+        panes={panes}
+        privacyRouting={privacyRouting}
+        loggingConfirmed={loggingConfirmed}
+        onChipsChange={setChips}
+      />
+
       <ul className="chat-messages" aria-live="polite" aria-label={t("chat.messages")}>
         {messages.map((m) => (
           <li key={m.id} className={`chat-message chat-message-${m.role}`}>
-            <span className="chat-message-text">{m.text}</span>
+            {m.role === "assistant" ? (
+              <ChatMessage text={m.text} manifest={m.manifest ?? []} onCitationClick={navigateToSource} />
+            ) : (
+              <span className="chat-message-text">{m.text}</span>
+            )}
+            {m.contextSummary && <p className="chat-context-summary">{m.contextSummary}</p>}
             {m.incomplete && <span className="chat-message-flag">{t("chat.incomplete")}</span>}
             {m.errorKind && (
               <span className="chat-message-flag" role="alert">
@@ -176,6 +462,9 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                 )}
                 {m.usage?.isByok && <span className="chat-message-byok">{t("chat.byok")}</span>}
               </span>
+            )}
+            {m.role === "assistant" && m.manifest && (
+              <ChatSources manifest={m.manifest} actualModel={m.actualModel} usage={m.usage} />
             )}
           </li>
         ))}

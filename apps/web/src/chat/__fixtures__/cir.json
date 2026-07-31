@@ -1,0 +1,415 @@
+{
+  "commentary_john3": {
+    "chapter": 3,
+    "entries": [
+      {
+        "body": {
+          "blocks": [
+            {
+              "kind": "heading",
+              "text": "God's love."
+            },
+            {
+              "kind": "paragraph",
+              "text": "The love of God is shown in the gift of his Son."
+            }
+          ]
+        },
+        "verse_end": 18,
+        "verse_start": 16
+      }
+    ],
+    "osis": "John",
+    "work_id": "mhc"
+  },
+  "commentary_john3_sword_quotation": {
+    "chapter": 3,
+    "entries": [
+      {
+        "body": {
+          "blocks": [
+            {
+              "kind": "heading",
+              "text": "God's Love."
+            },
+            {
+              "kind": "quotation",
+              "runs": [
+                {
+                  "superscript": true,
+                  "t": "16"
+                },
+                {
+                  "t": " For God so loved the world, that he gave his "
+                },
+                {
+                  "emphasis": true,
+                  "t": "only begotten"
+                },
+                {
+                  "t": " Son."
+                }
+              ],
+              "text": "16 For God so loved the world, that he gave his only begotten Son."
+            },
+            {
+              "kind": "paragraph",
+              "runs": [
+                {
+                  "t": "The gift of the Son shows "
+                },
+                {
+                  "emphasis": true,
+                  "t": "divine love."
+                }
+              ],
+              "text": "The gift of the Son shows divine love."
+            }
+          ]
+        },
+        "verse_end": 16,
+        "verse_start": 16
+      }
+    ],
+    "osis": "John",
+    "work_id": "mhc"
+  },
+  "dictionary_grace": {
+    "body": {
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "runs": null,
+          "text": "Unmerited favour; a gift freely given."
+        }
+      ]
+    },
+    "headword": "Grace",
+    "work_id": "easton"
+  },
+  "dictionary_shepherd": {
+    "body": {
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "runs": null,
+          "text": "One who tends a flock."
+        },
+        {
+          "kind": "paragraph",
+          "runs": null,
+          "text": "Used figuratively of a leader."
+        }
+      ]
+    },
+    "headword": "Shepherd",
+    "work_id": "easton"
+  },
+  "general_book_baptist1689": {
+    "sections": [
+      {
+        "body": {
+          "blocks": []
+        },
+        "children": [
+          {
+            "body": {
+              "blocks": [
+                {
+                  "kind": "heading",
+                  "runs": [
+                    {
+                      "dictionary_ref": null,
+                      "emphasis": false,
+                      "ref": null,
+                      "strong": false,
+                      "superscript": false,
+                      "t": "Paragraph 1"
+                    }
+                  ],
+                  "text": "Paragraph 1"
+                },
+                {
+                  "kind": "paragraph",
+                  "runs": [
+                    {
+                      "dictionary_ref": null,
+                      "emphasis": false,
+                      "ref": null,
+                      "strong": false,
+                      "superscript": false,
+                      "t": "The Holy Scripture is sufficient."
+                    },
+                    {
+                      "dictionary_ref": null,
+                      "emphasis": false,
+                      "ref": "2Tim.3.16",
+                      "strong": false,
+                      "superscript": true,
+                      "t": "2 Tim. 3:16"
+                    }
+                  ],
+                  "text": "The Holy Scripture is sufficient.2 Tim. 3:16"
+                }
+              ]
+            },
+            "children": [],
+            "level": 2,
+            "section_id": "chapter-1-scripture.1",
+            "title": "1"
+          },
+          {
+            "body": {
+              "blocks": [
+                {
+                  "kind": "heading",
+                  "runs": [
+                    {
+                      "dictionary_ref": null,
+                      "emphasis": false,
+                      "ref": null,
+                      "strong": false,
+                      "superscript": false,
+                      "t": "Paragraph 2"
+                    }
+                  ],
+                  "text": "Paragraph 2"
+                },
+                {
+                  "kind": "paragraph",
+                  "runs": [
+                    {
+                      "dictionary_ref": null,
+                      "emphasis": false,
+                      "ref": null,
+                      "strong": false,
+                      "superscript": false,
+                      "t": "The whole counsel of God is written."
+                    }
+                  ],
+                  "text": "The whole counsel of God is written."
+                }
+              ]
+            },
+            "children": [],
+            "level": 2,
+            "section_id": "chapter-1-scripture.2",
+            "title": "2"
+          }
+        ],
+        "level": 1,
+        "section_id": "chapter-1-scripture",
+        "title": "Chapter 1. Scripture"
+      },
+      {
+        "body": {
+          "blocks": [
+            {
+              "kind": "heading",
+              "runs": [
+                {
+                  "dictionary_ref": null,
+                  "emphasis": false,
+                  "ref": null,
+                  "strong": false,
+                  "superscript": false,
+                  "t": "Chapter 2"
+                }
+              ],
+              "text": "Chapter 2"
+            },
+            {
+              "kind": "heading",
+              "runs": [
+                {
+                  "dictionary_ref": null,
+                  "emphasis": false,
+                  "ref": null,
+                  "strong": false,
+                  "superscript": false,
+                  "t": "OF GOD AND THE HOLY TRINITY"
+                }
+              ],
+              "text": "OF GOD AND THE HOLY TRINITY"
+            },
+            {
+              "kind": "paragraph",
+              "runs": [
+                {
+                  "dictionary_ref": null,
+                  "emphasis": false,
+                  "ref": null,
+                  "strong": false,
+                  "superscript": false,
+                  "t": "The Lord our God is one God."
+                }
+              ],
+              "text": "The Lord our God is one God."
+            }
+          ]
+        },
+        "children": [],
+        "level": 1,
+        "section_id": "chapter-2-god",
+        "title": "Chapter 2. God"
+      }
+    ],
+    "work_id": "baptist1689"
+  },
+  "passage_john3": {
+    "chapter": 3,
+    "headings": [],
+    "osis": "John",
+    "verses": [
+      {
+        "lines": [
+          {
+            "kind": "p",
+            "level": 1,
+            "para_start": true,
+            "runs": [
+              {
+                "t": "For God so loved the world.",
+                "wj": true
+              }
+            ]
+          }
+        ],
+        "verse": 16
+      }
+    ],
+    "work_id": "web"
+  },
+  "passage_john3_v16": {
+    "chapter": 3,
+    "headings": [],
+    "osis": "John",
+    "verses": [
+      {
+        "lines": [
+          {
+            "kind": "p",
+            "level": 1,
+            "para_start": true,
+            "runs": [
+              {
+                "t": "For God so loved the world.",
+                "wj": true
+              }
+            ]
+          }
+        ],
+        "verse": 16
+      }
+    ],
+    "work_id": "web"
+  },
+  "passage_ps23_poetry": {
+    "chapter": 23,
+    "headings": [
+      {
+        "before_verse": 1,
+        "kind": "title",
+        "text": "A Psalm by David."
+      }
+    ],
+    "osis": "Ps",
+    "verses": [
+      {
+        "lines": [
+          {
+            "kind": "q",
+            "level": 1,
+            "para_start": false,
+            "runs": [
+              {
+                "t": "The LORD is my shepherd;",
+                "wj": false
+              }
+            ]
+          },
+          {
+            "kind": "q",
+            "level": 2,
+            "para_start": false,
+            "runs": [
+              {
+                "t": "I shall lack nothing.",
+                "wj": false
+              }
+            ]
+          }
+        ],
+        "verse": 1
+      }
+    ],
+    "work_id": "web"
+  },
+  "strong_g0001_alpha": {
+    "definition": "of Hebrew origin; the first letter of the alphabet; figuratively, only (from its use as a numeral) the first: --Alpha. Often used (usually an, before a vowel) also in composition (as a contraction from 427) in the sense of privation.\nsee GREEK for 427\nsee GREEK for 260",
+    "language": "grc",
+    "lemma": "ἄλφα",
+    "pronunciation": "al'-fah",
+    "see": [
+      "G0427",
+      "G0260"
+    ],
+    "strong_id": "G0001",
+    "transliteration": "a",
+    "work_id": "strongsgreek"
+  },
+  "strong_g1722_en": {
+    "definition": "a primary preposition denoting (fixed) position (in place, time or state), and (by implication) instrumentality (medially or constructively), i.e. a relation of rest (intermediate between 1519 and 1537); \"in,\" at, (up-)on, by, etc.:--about, after, against.\nsee GREEK for 1519",
+    "language": "grc",
+    "lemma": "ἐν",
+    "pronunciation": "en",
+    "see": [
+      "G1519"
+    ],
+    "strong_id": "G1722",
+    "transliteration": "en",
+    "work_id": "strongsgreek"
+  },
+  "strong_h0001": {
+    "definition": "a primitive word; father, in a literal and immediate, or figurative and remote application):--chief, (fore-)father(-less), X patrimony, principal. Compare names in \"Abi-\".",
+    "language": "hbo",
+    "lemma": "'ab",
+    "pronunciation": "awb",
+    "see": [],
+    "strong_id": "H0001",
+    "transliteration": null,
+    "work_id": "strongshebrew"
+  },
+  "xref_john3_16": {
+    "chapter": 3,
+    "osis": "John",
+    "references": [
+      {
+        "preview": null,
+        "target_chapter": 5,
+        "target_osis": "Rom",
+        "target_ref": "Rom.5.8",
+        "target_verse": 8,
+        "votes": 2
+      },
+      {
+        "preview": null,
+        "target_chapter": 4,
+        "target_osis": "1John",
+        "target_ref": "1John.4.9-10",
+        "target_verse": 9,
+        "votes": 1
+      },
+      {
+        "preview": null,
+        "target_chapter": 8,
+        "target_osis": "Rom",
+        "target_ref": "Rom.8.32",
+        "target_verse": 32,
+        "votes": 1
+      }
+    ],
+    "source_work_id": "tsk",
+    "verse": 16
+  }
+}

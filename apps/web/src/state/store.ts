@@ -21,6 +21,7 @@ export interface Pane {
   bookTocOpen?: boolean;
   focusVerse?: number; // transient: verse to scroll to and briefly flash (e.g. a search result)
   focusStrong?: string; // transient: Strong's id whose matching spans should flash
+  selectedVerse?: number; // clicked verse; drives xrefs, notes, and chat context (M9.3)
 }
 
 export interface Settings {
