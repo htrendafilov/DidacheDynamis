@@ -18,6 +18,7 @@ Two earlier research notes (`interactive_chat_feature_proposal.md`, `interactive
 | M9.1 — content licence metadata | [`chat/m9.1-licence-metadata.md`](chat/m9.1-licence-metadata.md) |
 | M9.2 — workspace and provider foundation | [`chat/m9.2-workspace-and-provider.md`](chat/m9.2-workspace-and-provider.md) |
 | M9.3 — grounded study assistant | [`chat/m9.3-grounded-assistant.md`](chat/m9.3-grounded-assistant.md) |
+| M9.3b — chat layout refit (after M9.3, before M9.4) | [`chat/m9.3b-chat-layout.md`](chat/m9.3b-chat-layout.md) |
 
 ## 1. Decision summary
 
