@@ -478,6 +478,13 @@ input[type="search"] {
   list-style: none;
   display: flex;
   flex-direction: column;
+  /* The catalogue is unbounded — OpenRouter returns every model it routes to. Without its
+     own scroll box the list pushes the connected footer (privacy routing, the logging
+     confirmation, Disconnect) below hundreds of rows, and reaching Disconnect means
+     scrolling the whole catalogue. Bounding the list keeps the footer one glance away. */
+  max-height: 12rem;
+  overflow-y: auto;
+  flex: none;
 }
 .chat-model-option {
   padding: 0.35rem 0.4rem;

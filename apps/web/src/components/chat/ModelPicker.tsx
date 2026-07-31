@@ -196,8 +196,28 @@ export function ModelPicker({
     ? `${listboxId}-${selectableModels[activeIndex].id}`
     : undefined;
 
+  // The catalogue is unbounded (OpenRouter returns every model), and the list scrolls
+  // inside its own box, so an active option moved by the arrow keys can sit outside the
+  // visible rows. Optional call: jsdom does not implement scrollIntoView.
+  useEffect(() => {
+    if (!open || !activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
+  }, [open, activeOptionId]);
+
+  // Bound to the wrapper rather than the popover, so Escape raised on the chip itself is
+  // caught too — focus returns there on close, and a reader can shift-tab back to it while
+  // the popover is open. Guarded on `open` so Escape on the chip with the popover closed
+  // still reaches ChatDrawer and closes the workspace, as it does everywhere else.
+  const onWrapperKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!open || event.key !== "Escape") return;
+    // Must not reach ChatDrawer's window-level Escape handler, or it would close the whole
+    // workspace and lose the composer draft.
+    event.stopPropagation();
+    closePopover();
+  };
+
   return (
-    <div className="chat-model-picker">
+    <div className="chat-model-picker" onKeyDown={onWrapperKeyDown}>
       <button
         type="button"
         ref={chipRef}
@@ -217,14 +237,6 @@ export function ModelPicker({
           role="dialog"
           aria-label={t("chat.model.open")}
           className="chat-model-popover"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              // Must not reach ChatDrawer's window-level Escape handler, or it would
-              // close the whole workspace and lose the composer draft.
-              event.stopPropagation();
-              closePopover();
-            }
-          }}
         >
           {!connected && (
             <div className="chat-settings-connect">

@@ -700,6 +700,72 @@ describe("ChatPanel layout refit (M9.3b)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("Escape from the gear button closes only the menu, leaving the workspace open", async () => {
+    // Opening the menu used to leave focus on the gear button, whose keydown events never
+    // pass through the menu element — so Escape reached ChatDrawer's window handler and
+    // closed the whole workspace while the menu stayed open.
+    const onClose = vi.fn();
+    render(
+      <ChatDrawer open fullscreen={false} width={420} onWidthChange={() => {}} onClose={onClose}>
+        <ChatPanel onClose={onClose} />
+      </ChatDrawer>,
+    );
+    const gear = screen.getByRole("button", { name: "Chat options" });
+    fireEvent.click(gear);
+    await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument());
+
+    fireEvent.keyDown(gear, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Escape on the gear button with no menu open still closes the workspace", async () => {
+    // The guard above must not swallow Escape generally — everywhere else in the panel it
+    // closes the workspace, and the gear button is no exception once its menu is shut.
+    const onClose = vi.fn();
+    render(
+      <ChatDrawer open fullscreen={false} width={420} onWidthChange={() => {}} onClose={onClose}>
+        <ChatPanel onClose={onClose} />
+      </ChatDrawer>,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Chat options" }), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("Escape on the model chip closes only the popover, even with focus back on the chip", async () => {
+    const onClose = vi.fn();
+    render(
+      <ChatDrawer open fullscreen={false} width={420} onWidthChange={() => {}} onClose={onClose}>
+        <ChatPanel onClose={onClose} />
+      </ChatDrawer>,
+    );
+    const chip = document.querySelector(".chat-model-chip") as HTMLElement;
+    fireEvent.click(chip);
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+
+    fireEvent.keyDown(chip, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Model and provider settings" })).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("scrolls the active option into view as the arrow keys move it", async () => {
+    // The catalogue is unbounded and the list scrolls in its own box, so the active option
+    // can otherwise move outside the visible rows with no way to see where you are.
+    render(<ChatPanel onClose={() => {}} />);
+    openModelPicker();
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+
+    const scrollIntoView = vi.fn();
+    for (const option of screen.getAllByRole("option")) {
+      (option as HTMLElement & { scrollIntoView: () => void }).scrollIntoView = scrollIntoView;
+    }
+    fireEvent.keyDown(screen.getByLabelText("Search models"), { key: "ArrowDown" });
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+  });
+
   it("returns focus to the model chip when the popover closes", async () => {
     render(<ChatPanel onClose={() => {}} />);
     const chip = document.querySelector(".chat-model-chip") as HTMLElement;

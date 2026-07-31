@@ -206,10 +206,22 @@ export function ChatPanel({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [menuOpen]);
 
+  // Focus the first item when the menu opens. Without this, opening the menu leaves focus
+  // on the gear button, whose keydown events never pass through the menu element — so
+  // Escape reached ChatDrawer's window handler and closed the entire workspace while
+  // leaving the menu itself open.
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus();
+  }, [menuOpen]);
+
+  // Bound to the wrapper, not the menu element, so it also catches Escape raised on the
+  // gear button itself — focus can be there whenever the menu is open (it is restored
+  // there on close, and a reader can shift-tab back to it). Guarded on menuOpen so that
+  // Escape on the button with no menu open still reaches ChatDrawer and closes the
+  // workspace, which is the behaviour everywhere else in the panel.
   const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape") return;
-    // Must not reach ChatDrawer's window-level Escape handler, or it would close the
-    // whole workspace instead of just this menu.
+    if (!menuOpen || event.key !== "Escape") return;
     event.stopPropagation();
     closeMenu();
   };
@@ -505,7 +517,7 @@ export function ChatPanel({
           />
           {/* Answer-language control (follow UI / English / Bulgarian) is out of scope for
               this refit (plan/chat/m9.3b-chat-layout.md, "Out of scope") — this is its slot. */}
-          <div className="chat-overflow-menu">
+          <div className="chat-overflow-menu" onKeyDown={onMenuKeyDown}>
             <button
               type="button"
               ref={menuButtonRef}
@@ -525,7 +537,6 @@ export function ChatPanel({
                 role="menu"
                 aria-label={t("chat.menu.open")}
                 className="chat-overflow-menu-popover"
-                onKeyDown={onMenuKeyDown}
               >
                 <label className="chat-menu-item" role="menuitemcheckbox" aria-checked={privateSession}>
                   <input
