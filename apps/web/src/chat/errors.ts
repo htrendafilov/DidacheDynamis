@@ -9,6 +9,7 @@ export type ChatErrorKind =
   | "privacyConstraint" // 404: no endpoint satisfies zdr/data_collection — COMMON, not a corner case
   | "emptyAnswer" // finish_reason "length" with no visible content (reasoning ate the budget)
   | "badRequest" // 400 -> the request itself was malformed; retrying it verbatim cannot help
+  | "contextOverflow" // sources + question alone exceed the model's window (budget.ts)
   | "network"
   | "malformedStream"
   | "aborted";
@@ -33,6 +34,7 @@ const GENERIC_MESSAGE: Record<ChatErrorKind, string> = {
   privacyConstraint: "No endpoint satisfies the requested privacy routing.",
   emptyAnswer: "The model produced no visible answer.",
   badRequest: "The request was rejected as invalid.",
+  contextOverflow: "The selected context does not fit the model's context window.",
   network: "A network error occurred.",
   malformedStream: "The response stream could not be parsed.",
   aborted: "The request was cancelled.",

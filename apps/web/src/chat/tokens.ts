@@ -23,9 +23,20 @@ function countAscii(text: string): { ascii: number; other: number } {
   return { ascii, other: [...text].length - ascii };
 }
 
-export function estimateTokens(text: string, kind: SourceKind): number {
-  const band = DENSE_KINDS.has(kind) ? DIVISORS.dense : DIVISORS.prose;
+function estimate(text: string, band: { ascii: number; other: number }): number {
   const { ascii, other } = countAscii(text);
-  const raw = ascii / band.ascii + other / band.other;
-  return Math.ceil(raw * MULTIPLIER);
+  return Math.ceil((ascii / band.ascii + other / band.other) * MULTIPLIER);
+}
+
+export function estimateTokens(text: string, kind: SourceKind): number {
+  return estimate(text, DENSE_KINDS.has(kind) ? DIVISORS.dense : DIVISORS.prose);
+}
+
+// For text that is not a StudySource and so has no `kind`: the system contract, the user's
+// question, and replayed conversation turns (budget.ts). All of these are ordinary prose in
+// English or Bulgarian — never the dense symbolic band, which exists for Strong's ids and
+// TSK reference blocks. The same MULTIPLIER applies, so this keeps the "never under-count"
+// property the calibration was chosen for.
+export function estimateProseTokens(text: string): number {
+  return estimate(text, DIVISORS.prose);
 }
