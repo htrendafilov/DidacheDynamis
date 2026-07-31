@@ -12,6 +12,9 @@
   historical 1677 text. The unaltered CrossWire export remains committed as its provenance base;
   the complete correction list and checksums live in
   `data/sources/BaptistConfession1689-ed1.info.json`.
+- The release also imports `BaptistConfession1689_BG.imp.gz` as the separate `baptist1689bg` work.
+  Its Bulgarian translation and editorial changes are CC0 1.0 Universal; the rights declaration,
+  source chain, checksums, and complete correction record are committed beside the source.
 - The actual official `mod2imp` export was verified during implementation: it contains 35 top-level
   keys (`/Content`, `/Foreword`, `/Chapter 1` … `/Chapter 32`, `/End`). Paragraphs are markup inside
   each chapter, not child keys. The adapter nevertheless supports slash-delimited child keys for
@@ -52,8 +55,8 @@ model or renderer needed.
   (`_plain_document` / `_sword_osis_document`). Reject unsupported markup rather than dropping silently.
 - New `apps/importer/bibleimport/pipeline.py::append_book(...)` (mirrors `append_study_content`):
   insert the `works` row + `book_sections` + `book_fts`, transactional.
-- Wire into the CLI: `bibleimport add-book …`, and include it in **`build-all`** + `SOURCE_FILES`
-  (`cli.py`) so the Docker/native build stays the single source of truth.
+- Wire into the CLI: `bibleimport add-book …`, and include both language editions in **`build-all`**
+  + `SOURCE_FILES` (`cli.py`) so the Docker/native build stays the single source of truth.
 - Commit both the unaltered PD provenance source `data/sources/BaptistConfession1689.imp.gz` and the
   active reviewed `data/sources/BaptistConfession1689-ed1.imp.gz` via **Git LFS** (matches the
   `*.gz` `.gitattributes` rule).
@@ -71,8 +74,8 @@ model or renderer needed.
   navigation; deep-linkable section id.
 - Enable `book` in `apps/web/src/components/SourceSelector.tsx` (`ENABLED`) and route it in
   `apps/web/src/panes/PaneHost.tsx`.
-- i18n: add `source.book` + book UI strings to `en.json`/`bg.json`. (Book *content* stays in its own
-  language — English for the 1689.)
+- i18n: add `source.book` + book UI strings to `en.json`/`bg.json`. Each book work retains its own
+  content language; the work selector switches between the English and Bulgarian editions.
 
 ## Effort
 Medium — comparable to one M3-style slice. New code is the tree schema, the `genbook` adapter, the two
@@ -84,11 +87,12 @@ FTS pattern, cache/attribution/WorkFooter) is reused.
   paragraph); assert the tree shape + CIR bodies.
 - API: test `/books` and `/book/1689` return the TOC + a known chapter.
 - Frontend: BookPane renders the TOC and a chapter; SourceSelector exposes `book`.
-- Live: rebuild `content.sqlite` with `build-all`, redeploy, confirm the 1689 opens with all 32
-  chapters and correct attribution ("Public Domain").
+- Live: rebuild `content.sqlite` with `build-all`, redeploy, and confirm both editions open with all
+  32 chapters and their respective Public Domain / CC0 attribution.
 
 ## Initial slice delivered
-- Schema, General Book IMP adapter, `append_book`/`add-book`/`build-all`, and attributed PD source.
+- Schema, General Book IMP adapter, `append_book`/`add-book`/`build-all`, attributed English PD
+  source, and attributed Bulgarian CC0 source.
 - Cacheable `/api/v1/books` and `/api/v1/book/{id}` endpoints.
 - General Book pane with hierarchical TOC, shared Document CIR rendering, source info, and EN/BG UI.
 - A show/hide TOC control follows the book selector in the pane header. The persisted global Settings

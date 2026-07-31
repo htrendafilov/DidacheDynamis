@@ -8,6 +8,7 @@ from bibleimport.formats.genbook import load_genbook
 from bibleimport.pipeline import BibleSpec, BookSpec, append_book, build_bible
 
 FIXTURES = Path(__file__).parent / "fixtures"
+SOURCES = Path(__file__).parents[3] / "data" / "sources"
 
 
 def test_genbook_parser_materializes_tree_and_document_cir():
@@ -42,6 +43,33 @@ def test_genbook_parser_materializes_tree_and_document_cir():
         if run.get("ref")
     ]
     assert ref_runs == [{"t": "2 Tim. 3:16", "superscript": True, "ref": "2Tim.3.16"}]
+
+
+def test_bulgarian_release_source_has_localized_toc_and_complete_structure():
+    rows = load_genbook(SOURCES / "BaptistConfession1689_BG.imp.gz")
+
+    assert len(rows) == 35
+    assert [row.section_id for row in rows[:4]] == [
+        "content",
+        "foreword",
+        "chapter-1",
+        "chapter-2",
+    ]
+    assert [row.title for row in rows[:4]] == [
+        "Съдържание",
+        "Предговор",
+        "Глава 1 — За Свещените Писания",
+        "Глава 2 — За Бога и за Светата Троица",
+    ]
+    assert rows[-1].title == "Заключително Изявление и Подписали се"
+    scripture_reference_runs = sum(
+        1
+        for row in rows
+        for block in row.body["blocks"]
+        for run in block.get("runs", [])
+        if run.get("ref")
+    )
+    assert scripture_reference_runs == 1145
 
 
 def test_genbook_parser_rejects_unknown_markup(tmp_path):

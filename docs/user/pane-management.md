@@ -22,7 +22,7 @@ Each pane operates independently. Click the selector in the top-left of a pane h
 | **Commentary** | Verse-by-verse commentary (Matthew Henry) synced to active scripture |
 | **Dictionary** | Biblical dictionary lookup tool (Easton's Bible Dictionary) with clickable scripture citations and internal headword links |
 | **Notes** | Personal rich-text notes editor (TipTap) saved locally |
-| **General Books** | Imported historic documents; currently the 1689 Baptist Confession |
+| **General Books** | Imported historic documents; currently the English and Bulgarian editions of the 1689 Baptist Confession |
 
 ### Synchronized Navigation
 When **Sync panes** is enabled in Settings, choosing a Bible book/chapter or using the previous/next

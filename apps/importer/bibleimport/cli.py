@@ -37,6 +37,7 @@ SOURCE_FILES = {
     "easton": "Easton.raw.imp.gz",
     "tsk": "crossreferences_kjv.tsv",
     "baptist1689": "BaptistConfession1689-ed1.imp.gz",
+    "baptist1689bg": "BaptistConfession1689_BG.imp.gz",
     "strongsgreek": "StrongsGreek.imp.gz",
     "strongshebrew": "StrongsHebrew.imp.gz",
 }
@@ -128,6 +129,33 @@ BAPTIST_1689_SPEC = BookSpec(
         "(2026-07-29)"
     ),
     ai_context_policy="allowed",
+)
+
+BAPTIST_1689_BG_SPEC = BookSpec(
+    work_id="baptist1689bg",
+    title="Баптистка изповед на вярата от 1689 г.",
+    abbrev="1689 БГ",
+    language="bg",
+    license="CC0 1.0 Universal",
+    attribution=(
+        "Български превод и редакционни промени, предоставени по CC0 1.0 Universal. "
+        "Основан на публичнодостъпния модул CrossWire BaptistConfession1689 1.0.2 и "
+        "прегледаната английска редакция 1 на bible_app_bg."
+    ),
+    source_url=(
+        "https://github.com/htrendafilov/bible_app_bg/blob/main/data/sources/"
+        "BaptistConfession1689_BG.info.json"
+    ),
+    source_version=(
+        "bible_app_bg Bulgarian translation revision 1 (2026-07-29), based on "
+        "CrossWire BaptistConfession1689 1.0.2 + English editorial revision 1"
+    ),
+    ai_context_policy="allowed",
+)
+
+GENERAL_BOOK_SPECS = (
+    ("baptist1689", BAPTIST_1689_SPEC),
+    ("baptist1689bg", BAPTIST_1689_BG_SPEC),
 )
 
 
@@ -486,19 +514,21 @@ def _cmd_build_all(args) -> int:
     for audit in study_imports:
         _print_audit(audit)
 
-    print("==> General Books (1689 Baptist Confession)")
-    count = append_book(src / SOURCE_FILES["baptist1689"], BAPTIST_1689_SPEC, out)
-    print(f"book_sections={count}")
-    audit = _audit_record(
-        BAPTIST_1689_SPEC.work_id,
-        src / SOURCE_FILES["baptist1689"],
-        result="ok",
-        ai_context_policy=BAPTIST_1689_SPEC.ai_context_policy,
-        statistics={"book_sections": count},
-        source_version=BAPTIST_1689_SPEC.source_version,
-    )
-    imports.append(audit)
-    _print_audit(audit)
+    print("==> General Books (1689 Baptist Confession, EN + BG)")
+    for source_key, spec in GENERAL_BOOK_SPECS:
+        source = src / SOURCE_FILES[source_key]
+        count = append_book(source, spec, out)
+        print(f"{spec.work_id}_sections={count}")
+        audit = _audit_record(
+            spec.work_id,
+            source,
+            result="ok",
+            ai_context_policy=spec.ai_context_policy,
+            statistics={"book_sections": count},
+            source_version=spec.source_version,
+        )
+        imports.append(audit)
+        _print_audit(audit)
 
     print("==> Strong's lexicons (Greek, Hebrew)")
     stats, diags = append_strongs(

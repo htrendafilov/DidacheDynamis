@@ -6,7 +6,12 @@ In addition to scripture, the app provides a reader pane for non-scriptural hist
 
 ## Available Works
 
-- **1689 London Baptist Confession of Faith**: A historic summary of reformed Baptist theology, formatted with chapter hierarchy and scripture proof texts.
+- **1689 London Baptist Confession of Faith (English)**: The reviewed public-domain English edition.
+- **Баптистка изповед на вярата от 1689 г. (Bulgarian)**: The reviewed Bulgarian translation,
+  released under CC0 1.0 Universal.
+
+Use the work selector in the pane header to switch editions. Each edition has its own shareable URL
+because the work ID is part of the section link.
 
 ## Reader Navigation
 

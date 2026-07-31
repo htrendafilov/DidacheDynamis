@@ -69,7 +69,8 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
   and a rehearsed atomic DB/SPA backup & rollback (versioned releases + symlink swap). ✅
 - **M6** — General Books: hierarchical SWORD `mod2imp` adapter, read-only book API, a TOC reader pane
   (paged/scroll with scroll-spy), full-text book search, and shareable section deep links
-  (`#/book/<work>/<section>`); the public-domain 1689 Baptist Confession is the first shipped book.
+  (`#/book/<work>/<section>`); the reviewed English and CC0 Bulgarian editions of the 1689 Baptist
+  Confession are the first shipped books.
   🚧 Initial slice complete.
 - **M7.1** — search correctness: grouped `/search` envelope with true totals, `has_more`, 50-result
   pages, and relevance/canonical ordering (every Bible hit reachable, no duplicates). ✅
