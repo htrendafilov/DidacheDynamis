@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  CommentaryPassage,
   CrossReferences,
   DictionaryEntry,
   GeneralBook,
@@ -191,13 +192,49 @@ describe("buildContext licence gate (§11)", () => {
 });
 
 describe("buildContext budget (§4)", () => {
-  it("drops a single source whole, never truncated, when it is over the 2000-token cap", async () => {
-    const huge = "word ".repeat(3000); // far over 2000 tokens at any divisor
+  it("drops a single source whole, never truncated, when it is over the per-source cap", async () => {
+    const huge = "word ".repeat(3000); // far over any offered cap
     apiMock.passage.mockResolvedValue(passage(huge));
     const chips: ContextChip[] = [{ kind: "bible", workId: "web", osis: "John", chapter: 3 }];
-    const { sources, dropped } = await buildContext(chips, [work("web")], true, new AbortController().signal);
+    const { sources, dropped } = await buildContext(chips, [work("web")], true, new AbortController().signal, {
+      perSourceCap: 2000,
+      totalBudget: 8000,
+    });
     expect(sources).toEqual([]);
-    expect(dropped).toEqual([{ label: "John 3 (WEB)", kind: "bible", reason: "over-cap" }]);
+    // The estimate travels with the drop so the pre-send summary can name a figure the
+    // reader can act on rather than only "too large".
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]).toMatchObject({ label: "John 3 (WEB)", kind: "bible", reason: "over-cap" });
+    expect(dropped[0].estimatedTokens).toBeGreaterThan(2000);
+  });
+
+  it("admits a source the default cap rejects once the reader raises the limit", async () => {
+    // The measured reason the cap became configurable (§4 "Budget calibration"): a whole
+    // Matthew Henry chapter runs to ~21,600 tokens, so at 2,000 the commentary could never
+    // be sent at all — 937 of its 938 chapters were excluded outright.
+    const chapterSized = "word ".repeat(9000); // ~20,600 tokens
+    apiMock.commentary.mockResolvedValue({
+      work_id: "mhc",
+      osis: "Isa",
+      chapter: 10,
+      entries: [{ verse_start: 1, verse_end: 4, body: { blocks: [{ kind: "paragraph", text: chapterSized }] } }],
+    } as CommentaryPassage);
+    const chips: ContextChip[] = [{ kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10 }];
+    const works = [work("mhc", { type: "commentary" })];
+
+    const tight = await buildContext(chips, works, true, new AbortController().signal, {
+      perSourceCap: 6000,
+      totalBudget: 16000,
+    });
+    expect(tight.sources).toEqual([]);
+    expect(tight.dropped[0].reason).toBe("over-cap");
+
+    const generous = await buildContext(chips, works, true, new AbortController().signal, {
+      perSourceCap: 25000,
+      totalBudget: 32000,
+    });
+    expect(generous.sources).toHaveLength(1);
+    expect(generous.dropped).toEqual([]);
   });
 
   it("keeps sources in relevance order and drops the remainder once the total budget is spent", async () => {
@@ -232,6 +269,7 @@ describe("buildContext budget (§4)", () => {
       [work("web"), work("easton", { type: "dictionary" })],
       true,
       new AbortController().signal,
+      { perSourceCap: 2000, totalBudget: 8000 },
     );
     expect(sources.every((s) => s.kind === "bible")).toBe(true); // dictionary lost out to bible priority
     expect(dropped.some((d) => d.kind === "dictionary" && d.reason === "budget")).toBe(true);

@@ -400,6 +400,69 @@ describe("ContextPicker", () => {
     });
   });
 
+  // §4 relevance order is "commentary on that range", and §4 forbids silently attaching a
+  // whole chapter when a verse is selected. Nothing ever supplied a verse, so every
+  // commentary chip fetched the whole chapter — a median 12,903 tokens for Matthew Henry
+  // against a 6,000 cap, i.e. always dropped, which is why the model kept reporting that it
+  // had only been given Bible text.
+  describe("commentary verse scoping", () => {
+    it("defaults the commentary chip to the verse selected in a Bible pane on the same reference", async () => {
+      const panes: Pane[] = [
+        pane({ type: "bible", workId: "web", osis: "Isa", chapter: 10, selectedVerse: 1 }),
+        pane({ type: "commentary", workId: "mhc", osis: "Isa", chapter: 10 }),
+      ];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith(
+          expect.arrayContaining([
+            { kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10, verse: 1 },
+          ]),
+        ),
+      );
+    });
+
+    it("lets the verse be typed on the chip, and shows it in the label", async () => {
+      const panes: Pane[] = [pane({ type: "commentary", workId: "mhc", osis: "Isa", chapter: 10 })];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByLabelText("Verse"), { target: { value: "1" } });
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([
+          { kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10, verse: 1 },
+        ]),
+      );
+      expect(screen.getByRole("checkbox", { name: /MHC — Isa 10:1/ })).toBeInTheDocument();
+    });
+
+    it("falls back to the whole chapter when the verse box is cleared", async () => {
+      const panes: Pane[] = [
+        pane({ type: "bible", workId: "web", osis: "Isa", chapter: 10, selectedVerse: 1 }),
+        pane({ type: "commentary", workId: "mhc", osis: "Isa", chapter: 10 }),
+      ];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByLabelText("Verse"), { target: { value: "" } });
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith(
+          expect.arrayContaining([
+            { kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10, verse: undefined },
+          ]),
+        ),
+      );
+    });
+  });
+
 describe("summarizeContext", () => {
   const t = (key: string, opts?: Record<string, unknown>) => i18n.t(key, opts ?? {});
   const source = (label: string, estimatedTokens: number) => ({ label, estimatedTokens });

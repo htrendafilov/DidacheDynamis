@@ -11,6 +11,11 @@ import { api, type CommentaryEntry, type GeneralBookSection, type Work } from ".
 import { strongEntry } from "../data/hooks";
 import { db } from "../data/notes";
 import { normalizeStrongId, strongLexiconWorkId } from "../data/strongs";
+import {
+  DEFAULT_CONTEXT_BUDGET,
+  MAX_SOURCES,
+  type ContextBudget,
+} from "./contextBudget";
 import { satisfiesNoTraining } from "./credentials";
 import {
   crossReferencesToText,
@@ -28,10 +33,6 @@ import type {
   SourceKind,
   StudySource,
 } from "./types";
-
-const PER_SOURCE_CAP_TOKENS = 2000;
-const TOTAL_BUDGET_TOKENS = 8000;
-const MAX_SOURCES = 12;
 
 // Fixed relevance order (§4): selected verse range -> commentary on that range ->
 // Strong's entries -> cross-references -> dictionary entries -> book section -> notes.
@@ -386,6 +387,9 @@ export async function buildContext(
   works: Work[],
   privacyRouting: boolean,
   signal: AbortSignal,
+  // Reader-configurable (§4 "Budget calibration"). Optional so the many callers that do not
+  // care about the setting — tests, mostly — keep the documented defaults.
+  budget: ContextBudget = DEFAULT_CONTEXT_BUDGET,
 ): Promise<{ sources: StudySource[]; dropped: DroppedSource[] }> {
   const meta = await api.meta();
   const contentVersion = meta.content_version ?? "unknown";
@@ -424,8 +428,16 @@ export async function buildContext(
   // 3. Per-source cap: drop whole, never truncate.
   const capped: Candidate[] = [];
   for (const c of licensed) {
-    if (c.source.estimatedTokens > PER_SOURCE_CAP_TOKENS) {
-      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "over-cap" });
+    if (c.source.estimatedTokens > budget.perSourceCap) {
+      // The estimate travels with the drop so the pre-send summary can say what the source
+      // would have cost: "too large" is not actionable, "21,628 tokens against a 6,000
+      // limit" is.
+      dropped.push({
+        label: c.source.label,
+        kind: c.source.kind,
+        reason: "over-cap",
+        estimatedTokens: c.source.estimatedTokens,
+      });
     } else {
       capped.push(c);
     }
@@ -455,7 +467,7 @@ export async function buildContext(
   const kept: Candidate[] = [];
   let total = 0;
   for (const c of deduped) {
-    if (kept.length >= MAX_SOURCES || total + c.source.estimatedTokens > TOTAL_BUDGET_TOKENS) {
+    if (kept.length >= MAX_SOURCES || total + c.source.estimatedTokens > budget.totalBudget) {
       dropped.push({ label: c.source.label, kind: c.source.kind, reason: "budget" });
       continue;
     }
