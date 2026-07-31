@@ -323,6 +323,83 @@ describe("ContextPicker", () => {
   });
 });
 
+  // The collapsed strip is the default state, so its one-line summary is the only
+  // description of scope the reader sees before sending. It is derived from the same
+  // eligible collection as the emitted chips; computing the two separately let the summary
+  // claim sources that were never going to be sent.
+  describe("collapsed strip summary", () => {
+    it("says nothing is selected when the licence gate refuses everything picked", async () => {
+      works = [work("web", { ai_context_policy: "allowed_no_training" })];
+      const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={false} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([]));
+      expect(screen.getByText(/Context ·/)).toHaveTextContent(/nothing selected/i);
+      // The blocked chip itself stays listed inside the expanded strip, disabled and with
+      // its reason (§11 — a licence block is shown, not silently omitted). It is only the
+      // summary line, which describes what is being sent, that must not claim it.
+      expect(screen.getByRole("checkbox", { name: /John 3/ })).toBeDisabled();
+    });
+
+    it("names the source again once privacy routing makes it eligible", async () => {
+      const { setLoggingConfirmed } = await import("../../chat/credentials");
+      setLoggingConfirmed(true);
+      works = [work("web", { ai_context_policy: "allowed_no_training" })];
+      const panes: Pane[] = [pane({ type: "bible", workId: "web", osis: "John", chapter: 3 })];
+      const onChipsChange = vi.fn();
+      const { rerender } = render(
+        <ContextPicker panes={panes} privacyRouting={false} loggingConfirmed={true} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenLastCalledWith([]));
+      expect(screen.getByText(/Context ·/)).toHaveTextContent(/nothing selected/i);
+
+      rerender(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={true} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange.mock.calls[onChipsChange.mock.calls.length - 1][0]).toHaveLength(1));
+      expect(screen.getByText(/Context ·/)).toHaveTextContent(/John 3 \(WEB\)/);
+      setLoggingConfirmed(false);
+    });
+
+    it("does not count a chip whose pane has been closed", async () => {
+      const bible: Pane = { id: "p1", type: "bible", workId: "web", osis: "John", chapter: 3 };
+      const dict: Pane = {
+        id: "p2",
+        type: "dictionary",
+        workId: "easton",
+        osis: "John",
+        chapter: 3,
+        headword: "Grace",
+      };
+      const onChipsChange = vi.fn();
+      const { rerender } = render(
+        <ContextPicker
+          panes={[bible, dict]}
+          privacyRouting={true}
+          loggingConfirmed={false}
+          onChipsChange={onChipsChange}
+        />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+      fireEvent.click(screen.getByRole("checkbox", { name: /Grace/ }));
+      await waitFor(() => expect(onChipsChange.mock.calls[onChipsChange.mock.calls.length - 1][0]).toHaveLength(2));
+
+      // The dictionary pane closes; its key lingers in `enabled` but nothing sends it.
+      rerender(
+        <ContextPicker
+          panes={[bible]}
+          privacyRouting={true}
+          loggingConfirmed={false}
+          onChipsChange={onChipsChange}
+        />,
+      );
+      await waitFor(() => expect(onChipsChange.mock.calls[onChipsChange.mock.calls.length - 1][0]).toHaveLength(1));
+      expect(screen.getByText(/Context ·/).textContent).not.toMatch(/\+\d/);
+    });
+  });
+
 describe("summarizeContext", () => {
   const t = (key: string, opts?: Record<string, unknown>) => i18n.t(key, opts ?? {});
   const source = (label: string, estimatedTokens: number) => ({ label, estimatedTokens });

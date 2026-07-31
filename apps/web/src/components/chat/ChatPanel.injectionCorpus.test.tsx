@@ -113,15 +113,24 @@ async function waitForSendToSettle() {
   await waitFor(() => expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument());
 }
 
+// The model chip's accessible name is localized and changes once a model is selected
+// ("Select a model" / model name), so a CSS-class lookup is more robust here than a
+// role+name query would be across every call site.
+function openModelPicker() {
+  fireEvent.click(document.querySelector(".chat-model-chip") as HTMLElement);
+}
+
 async function connectAndSelectModel() {
   render(<ChatPanel onClose={() => {}} />);
+  openModelPicker();
   await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
   fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
   fireEvent.change(screen.getByLabelText("OpenRouter API key"), { target: { value: SENTINEL_KEY } });
   fetchMock.mockImplementationOnce(() => Promise.resolve(keyInfoResponse()));
   fireEvent.click(screen.getByRole("button", { name: "Connect" }));
   await waitFor(() => expect(screen.getByText("Connected to OpenRouter.")).toBeInTheDocument());
-  fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openrouter/free" } });
+  // Selecting a model closes the popover, same as a real click would.
+  fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
 }
 
 describe("ChatPanel end-to-end injection corpus (M9.3 step 7)", () => {

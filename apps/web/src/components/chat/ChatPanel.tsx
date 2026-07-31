@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -34,10 +35,11 @@ import { estimateProseTokens } from "../../chat/tokens";
 import type { ContextChip, StudySource } from "../../chat/types";
 import { useWorks } from "../../data/hooks";
 import { useStore, type PaneSourceType } from "../../state/store";
+import { ChatDisclaimer } from "./ChatDisclaimer";
 import { ChatMessage } from "./ChatMessage";
-import { ChatSettings, initialLoggingConfirmed } from "./ChatSettings";
 import { ChatSources } from "./ChatSources";
 import { ContextPicker, summarizeContext } from "./ContextPicker";
+import { initialLoggingConfirmed, ModelPicker } from "./ModelPicker";
 
 const HISTORY_NOTICE_KEY = "bible-chat-history-notice-dismissed";
 
@@ -118,7 +120,11 @@ export function ChatPanel({
   const [historyNoticeDismissed, setHistoryNoticeDismissed] = useState(
     () => localStorage.getItem(HISTORY_NOTICE_KEY) === "1",
   );
+  const [menuOpen, setMenuOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
 
   // Reload finds saved history: on mount (never in a private session), pick up the most
   // recently updated thread and restore its messages, including each assistant answer's
@@ -181,6 +187,43 @@ export function ChatPanel({
 
   const exportJson = async () => {
     downloadJson("bible-chat-history.json", await exportHistory());
+  };
+
+  const closeMenu = () => {
+    setMenuOpen(false);
+    menuButtonRef.current?.focus();
+  };
+
+  // Click outside closes the overflow menu; scrolling must not (no scroll listener here).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || menuButtonRef.current?.contains(target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [menuOpen]);
+
+  // Focus the first item when the menu opens. Without this, opening the menu leaves focus
+  // on the gear button, whose keydown events never pass through the menu element — so
+  // Escape reached ChatDrawer's window handler and closed the entire workspace while
+  // leaving the menu itself open.
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus();
+  }, [menuOpen]);
+
+  // Bound to the wrapper, not the menu element, so it also catches Escape raised on the
+  // gear button itself — focus can be there whenever the menu is open (it is restored
+  // there on close, and a reader can shift-tab back to it). Guarded on menuOpen so that
+  // Escape on the button with no menu open still reaches ChatDrawer and closes the
+  // workspace, which is the behaviour everywhere else in the panel.
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!menuOpen || event.key !== "Escape") return;
+    event.stopPropagation();
+    closeMenu();
   };
 
   const disconnect = () => {
@@ -391,7 +434,7 @@ export function ChatPanel({
         </button>
       </div>
 
-      <p className="chat-disclaimer">{t("chat.disclaimer")}</p>
+      <ChatDisclaimer hasMessages={messages.length > 0} />
 
       {!historyNoticeDismissed && (
         <aside className="chat-history-notice" role="note">
@@ -401,53 +444,6 @@ export function ChatPanel({
           </button>
         </aside>
       )}
-
-      <div className="chat-history-controls">
-        <label>
-          <input
-            type="checkbox"
-            checked={privateSession}
-            onChange={(e) => setPrivateSession(e.target.checked)}
-          />
-          {t("chat.history.privateSession")}
-        </label>
-        {/* Disabled while streaming: send()'s in-flight closure still has currentThreadId
-            captured and, after the turn finishes, saves the assistant message/run under it
-            regardless of what happens elsewhere — clearing that thread mid-turn would leave
-            those writes to resurrect it as orphaned data, visible in a later Export JSON. */}
-        <button
-          type="button"
-          onClick={() => void clearThisThread()}
-          disabled={messages.length === 0 || streaming}
-        >
-          {t("chat.history.clearThread")}
-        </button>
-        <button type="button" onClick={() => void clearAllHistoryAndReset()} disabled={streaming}>
-          {t("chat.history.clearAll")}
-        </button>
-        <button type="button" onClick={() => void exportJson()}>
-          {t("chat.history.exportJson")}
-        </button>
-      </div>
-
-      <ChatSettings
-        connected={connected}
-        onConnected={() => setConnected(true)}
-        onDisconnect={disconnect}
-        selectedModel={selectedModel}
-        onSelectModel={setSelectedModel}
-        privacyRouting={privacyRouting}
-        onPrivacyRoutingChange={setPrivacyRouting}
-        loggingConfirmed={loggingConfirmed}
-        onLoggingConfirmedChange={setLoggingConfirmedState}
-      />
-
-      <ContextPicker
-        panes={panes}
-        privacyRouting={privacyRouting}
-        loggingConfirmed={loggingConfirmed}
-        onChipsChange={setChips}
-      />
 
       <ul className="chat-messages" aria-live="polite" aria-label={t("chat.messages")}>
         {messages.map((m) => (
@@ -484,6 +480,13 @@ export function ChatPanel({
         ))}
       </ul>
 
+      <ContextPicker
+        panes={panes}
+        privacyRouting={privacyRouting}
+        loggingConfirmed={loggingConfirmed}
+        onChipsChange={setChips}
+      />
+
       <form
         className="chat-composer"
         onSubmit={(event) => {
@@ -500,15 +503,99 @@ export function ChatPanel({
           onChange={(event) => setInput(event.target.value)}
           disabled={!connected || streaming}
         />
-        {streaming ? (
-          <button type="button" onClick={stop}>
-            {t("chat.stop")}
-          </button>
-        ) : (
-          <button type="submit" disabled={!canSend}>
-            {t("chat.send")}
-          </button>
-        )}
+        <div className="chat-composer-toolbar">
+          <ModelPicker
+            connected={connected}
+            onConnected={() => setConnected(true)}
+            onDisconnect={disconnect}
+            selectedModel={selectedModel}
+            onSelectModel={setSelectedModel}
+            privacyRouting={privacyRouting}
+            onPrivacyRoutingChange={setPrivacyRouting}
+            loggingConfirmed={loggingConfirmed}
+            onLoggingConfirmedChange={setLoggingConfirmedState}
+          />
+          {/* Answer-language control (follow UI / English / Bulgarian) is out of scope for
+              this refit (plan/chat/m9.3b-chat-layout.md, "Out of scope") — this is its slot. */}
+          <div className="chat-overflow-menu" onKeyDown={onMenuKeyDown}>
+            <button
+              type="button"
+              ref={menuButtonRef}
+              className="chat-overflow-menu-button"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              aria-label={t("chat.menu.open")}
+              onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+            >
+              ⚙
+            </button>
+            {menuOpen && (
+              <div
+                ref={menuRef}
+                id={menuId}
+                role="menu"
+                aria-label={t("chat.menu.open")}
+                className="chat-overflow-menu-popover"
+              >
+                <label className="chat-menu-item" role="menuitemcheckbox" aria-checked={privateSession}>
+                  <input
+                    type="checkbox"
+                    checked={privateSession}
+                    onChange={(e) => setPrivateSession(e.target.checked)}
+                  />
+                  {t("chat.history.privateSession")}
+                </label>
+                {/* Disabled while streaming: send()'s in-flight closure still has
+                    currentThreadId captured and, after the turn finishes, saves the
+                    assistant message/run under it regardless of what happens elsewhere —
+                    clearing that thread mid-turn would leave those writes to resurrect it
+                    as orphaned data, visible in a later Export JSON. */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeMenu();
+                    void clearThisThread();
+                  }}
+                  disabled={messages.length === 0 || streaming}
+                >
+                  {t("chat.history.clearThread")}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeMenu();
+                    void clearAllHistoryAndReset();
+                  }}
+                  disabled={streaming}
+                >
+                  {t("chat.history.clearAll")}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeMenu();
+                    void exportJson();
+                  }}
+                >
+                  {t("chat.history.exportJson")}
+                </button>
+              </div>
+            )}
+          </div>
+          {streaming ? (
+            <button type="button" onClick={stop}>
+              {t("chat.stop")}
+            </button>
+          ) : (
+            <button type="submit" disabled={!canSend}>
+              {t("chat.send")}
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );

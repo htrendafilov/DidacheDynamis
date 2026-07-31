@@ -324,6 +324,7 @@ export function ContextPicker({
   const works = useWorks();
   const [enabled, setEnabled] = useState<Set<string>>(new Set());
   const [verseEdits, setVerseEdits] = useState<Record<string, VerseEdit>>({});
+  const [stripOpen, setStripOpen] = useState(false);
   const initialized = useRef(false);
 
   const paneCandidates = useMemo(() => {
@@ -402,14 +403,25 @@ export function ContextPicker({
       return next;
     });
 
+  // The single derivation of "what this turn will carry", used for BOTH the outgoing chip
+  // set and the collapsed strip summary. They must not be computed separately: the summary
+  // is the only description of scope the reader sees while the strip is collapsed (its
+  // default state), so any divergence is the UI misreporting what leaves the browser.
+  //
   // Every enabled key is re-validated against the *current* works + privacyRouting here,
-  // not trusted from whichever subcomponent's checkbox last toggled it. This is what
-  // makes turning privacy routing off retroactively drop an allowed_no_training source
-  // already staged for the turn (§11) — the subcomponents' disabled states follow from
-  // the same chipEligibility call, but the emission does not depend on them agreeing.
-  const emittedRef = useRef<string>("");
-  useEffect(() => {
-    const byKey = new Map(paneCandidates.map((c) => [c.key, c.chip]));
+  // not trusted from whichever subcomponent's checkbox last toggled it. This is what makes
+  // turning privacy routing off retroactively drop an allowed_no_training source already
+  // staged for the turn (§11) — the subcomponents' disabled states follow from the same
+  // chipEligibility call, but this does not depend on them agreeing.
+  const activeContext = useMemo(() => {
+    // Referenced, not merely listed: chipEligibility consults the logging confirmation
+    // through sessionStorage (the same source context.ts trusts at send time, so the two
+    // cannot drift), but React only recomputes a memo for dependencies its body actually
+    // reads. Without this the strip and the emitted chips would both go stale the moment
+    // the confirmation is toggled — exactly the §11 re-evaluation this exists to guarantee.
+    void loggingConfirmed;
+    const byKey = new Map<string, ContextChip>(paneCandidates.map((c) => [c.key, c.chip]));
+    const labelByKey = new Map(paneCandidates.map((c) => [c.key, c.label]));
     for (const k of enabled) {
       if (byKey.has(k)) continue;
       if (k.startsWith("lexicon:")) byKey.set(k, { kind: "lexicon", strongId: k.slice("lexicon:".length) });
@@ -422,22 +434,56 @@ export function ContextPicker({
         byKey.set(k, { kind: "xref", previewWork, osis, chapter: Number(chapter), verse: Number(verse) });
       }
     }
-    const active = [...byKey.entries()]
-      .filter(([k]) => enabled.has(k))
-      .map(([, chip]) => chip)
-      .filter((chip) => chipEligibility(chip, works, privacyRouting).eligible);
-    const serialized = JSON.stringify(active);
-    if (serialized === emittedRef.current) return;
-    emittedRef.current = serialized;
-    onChipsChange(active);
+
+    const chips: ContextChip[] = [];
+    const labels: string[] = [];
+    let unlabelled = 0; // lexicon/xref/note/book chips are labelled in their own
+    // subcomponents, not here; they are counted rather than relabelled.
+    for (const [key, chip] of byKey) {
+      // A key can outlive what produced it — a closed pane, or a lexicon/xref chip whose
+      // verse-scoped key went stale when the reader navigated. Those keys stay in
+      // `enabled` but have no candidate, so they must not be described as being sent.
+      if (!enabled.has(key)) continue;
+      if (!chipEligibility(chip, works, privacyRouting).eligible) continue;
+      chips.push(chip);
+      const label = labelByKey.get(key);
+      if (label) labels.push(label);
+      else unlabelled++;
+    }
+    return { chips, labels, unlabelled };
     // loggingConfirmed is not read in this body — chipEligibility reads it from
     // sessionStorage via satisfiesNoTraining — but must still be listed so toggling it
-    // re-runs this effect and re-emits against the now-current value. See the prop's doc
-    // comment above.
-  }, [enabled, paneCandidates, works, privacyRouting, loggingConfirmed, onChipsChange]);
+    // recomputes against the now-current value. See the prop's doc comment above.
+  }, [enabled, paneCandidates, works, privacyRouting, loggingConfirmed]);
+
+  const emittedRef = useRef<string>("");
+  useEffect(() => {
+    const serialized = JSON.stringify(activeContext.chips);
+    if (serialized === emittedRef.current) return;
+    emittedRef.current = serialized;
+    onChipsChange(activeContext.chips);
+  }, [activeContext, onChipsChange]);
+
+  // A one-line preview of what the next turn will carry, without expanding the strip. No
+  // token estimate: that needs the fetched excerpt, which only buildContext has, at send
+  // time — the accurate figure appears in the pre-send summary on the sent message.
+  const stripLabels =
+    activeContext.unlabelled > 0
+      ? [...activeContext.labels, `+${activeContext.unlabelled}`]
+      : activeContext.labels;
+  const stripSummary =
+    activeContext.chips.length === 0
+      ? t("chat.context.stripEmpty")
+      : t("chat.context.stripSummary", { labels: stripLabels.join(", ") });
 
   return (
-    <fieldset className="context-picker">
+    <details
+      className="chat-context-strip"
+      open={stripOpen}
+      onToggle={(event) => setStripOpen(event.currentTarget.open)}
+    >
+      <summary>{stripSummary}</summary>
+      <fieldset className="context-picker">
       <legend>{t("chat.context.title")}</legend>
       {paneCandidates.map((c) => {
         const { eligible, reason } = chipEligibility(c.chip, works, privacyRouting);
@@ -509,7 +555,8 @@ export function ContextPicker({
       {bibleChapters.map(({ osis, chapter }) => (
         <NoteChips key={`${osis}:${chapter}`} osis={osis} chapter={chapter} enabled={enabled} onToggle={toggle} />
       ))}
-    </fieldset>
+      </fieldset>
+    </details>
   );
 }
 

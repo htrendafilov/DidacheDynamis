@@ -98,6 +98,9 @@ test("connect, pick a model, send a message, stream it, and disconnect", async (
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant" }).click();
 
+  // Provider/model settings live behind the composer's model chip
+  // (plan/chat/m9.3b-chat-layout.md).
+  await page.getByRole("button", { name: "Select a model" }).click();
   await expect(page.getByRole("option", { name: /Free Models Router/ })).toBeAttached();
 
   await page
@@ -111,13 +114,16 @@ test("connect, pick a model, send a message, stream it, and disconnect", async (
   await expect(page.getByLabel("OpenRouter API key")).not.toBeAttached();
   expect(await page.content()).not.toContain(SENTINEL_KEY);
 
-  await page.getByLabel("Model", { exact: true }).selectOption("openrouter/free");
+  await page.getByRole("option", { name: /Free Models Router/ }).click();
   await page.getByLabel("Your question").fill("Explain John 3:16");
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(page.getByText("Hello, world.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
 
+  // Selecting the model closed the popover; reopen it (now via the chip's own name) to
+  // reach Disconnect.
+  await page.getByRole("button", { name: "Free Models Router" }).click();
   await page.getByRole("button", { name: "Disconnect" }).click();
   await expect(page.getByRole("button", { name: "Connect" })).toBeVisible();
 });
@@ -128,6 +134,7 @@ test("Stop cancels an in-flight request immediately, without waiting for a respo
   await mockOpenRouter(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant" }).click();
+  await page.getByRole("button", { name: "Select a model" }).click();
   await expect(page.getByRole("option", { name: /Free Models Router/ })).toBeAttached();
 
   await page
@@ -136,7 +143,7 @@ test("Stop cancels an in-flight request immediately, without waiting for a respo
   await page.getByLabel("OpenRouter API key").fill(SENTINEL_KEY);
   await page.getByRole("button", { name: "Connect" }).click();
   await expect(page.getByText("Connected to OpenRouter.")).toBeVisible();
-  await page.getByLabel("Model", { exact: true }).selectOption("openrouter/free");
+  await page.getByRole("option", { name: /Free Models Router/ }).click();
 
   // Replace the completions mock with one that never responds, so nothing but a real Stop
   // click can end this request -- proves Stop cancels the actual network request, not just
@@ -156,6 +163,12 @@ test("Stop cancels an in-flight request immediately, without waiting for a respo
     (async () => {
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+      // send() shares one AbortController between buildContext's own real fetch (to this
+      // app's local API, for the passage text) and the completions request: clicking Stop
+      // as soon as the button appears can win a race against that earlier fetch and abort
+      // it instead, before the completions request this test means to cancel even starts.
+      // Waiting for the completions request to exist removes the race.
+      await page.waitForRequest("https://openrouter.ai/api/v1/chat/completions");
       await page.getByRole("button", { name: "Stop" }).click();
     })(),
   ]);
