@@ -220,6 +220,11 @@ tree before the first push, not in the private repo's day-to-day history:
   owner decision with DNS/tunnel/UptimeRobot consequences.
 - Code identifiers (`apps/*` package names, i18n strings, SPA title) can be renamed incrementally
   post-release; only user-visible branding blocks publication.
+- **Logo (selected 2026-08-01):** a geometric lighthouse mark — dark-navy interlocking triangles
+  forming the tower, white light beams fanning left and right, flanked by cyan accent dots with red
+  centers, on a light-gray field. The owner has the source image; it lands in the sanitized tree as
+  the favicon/app icon (under `apps/web/public/`) and is set as the GitHub social preview at §7.
+  Record the logo's license/attribution alongside `NOTICE` if it was not created by the owner.
 
 ## 5. History rewrite procedure
 
