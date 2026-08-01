@@ -46,8 +46,8 @@ import sqlite3
 import datetime
 
 ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
-src = sqlite3.connect("file:/opt/bible-app/bible-app/data/content.sqlite?mode=ro", uri=True)
-dst = sqlite3.connect(f"/opt/bible-app/bible-app/backups/content-{ts}.sqlite")
+src = sqlite3.connect("file:/opt/bible-app/data/content.sqlite?mode=ro", uri=True)
+dst = sqlite3.connect(f"/opt/bible-app/backups/content-{ts}.sqlite")
 src.backup(dst)
 dst.close()
 src.close()
@@ -78,7 +78,7 @@ ln -s "$PREVIOUS" "$NEXT" && mv -Tf "$NEXT" web_dist
 
 ### Database Rollback
 ```bash
-cp ~/bible-app/backups/content-<previous-ts>.sqlite ~/bible-app/data/content.restore.sqlite
-mv -f ~/bible-app/data/content.restore.sqlite ~/bible-app/data/content.sqlite
+cp /opt/bible-app/backups/content-<previous-ts>.sqlite /opt/bible-app/data/content.restore.sqlite
+mv -f /opt/bible-app/data/content.restore.sqlite /opt/bible-app/data/content.sqlite
 sudo systemctl restart bible-app
 ```

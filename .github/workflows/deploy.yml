@@ -4,7 +4,8 @@ name: deploy
 # optional GHCR/Compose path using VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR secrets.
 #
 # Those four secrets are NOT configured today, so the "Deploy to VM" step cannot run. Production
-# currently uses the native systemd + gunicorn path in plan/deployment/live-runbook.md, not Docker.
+# currently uses the native systemd + gunicorn path (generic procedure: docs/deployment/; operator
+# values live in the intentionally private live runbook), not Docker.
 # The image build/push below is useful on its own, so it still runs; the preflight before the SSH
 # step explains the failure instead of letting ssh-action report a bare "missing server host".
 on:
@@ -71,8 +72,8 @@ jobs:
               echo
               echo "This workflow is the *future* hands-off Docker path. Production runs the native"
               echo "systemd + gunicorn service behind the Cloudflare Tunnel, which this workflow does"
-              echo "not touch. Release it with the procedure in"
-              echo "\`plan/deployment/live-runbook.md\` → \"Update the app or content\"."
+              echo "not touch. Release it with the operator's private live runbook"
+              echo "(generic procedure: \`docs/deployment/\`)."
               echo
               echo "To enable this path instead, install Docker on the VM, create a deploy user + key,"
               echo "then set the four secrets above."

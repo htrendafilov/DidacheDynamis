@@ -42,5 +42,7 @@ flowchart TD
    - [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) is manual
      (`workflow_dispatch`): it builds/pushes a commit-SHA + `latest` image to GHCR, SSHes to the VM,
      pulls with Compose, and checks readiness.
-   - It intentionally does not deploy on every commit. The current native production procedure is
-     documented in [`plan/deployment/live-runbook.md`](../../plan/deployment/live-runbook.md).
+   - It intentionally does not deploy on every commit. The generic native production procedures are
+     documented in this guide ([hosting options](hosting-options.md),
+     [backups & rollback](backups-and-rollback.md)); live operator values stay in the private
+     runbook (see [`plan/deployment/README.md`](../../plan/deployment/README.md)).

@@ -40,6 +40,13 @@ data/sources/*.private.*
 .claude/
 .ua/
 
+# uv is not the documented install path (pip + pyproject is); ignore its lockfiles until adopted
+uv.lock
+
+# Private operations runbook — intentionally not committed/published.
+# See plan/deployment/README.md.
+plan/deployment/live-runbook.md
+
 # Local release driver — drives production from a workstation that holds the SSH
 # access and secret-store configuration, so it is intentionally not committed.
 scripts/release.sh

@@ -4,11 +4,11 @@
 
 ## Option 1: Native Systemd + Gunicorn (VM Setup)
 
-### Current production reference
+### Production reference shape
 
-Production runs as `deploy` from `/opt/bible-app/bible-app`. The complete, current unit and operational
-details are maintained in [`plan/deployment/live-runbook.md`](../../plan/deployment/live-runbook.md).
-The essential service shape is:
+A typical production install runs as a dedicated `deploy` user from `/opt/bible-app`. The live
+operator values (host, account, real paths) are intentionally kept in a private runbook — see
+[`plan/deployment/README.md`](../../plan/deployment/README.md). The essential service shape is:
 
 ```ini
 [Unit]
@@ -17,8 +17,8 @@ After=network.target
 
 [Service]
 User=deploy
-WorkingDirectory=/opt/bible-app/bible-app
-ExecStart=/opt/bible-app/bible-app/.venv/bin/gunicorn app.main:app \
+WorkingDirectory=/opt/bible-app
+ExecStart=/opt/bible-app/.venv/bin/gunicorn app.main:app \
   -k uvicorn.workers.UvicornWorker \
   -w 3 \
   -b 127.0.0.1:8080
