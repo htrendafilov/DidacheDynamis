@@ -6,8 +6,7 @@
 > [`frontend/frontend_design.md`](frontend/frontend_design.md),
 > [`backend/backend_design.md`](backend/backend_design.md),
 > [`deployment/deployment_design.md`](deployment/deployment_design.md).
-> The earlier `bible_reading_software_plan.md` is a process/workflow playbook; this set of
-> documents is the actual v1 product/technical design.
+> These documents are the authoritative v1 product and technical design.
 
 ## 1. Product shape
 

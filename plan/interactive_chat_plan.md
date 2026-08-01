@@ -1,14 +1,17 @@
 # Interactive Study Assistant — Implementation Plan
 
-Status: ready to execute
+Status: in progress — M9.0, M9.0b-1, and M9.1 through M9.3d shipped by 2026-07-31;
+M9.0b-2, M9.4, and M9.5 remain
 Target milestone: M9
-Last reviewed: 2026-07-29
+Last reviewed: 2026-08-01
 
 Implementation plan for an optional AI-assisted study workspace in the Bible reader. `plan/00_system_design.md` §9 lists "AI explanations" as a v1 non-goal; M9 is the deliberate milestone that lifts it, not a v1 patch.
 
 Two earlier research notes (`interactive_chat_feature_proposal.md`, `interactive_chat_feature_proposal_kimi_k3.md`) fed into this document and were deleted once superseded. Everything still worth keeping from them is recorded in Appendix B.
 
-**Detailed work orders** for the first four milestones live in [`chat/`](chat/). Each is self-contained: an agent picking up a milestone should be able to work from its brief plus the linked sections here.
+**Detailed work orders** for the first milestones live in [`chat/`](chat/). Completed briefs remain as
+decision records until M9 closes; an agent picking up an open milestone should work from its brief
+plus the linked sections here.
 
 | Milestone | Brief |
 |---|---|

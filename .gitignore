@@ -37,10 +37,11 @@ data/sources/*.private.*
 .continues-handoff.md
 *-handoff.md
 .kilo/
+.claude/
+.ua/
 
 # Local release driver — drives production from a workstation that holds the SSH
-# access and the `pass` store, so it is intentionally not committed. The durable
-# procedure lives in plan/deployment/live-runbook.md.
+# access and secret-store configuration, so it is intentionally not committed.
 scripts/release.sh
 
 # Playwright
