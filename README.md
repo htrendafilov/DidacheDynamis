@@ -18,7 +18,7 @@ The full v1 design lives in [`plan/`](plan/):
 - [`plan/backend/backend_design.md`](plan/backend/backend_design.md)
 - [`plan/deployment/deployment_design.md`](plan/deployment/deployment_design.md)
 - [`plan/search_workspace.md`](plan/search_workspace.md) — M7 Search Workspace and M8 Strong's plan
-- [`plan/review_remediation_2026-07-24.md`](plan/review_remediation_2026-07-24.md) — triage + fix plan for the 2026-07-24 code review
+- [`plan/interactive_chat_plan.md`](plan/interactive_chat_plan.md) — M9 study-assistant plan
 
 ## Documentation
 
@@ -27,7 +27,6 @@ Comprehensive project documentation is available in [`docs/`](docs/):
 - [`docs/user/index.md`](docs/user/index.md) — User Guide (Pane management, reading modes, rich text notes, Dropbox sync)
 - [`docs/developer/index.md`](docs/developer/index.md) — Developer Guide (Setup, architecture, CIR data model, web SPA, FastAPI & testing)
 - [`docs/deployment/index.md`](docs/deployment/index.md) — Deployment & Operations Guide (Cloudflare Tunnel, systemd, zero-downtime releases & monitoring)
-- [`docs/plan.md`](docs/plan.md) — Master Documentation Plan
 
 ## Monorepo layout
 
@@ -89,7 +88,11 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
 - **Linking & embeds** — book/passage deep links (`#/book/…`, `#/b/…`), in-app scripture reference
   pop-ups (structured `ref` runs → hover/tap passage preview), and an embeddable `embed.js` widget for
   external sites (CORS-enabled read API). ✅ (fallback auto-linkifier deferred)
-- **Next:** open-source the repo (see `plan/open_source_release.md`).
+- **M9.1–M9.3d** — content-level AI-use policy, browser-direct OpenRouter integration, selected
+  grounded context, citation validation, local chat history, responsive chat layout, and bounded
+  context/answer budgets. ✅ The feature remains build-time gated and off in production while M9.4
+  topical retrieval and M9.5 hardening remain planned.
+- **Next:** prepare the repository for public release (see [`plan/going_public.md`](plan/going_public.md)).
 
 ## Run it locally
 
@@ -123,8 +126,8 @@ and reads/writes only `/notes-v1.json` inside the app's private App Folder.
    the exact redirect URIs (for example `https://bible.trendafilovi.net/` and
    `http://localhost:5173/`).
 3. Put the public app key in `apps/web/.env.local` as `VITE_DROPBOX_APP_KEY=...` for local builds.
-   For Render, set the same environment variable and choose **Save, rebuild, and deploy**. For the
-   GHCR workflow, create the repository secret `DROPBOX_APP_KEY`. The app secret is not used.
+   For a local or third-party build, expose the same environment variable to Vite. For the GHCR
+   workflow, create the repository secret `DROPBOX_APP_KEY`. The app secret is not used.
 
 No Dropbox app secret belongs in this repository or in the browser build. Dropbox recommends OAuth
 code flow with PKCE and short-lived tokens (without refresh tokens) for pure JavaScript apps, so a
