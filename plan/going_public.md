@@ -222,9 +222,11 @@ tree before the first push, not in the private repo's day-to-day history:
   post-release; only user-visible branding blocks publication.
 - **Logo (selected 2026-08-01):** a geometric lighthouse mark — dark-navy interlocking triangles
   forming the tower, white light beams fanning left and right, flanked by cyan accent dots with red
-  centers, on a light-gray field. The owner has the source image; it lands in the sanitized tree as
-  the favicon/app icon (under `apps/web/public/`) and is set as the GitHub social preview at §7.
-  Record the logo's license/attribution alongside `NOTICE` if it was not created by the owner.
+  centers, on a light-gray field. AI-generated with Gemini by the owner (2026); the owner dedicates
+  it to the public domain via CC0, recorded alongside `NOTICE` (purely AI-generated images may not
+  be copyrightable in some jurisdictions — the explicit dedication removes downstream ambiguity).
+  The source PNG lands in the sanitized tree (`apps/web/public/brand/`) as the favicon/app icon and
+  is set as the GitHub social preview at §7.
 
 ## 5. History rewrite procedure
 
