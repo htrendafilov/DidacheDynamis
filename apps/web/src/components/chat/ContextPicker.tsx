@@ -13,7 +13,7 @@ import type { Work } from "../../data/api";
 import { useGeneralBook, usePassage, useWorks } from "../../data/hooks";
 import { db } from "../../data/notes";
 import type { Note } from "../../data/notes";
-import { strongLexiconWorkId } from "../../data/strongs";
+import { normalizeStrongId, strongLexiconWorkId } from "../../data/strongs";
 import type { Pane } from "../../state/store";
 
 interface Candidate {
@@ -106,6 +106,24 @@ function chipKey(chip: ContextChip): string {
       return `note:${chip.noteId}`;
     case "xref":
       return `xref:${chip.previewWork}:${chip.osis}:${chip.chapter}:${chip.verse}`;
+  }
+}
+
+// What a chip would actually retrieve, so two rows collapse only when they would fetch the
+// very same excerpt. chipKey cannot serve here: it identifies a *checkbox*, whose identity
+// is the pane rather than the reference — it deliberately omits the verse scoping, so two
+// panes on one chapter reading different verses share a key while asking for different
+// passages. Deduplicating on it dropped John 3:17 as a copy of John 3:16, with both boxes
+// still rendering ticked. Every other kind's key already names its full retrieval
+// parameters, so only these two need widening.
+function chipIdentity(chip: ContextChip): string {
+  switch (chip.kind) {
+    case "bible":
+      return `${chipKey(chip)}:${chip.verses ?? ""}`;
+    case "commentary":
+      return `${chipKey(chip)}:${chip.verse ?? ""}`;
+    default:
+      return chipKey(chip);
   }
 }
 
@@ -377,10 +395,19 @@ export function ContextPicker({
         });
         sawCommentary = true;
       } else if (pane.type === "dictionary" && pane.headword) {
+        // A Strong's pane is a dictionary *pane* over a lexicon *work* — DictionaryPane
+        // routes on work.type, not on pane.type — and its headword is a Strong's id, not a
+        // dictionary headword. Emitting a dictionary chip for it sent the id to
+        // /dictionary/{work}/entry/{id}, which only ever serves Easton-style rows and so
+        // 404s: every open Strong's entry was reported "could not be retrieved" and silently
+        // left out of the turn, even though /lexicon/{id} had it all along.
+        const strongId = work?.type === "lexicon" ? normalizeStrongId(pane.headword) : null;
         list.push({
           key,
-          chip: { kind: "dictionary", workId: pane.workId, headword: pane.headword },
-          label: `${pane.headword} (${work?.abbrev ?? pane.workId})`,
+          chip: strongId
+            ? { kind: "lexicon", strongId }
+            : { kind: "dictionary", workId: pane.workId, headword: pane.headword },
+          label: `${strongId ?? pane.headword} (${work?.abbrev ?? pane.workId})`,
           defaultOn: false,
         });
       }
@@ -454,6 +481,7 @@ export function ContextPicker({
 
     const chips: ContextChip[] = [];
     const labels: string[] = [];
+    const seen = new Set<string>();
     let unlabelled = 0; // lexicon/xref/note/book chips are labelled in their own
     // subcomponents, not here; they are counted rather than relabelled.
     for (const [key, chip] of byKey) {
@@ -462,6 +490,13 @@ export function ContextPicker({
       // `enabled` but have no candidate, so they must not be described as being sent.
       if (!enabled.has(key)) continue;
       if (!chipEligibility(chip, works, privacyRouting).eligible) continue;
+      // Two rows can name the same source: an open Strong's pane and the same id offered
+      // by the selected verse's runs are one lexicon entry under two picker keys. Sending
+      // both would retrieve the excerpt twice and report it as a dropped duplicate, which
+      // reads as lost content rather than as the same entry ticked in two places.
+      const identity = chipIdentity(chip);
+      if (seen.has(identity)) continue;
+      seen.add(identity);
       chips.push(chip);
       const label = labelByKey.get(key);
       if (label) labels.push(label);
