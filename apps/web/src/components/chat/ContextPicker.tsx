@@ -109,6 +109,24 @@ function chipKey(chip: ContextChip): string {
   }
 }
 
+// What a chip would actually retrieve, so two rows collapse only when they would fetch the
+// very same excerpt. chipKey cannot serve here: it identifies a *checkbox*, whose identity
+// is the pane rather than the reference — it deliberately omits the verse scoping, so two
+// panes on one chapter reading different verses share a key while asking for different
+// passages. Deduplicating on it dropped John 3:17 as a copy of John 3:16, with both boxes
+// still rendering ticked. Every other kind's key already names its full retrieval
+// parameters, so only these two need widening.
+function chipIdentity(chip: ContextChip): string {
+  switch (chip.kind) {
+    case "bible":
+      return `${chipKey(chip)}:${chip.verses ?? ""}`;
+    case "commentary":
+      return `${chipKey(chip)}:${chip.verse ?? ""}`;
+    default:
+      return chipKey(chip);
+  }
+}
+
 // Offers each distinct Strong's id carried by the selected verse's runs, labelled with
 // its lemma (m9.3-grounded-assistant.md §5) — "why this word and not a synonym" needs
 // real lexical data, not a guess.
@@ -476,7 +494,7 @@ export function ContextPicker({
       // by the selected verse's runs are one lexicon entry under two picker keys. Sending
       // both would retrieve the excerpt twice and report it as a dropped duplicate, which
       // reads as lost content rather than as the same entry ticked in two places.
-      const identity = chipKey(chip);
+      const identity = chipIdentity(chip);
       if (seen.has(identity)) continue;
       seen.add(identity);
       chips.push(chip);

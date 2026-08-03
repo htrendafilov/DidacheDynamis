@@ -575,6 +575,71 @@ describe("ContextPicker", () => {
     });
   });
 
+  // Deduplication compares what a chip retrieves, not which checkbox offered it. A chip's
+  // key is its PANE, so two panes on one chapter reading different verses share a key while
+  // asking for different passages — collapsing on that key dropped John 3:17 as a copy of
+  // John 3:16, with both boxes still rendering ticked.
+  describe("deduplication by retrieval scope", () => {
+    it("keeps two bible panes on one chapter that are scoped to different verses", async () => {
+      const panes: Pane[] = [
+        { id: "p1", type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 16 },
+        { id: "p2", type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 17 },
+      ];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+      fireEvent.click(screen.getAllByRole("checkbox")[1]);
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([
+          { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "16" },
+          { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "17" },
+        ]),
+      );
+    });
+
+    it("keeps two commentary panes on one chapter that are scoped to different verses", async () => {
+      const panes: Pane[] = [
+        { id: "p1", type: "commentary", workId: "mhc", osis: "Isa", chapter: 10 },
+        { id: "p2", type: "commentary", workId: "mhc", osis: "Isa", chapter: 10 },
+      ];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+      fireEvent.click(screen.getAllByRole("checkbox")[1]);
+      const verseBoxes = screen.getAllByLabelText("Verse");
+      fireEvent.change(verseBoxes[0], { target: { value: "1" } });
+      fireEvent.change(verseBoxes[1], { target: { value: "5" } });
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([
+          { kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10, verse: 1 },
+          { kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10, verse: 5 },
+        ]),
+      );
+    });
+
+    it("still collapses two panes reading the very same passage", async () => {
+      const panes: Pane[] = [
+        { id: "p1", type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 16 },
+        { id: "p2", type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 16 },
+      ];
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker panes={panes} privacyRouting={true} loggingConfirmed={false} onChipsChange={onChipsChange} />,
+      );
+      await waitFor(() => expect(onChipsChange).toHaveBeenCalled());
+      fireEvent.click(screen.getAllByRole("checkbox")[1]);
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([
+          { kind: "bible", workId: "web", osis: "John", chapter: 3, verses: "16" },
+        ]),
+      );
+    });
+  });
+
 describe("summarizeContext", () => {
   const t = (key: string, opts?: Record<string, unknown>) => i18n.t(key, opts ?? {});
   const source = (label: string, estimatedTokens: number) => ({ label, estimatedTokens });
