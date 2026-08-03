@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ContextChip } from "../../chat/types";
 import type { GeneralBook, Passage, Work } from "../../data/api";
 import { db } from "../../data/notes";
 import i18n from "../../i18n";
@@ -460,6 +461,117 @@ describe("ContextPicker", () => {
           ]),
         ),
       );
+    });
+  });
+
+  // A Strong's pane is a dictionary *pane* over a lexicon *work* (DictionaryPane routes on
+  // work.type). The picker read pane.type alone and chipped it as a dictionary lookup, so
+  // the id went to /dictionary/{work}/entry/{id} — a table that holds Easton-style rows and
+  // none of Strong's — and 404'd. Every open lexicon entry was reported "1 source could not
+  // be retrieved: G3063" and silently left out, while /lexicon/{id} had it the whole time.
+  describe("Strong's lexicon pane", () => {
+    const strongsPane = (headword: string) =>
+      pane({ type: "dictionary", workId: "strongsgreek", headword });
+
+    beforeEach(() => {
+      works = [...works, work("strongsgreek", { type: "lexicon", abbrev: "StrGrk" })];
+    });
+
+    it("emits a lexicon chip, not a dictionary chip, for an open Strong's entry", async () => {
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker
+          panes={[strongsPane("G3063")]}
+          privacyRouting={true}
+          loggingConfirmed={false}
+          onChipsChange={onChipsChange}
+        />,
+      );
+      fireEvent.click(await screen.findByRole("checkbox", { name: /G3063 \(StrGrk\)/ }));
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([{ kind: "lexicon", strongId: "G3063" }]),
+      );
+    });
+
+    it("normalizes the pane's headword to a canonical Strong's id", async () => {
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker
+          panes={[strongsPane("g26")]}
+          privacyRouting={true}
+          loggingConfirmed={false}
+          onChipsChange={onChipsChange}
+        />,
+      );
+      fireEvent.click(await screen.findByRole("checkbox", { name: /G0026 \(StrGrk\)/ }));
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([{ kind: "lexicon", strongId: "G0026" }]),
+      );
+    });
+
+    it("still chips a real dictionary pane as a dictionary lookup", async () => {
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker
+          panes={[pane({ type: "dictionary", workId: "easton", headword: "Grace" })]}
+          privacyRouting={true}
+          loggingConfirmed={false}
+          onChipsChange={onChipsChange}
+        />,
+      );
+      fireEvent.click(await screen.findByRole("checkbox", { name: /Grace/ }));
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith([
+          { kind: "dictionary", workId: "easton", headword: "Grace" },
+        ]),
+      );
+    });
+
+    // The pane and the selected verse's runs are two picker rows naming one lexicon entry.
+    // Emitting both would retrieve the same excerpt twice and report it back as a dropped
+    // duplicate, which reads as lost content rather than as one entry ticked in two places.
+    it("sends one chip when the same id is offered by both the pane and the selected verse", async () => {
+      passageByPane["web:John:3"] = {
+        work_id: "web",
+        osis: "John",
+        chapter: 3,
+        headings: [],
+        verses: [
+          {
+            verse: 16,
+            lines: [
+              {
+                kind: "p",
+                level: 1,
+                para_start: true,
+                runs: [{ t: "only begotten", lemma: [{ id: "G3439" }] }],
+              },
+            ],
+          },
+        ],
+      };
+      const onChipsChange = vi.fn();
+      render(
+        <ContextPicker
+          panes={[
+            pane({ type: "bible", workId: "web", osis: "John", chapter: 3, selectedVerse: 16 }),
+            strongsPane("G3439"),
+          ]}
+          privacyRouting={true}
+          loggingConfirmed={false}
+          onChipsChange={onChipsChange}
+        />,
+      );
+      const checkboxes = await screen.findAllByRole("checkbox", { name: /G3439/ });
+      expect(checkboxes).toHaveLength(2);
+      for (const box of checkboxes) fireEvent.click(box);
+      await waitFor(() =>
+        expect(onChipsChange).toHaveBeenLastCalledWith(
+          expect.arrayContaining([{ kind: "lexicon", strongId: "G3439" }]),
+        ),
+      );
+      const sent = onChipsChange.mock.calls[onChipsChange.mock.calls.length - 1][0];
+      expect(sent.filter((c: ContextChip) => c.kind === "lexicon")).toHaveLength(1);
     });
   });
 
