@@ -139,3 +139,8 @@ browser session occasionally needs to reconnect.
 The code and original documentation are under the [MIT License](LICENSE). Third-party content inputs
 in [`data/sources/`](data/sources/README.md), plus the KJV fetched from CrossWire during the build,
 keep their own recorded terms — the MIT license does not cover them.
+
+[`NOTICE`](NOTICE) is the authoritative attribution record: every text this project distributes,
+its rights holder, its license, the attribution it requires, and what was modified. It covers the
+built artifacts as well as the repository — `content.sqlite` and the container image carry texts
+that are not committed here. Full license texts are in [`LICENSES/`](LICENSES/README.md).

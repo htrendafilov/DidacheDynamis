@@ -27,7 +27,7 @@ out with LFS.
 `KJV.imp.gz` is deliberately **not committed** to the public repository. Before `build-all`, run
 `bash scripts/fetch-kjv.sh` from the repository root. The script downloads CrossWire's official KJV
 3.1 raw module over HTTPS, requires the pinned archive SHA-256, exports it with the official
-`mod2imp` tool, verifies the expanded IMP SHA-256, and writes a deterministic, git-ignored
+`mod2imp` tool, verifies the expanded IMP SHA-256, and writes a git-ignored
 `data/sources/KJV.imp.gz`. Docker and GitHub Actions perform this step automatically.
 
 Required local tools: `curl`, `unzip`, `gzip`, and the SWORD utilities (`mod2imp`).
@@ -83,8 +83,15 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
     `873815aa4b4123025616d1f41eae75f412111275f4c3884e36f92d4f46dcba1d`
   - verified expanded raw-OSIS IMP SHA-256:
     `6b2a9ab832b597ffb90929d3c7ac0b2756991cdc6bf5d30eab046308aedca7ed`
-  - deterministic generated `KJV.imp.gz` SHA-256:
-    `0d1da256b8a0a2407bf4f19474fba3c46b98acffa9578eccb8371c124c603ecc`
+    This is the checksum `bibleimport` verifies, and the value recorded as the `kjv` row's
+    `works.checksum`.
+  - the generated `KJV.imp.gz` file itself is **not** checksum-pinned, and no expected value is
+    published here. gzip output is implementation-defined — Apple gzip and GNU gzip compress this
+    same export to different bytes — so a pinned container hash would mark correct builds as
+    corrupt everywhere except the machine that produced the pin. The gzip is written with `-n` so
+    it carries no timestamp or filename, but that makes it reproducible for one gzip, not across
+    gzips. Verify the content, not the container:
+    `gzip -cd data/sources/KJV.imp.gz | sha256sum`
 - MHC module: https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=MHC
   - raw module SHA-256: `6bcb936873ca144e317805e5c1677940fd86e2403f7c14517752e44f25c8882b`
   - committed raw-OSIS export SHA-256: `3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0`

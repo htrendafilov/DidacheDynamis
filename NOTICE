@@ -1,0 +1,233 @@
+DidacheDynamis — third-party content notices
+============================================
+
+The source code and original documentation of this project are licensed under the
+MIT License; see LICENSE. **The MIT License does not cover the texts this project
+imports and serves.** Each of those carries its own terms, recorded below.
+
+This file describes the *content*. It is the authoritative attribution record for
+every text distributed by this project, whether that text is committed to the
+repository, fetched during the build, compiled into `content.sqlite`, shipped
+inside the container image, or served by the running application. Full texts of
+the non-public-domain licenses are in `LICENSES/`.
+
+Provenance detail — upstream module versions, export commands, checksums, and
+per-source import validation — is in `data/sources/README.md`. The same license and
+attribution strings are written into the `works` table of `content.sqlite` by the
+importer, and the application shows them in its attribution UI.
+
+
+-----------------------------------------------------------------------
+1. What is distributed, and where
+-----------------------------------------------------------------------
+
+Two distribution surfaces carry third-party text, and they do not carry the same
+set:
+
+  a. **The repository.** `data/sources/` holds the committed source exports listed
+     in section 2. `KJV.imp.gz` is deliberately NOT among them.
+
+  b. **The built artifacts** — `content.sqlite`, the container image that embeds
+     it, and the public site served from that image. These carry every work in
+     section 2 *plus the King James Version* (section 3), which the build fetches
+     from CrossWire and compiles in.
+
+Keeping the KJV export out of the repository reduces what this project
+redistributes as a file; it does not remove the KJV text from the built artifacts,
+and the CrossWire module terms in section 3 apply to those artifacts.
+
+
+-----------------------------------------------------------------------
+2. Committed sources
+-----------------------------------------------------------------------
+
+World English Bible (Protestant)
+  Work id:        web
+  File:           data/sources/engwebp_usfx.zip
+  Version:        World English Bible Updated (2023 text; eBible archive 2026-07-10)
+  Rights holder:  eBible.org (text dedicated to the public domain)
+  License:        Public domain
+  Source:         https://ebible.org/find/details.php?id=engwebp
+  Modifications:  None to the text. Converted from USFX to this project's internal
+                  representation at import.
+  Required attribution — reproduce verbatim:
+      "The World English Bible is in the Public Domain. That means that it is not
+      copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
+  Note: the text is public domain; "World English Bible" remains a trademark of
+  eBible.org, so the name may not be used to label a modified text.
+
+Matthew Henry's Commentary on the Whole Bible
+  Work id:        mhc
+  File:           data/sources/MHC.imp.gz
+  Version:        CrossWire MHC 2.2
+  Rights holder:  Matthew Henry (1706); public domain by age
+  License:        Public domain ("Public Domain — Copy Freely" per the module page)
+  Source:         https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=MHC
+  Modifications:  None to the text. Exported from the SWORD module with the
+                  official mod2imp utility; converted to the internal
+                  representation at import.
+  Attribution:    "Matthew Henry, Commentary on the Whole Bible (1706).
+                  Public-domain CrossWire SWORD module."
+
+Easton's Bible Dictionary
+  Work id:        easton
+  File:           data/sources/Easton.raw.imp.gz
+  Version:        CrossWire Easton module
+  Rights holder:  M. G. Easton (1897); public domain by age
+  License:        Public domain ("Public Domain — Copy Freely" per the module page)
+  Source:         https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=Easton
+  Modifications:  None to the text. Raw structured export; scripture and
+                  cross-entry references are resolved into links at import, leaving
+                  the entry text unchanged.
+  Attribution:    "M. G. Easton, Illustrated Bible Dictionary, Third Edition (1897).
+                  Public-domain CrossWire SWORD module."
+
+Treasury of Scripture Knowledge cross-references
+  Work id:        tsk
+  File:           data/sources/crossreferences_kjv.tsv
+  Version:        KJV mapping, source blob 47ed2af489e1212e057bc073e1844d382804aac2
+  Rights holder:  CrossReferences.org
+  License:        CC BY 4.0 — full text in LICENSES/CC-BY-4.0.txt
+  Source:         https://github.com/CrossReferences-org/bible-cross-references
+  Modifications:  None to the data. Imported as verse-to-verse reference rows.
+  Attribution:    "Cross-reference data derived from the Treasury of Scripture
+                  Knowledge; CrossReferences.org, CC BY 4.0."
+  Note: CC BY 4.0 requires that this attribution, a link to the license, and an
+  indication of any changes accompany redistribution — including redistribution of
+  content.sqlite and of the container image.
+
+The Baptist Confession of Faith of 1689 — unaltered provenance base
+  File:           data/sources/BaptistConfession1689.imp.gz
+  Version:        CrossWire BaptistConfession1689 1.0.2
+  Rights holder:  Historical text (1677/1689); public domain by age
+  License:        Public domain (module metadata records DistributionLicense=Public Domain)
+  Source:         https://www.crosswire.org/ftpmirror/pub/sword/raw/mods.d/baptistconfession1689.conf
+  Modifications:  None. Retained unchanged as the provenance base for the reviewed
+                  edition below; not imported.
+
+The Baptist Confession of Faith of 1689 — reviewed edition (English)
+  Work id:        baptist1689
+  File:           data/sources/BaptistConfession1689-ed1.imp.gz
+  Version:        CrossWire BaptistConfession1689 1.0.2 + bible_app_bg editorial
+                  revision 1 (2026-07-29)
+  Rights holder:  Historical text public domain by age; editorial revisions by the
+                  project owner
+  License:        Public domain
+  Source:         Derived from the provenance base above by
+                  scripts/build_baptist_confession_1689_ed1.py
+  Modifications:  YES — 67 documented corrections: transcription omissions,
+                  Scripture-reference/OSIS errors, and markup defects, verified
+                  against the historical 1677 text. The module's existing modernized
+                  spelling and punctuation is retained; no doctrinal or stylistic
+                  modernization was intended. The complete editorial policy,
+                  verification sources, and before/after correction list are in
+                  data/sources/BaptistConfession1689-ed1.info.json.
+
+Баптистка изповед на вярата от 1689 г. — Bulgarian translation
+  Work id:        baptist1689bg
+  File:           data/sources/BaptistConfession1689_BG.imp.gz
+  Version:        bible_app_bg Bulgarian translation revision 1 (2026-07-29)
+  Rights holder:  Project owner (translation and editorial changes)
+  License:        CC0 1.0 Universal — full text in LICENSES/CC0-1.0.txt
+                  Dedicated to the public domain by the owner on 2026-07-29.
+  Source:         Translated from the reviewed English edition above
+  Modifications:  YES — this is a translation. Initial machine-assisted draft
+                  followed by Bulgarian editorial, theological, terminology, markup,
+                  and Scripture-reference review. The rights declaration, source
+                  chain, and checksums are in
+                  data/sources/BaptistConfession1689_BG.info.json; the complete
+                  editorial record is
+                  data/sources/BaptistConfession1689_BG.corrections.md.
+
+Strong's Greek Dictionary
+  Work id:        strongsgreek
+  File:           data/sources/StrongsGreek.imp.gz
+  Version:        CrossWire StrongsGreek 2.0
+  Rights holder:  James Strong (1890); public domain by age
+  License:        Public domain
+  Source:         https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsGreek
+  Modifications:  None to the text. 52 entries carry Chinese editorial annotations
+                  from the upstream e-text and are imported verbatim. Module key
+                  holes and one keyed-but-lemma-less entry are recorded in
+                  diagnostics rather than altered.
+  Attribution:    "James Strong, Exhaustive Concordance of the Bible (1890).
+                  Public-domain CrossWire SWORD module."
+
+Strong's Hebrew Dictionary
+  Work id:        strongshebrew
+  File:           data/sources/StrongsHebrew.imp.gz
+  Version:        CrossWire StrongsHebrew 1.2
+  Rights holder:  James Strong (1890); public domain by age
+  License:        Public domain ("Public Domain — Copy Freely" per the module page)
+  Source:         https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsHebrew
+  Modifications:  Seven spurious "&Š" (0x8A) sequences from the 1996 e-text are
+                  removed at import, with the count asserted so an upstream change
+                  fails the build for review. H8483's first line misprints its own
+                  number as 8383; the module key is authoritative and the entry is
+                  imported as H8483 with the mismatch recorded.
+  Attribution:    "James Strong, Exhaustive Concordance of the Bible (1890).
+                  Public-domain CrossWire SWORD module."
+
+
+-----------------------------------------------------------------------
+3. Build-fetched source — King James Version
+-----------------------------------------------------------------------
+
+King James Version (1769)
+  Work id:        kjv
+  File:           data/sources/KJV.imp.gz — NOT COMMITTED. Fetched by
+                  scripts/fetch-kjv.sh from CrossWire's official raw module archive
+                  and verified against a pinned SHA-256 before use; git-ignored.
+  Version:        CrossWire KJV 3.1 (2023-07-19)
+  Rights holder:  The rights to the base text are held by the Crown of England.
+                  Module text from the CrossWire KJV2003 Project.
+  License:        CrossWire grants a general public license to use its KJV2003
+                  Project text for any purpose; the module distribution license is
+                  recorded as GPL.
+  Source:         https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV
+  Modifications:  None to the text. Exported with the official mod2imp utility and
+                  converted to the internal representation at import.
+  Attribution — reproduced in the application:
+      "King James Version (1769), CrossWire KJV module 3.1. CrossWire grants a
+      general public license to use its KJV2003 Project text for any purpose;
+      module distribution license: GPL. The rights to the base text are held by the
+      Crown of England."
+
+  UNRESOLVED — requires an owner decision before publication. Excluding the export
+  from the repository does not exclude the KJV text from what this project
+  distributes: the build compiles it into content.sqlite, and the container image
+  embeds that database. The interaction between the module's GPL distribution
+  label, the Crown's rights in the base text, and this project's MIT-licensed code
+  has not been assessed here. This notice records the upstream terms as CrossWire
+  states them; it does not interpret them.
+
+
+-----------------------------------------------------------------------
+4. Original project assets
+-----------------------------------------------------------------------
+
+Logo / application icon
+  Rights holder:  Project owner
+  License:        CC0 1.0 Universal — full text in LICENSES/CC0-1.0.txt
+  Origin:         AI-generated with Google Gemini by the owner (2026). Purely
+                  AI-generated images may not be copyrightable in some
+                  jurisdictions; the owner's explicit CC0 dedication removes the
+                  downstream ambiguity either way.
+
+User-guide screenshots
+  Rights holder:  Project owner
+  License:        MIT, as original documentation
+  Note: screenshots depict the application rendering the third-party texts above,
+  which remain under their own terms.
+
+
+-----------------------------------------------------------------------
+5. Summary of licenses in use
+-----------------------------------------------------------------------
+
+  MIT                  Code and original documentation           LICENSE
+  CC BY 4.0            TSK cross-references                      LICENSES/CC-BY-4.0.txt
+  CC0 1.0 Universal    Bulgarian 1689 translation; logo          LICENSES/CC0-1.0.txt
+  Public domain        WEB, MHC, Easton, both 1689 English
+                       editions, Strong's Greek and Hebrew       (no license text)
+  See section 3        King James Version                        unresolved
