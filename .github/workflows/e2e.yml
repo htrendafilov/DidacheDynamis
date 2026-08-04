@@ -14,15 +14,15 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           lfs: true
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -30,12 +30,15 @@ jobs:
 
       - name: Install packages
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsword-utils unzip
           python -m pip install --upgrade pip
           pip install -e apps/importer -e apps/api
           (cd apps/web && npm ci)
 
       - name: Build content DB + SPA
         run: |
+          bash scripts/fetch-kjv.sh
           bibleimport build-all --sources-dir data/sources --out data/content.sqlite
           (cd apps/web && npm run build)
 
@@ -47,7 +50,7 @@ jobs:
           E2E_REUSE: "1" # DB + SPA were built in the explicit step above
         run: (cd apps/web && npm run e2e)
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ failure() }}
         with:
           name: playwright-report
@@ -61,15 +64,15 @@ jobs:
     # the two builds must not share a workspace (see the config file's own warning).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           lfs: true
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -77,6 +80,8 @@ jobs:
 
       - name: Install packages
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsword-utils unzip
           python -m pip install --upgrade pip
           pip install -e apps/importer -e apps/api
           (cd apps/web && npm ci)
@@ -88,9 +93,11 @@ jobs:
         # No E2E_REUSE here, unlike `smoke`: the content DB + SPA must be built by this
         # config's own webServer so the build actually has VITE_CHAT_ENABLED=true baked in,
         # not reused from `smoke`'s flag-off build.
-        run: (cd apps/web && npm run e2e:chat)
+        run: |
+          bash scripts/fetch-kjv.sh
+          (cd apps/web && npm run e2e:chat)
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ failure() }}
         with:
           name: playwright-report-chat

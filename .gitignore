@@ -32,6 +32,9 @@ data/*.diagnostics.json
 # Public-domain sources ARE committed (see data/sources/README.md); owner-provided/licensed
 # texts must not be — keep those out with a *.private.* suffix.
 data/sources/*.private.*
+# CrossWire KJV is fetched from a checksum-pinned official archive during the build. The generated
+# IMP export is never committed to the public DidacheDynamis repository.
+data/sources/KJV.imp.gz
 
 # Session handoff artifacts (local only)
 .continues-handoff.md

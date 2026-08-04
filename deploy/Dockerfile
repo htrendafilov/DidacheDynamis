@@ -1,6 +1,6 @@
-# Multi-stage: build the SPA, build content.sqlite from committed public-domain sources,
-# then serve API + built SPA + read-only DB from one image. No Git LFS needed — the DB is
-# a reproducible build artifact.
+# Multi-stage: build the SPA, fetch the checksum-pinned KJV from CrossWire, build content.sqlite
+# from the reviewed sources, then serve API + built SPA + read-only DB from one image. The KJV
+# source is never committed; the DB is a reproducible build artifact.
 #
 # NOTE: the web + api stages activate once apps/web and apps/api land (M2). The content
 # stage below is live now (M1).
@@ -21,9 +21,14 @@ RUN npm run build          # outputs /web/dist
 # --- Stage 2: build content.sqlite from data/sources via the importer ---
 FROM python:3.13-slim AS content
 WORKDIR /build
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl gzip libsword-utils unzip \
+ && rm -rf /var/lib/apt/lists/*
 COPY apps/importer/ ./importer/
 COPY data/sources/ ./data/sources/
+COPY scripts/fetch-kjv.sh ./scripts/fetch-kjv.sh
 RUN pip install --no-cache-dir ./importer \
+ && bash scripts/fetch-kjv.sh \
  && mkdir -p /out \
  && bibleimport build-all --sources-dir data/sources --out /out/content.sqlite
 

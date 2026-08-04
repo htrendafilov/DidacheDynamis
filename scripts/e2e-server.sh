@@ -14,6 +14,7 @@ if [ -x apps/importer/.venv/bin/bibleimport ]; then BI=apps/importer/.venv/bin/b
 
 if [ "$REUSE" != "1" ] || [ ! -f data/content.sqlite ]; then
   echo "e2e: building content.sqlite…"
+  bash scripts/fetch-kjv.sh
   $BI build-all --sources-dir data/sources --out data/content.sqlite
 fi
 

@@ -126,7 +126,7 @@ def test_strongs_john_multi_id_morphology_and_empty_surface():
 
 def test_full_source_lexical_cardinality_matches_verified_inventory():
     if not KJV_SOURCE.exists() or KJV_SOURCE.stat().st_size < 1024:
-        message = f"raw KJV source not present (Git LFS object not pulled): {KJV_SOURCE}"
+        message = f"generated KJV source not present (run scripts/fetch-kjv.sh): {KJV_SOURCE}"
         if os.environ.get("CI"):
             pytest.fail(message)
         pytest.skip(message)

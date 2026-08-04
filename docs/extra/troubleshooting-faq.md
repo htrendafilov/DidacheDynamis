@@ -22,6 +22,7 @@ This guide provides solutions for common user, developer, and deployment issues.
 ### Q: `bibleimport` command fails with "No such file or directory: data/sources"
 - **Solution**: Ensure you run the build command from the root directory of the monorepo:
   ```bash
+  bash scripts/fetch-kjv.sh
   bibleimport build-all --sources-dir data/sources --out data/content.sqlite
   ```
 
@@ -43,6 +44,7 @@ This guide provides solutions for common user, developer, and deployment issues.
 - **Solution**: Verify the file and permissions. For `schema-outdated`, rebuild with the current
   importer (do not hand-edit the database), then restart the API:
   ```bash
+  bash scripts/fetch-kjv.sh
   apps/importer/.venv/bin/bibleimport build-all \
     --sources-dir data/sources \
     --out data/content.sqlite

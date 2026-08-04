@@ -11,6 +11,19 @@ FIXTURE = Path(__file__).parent / "fixtures" / "mini_usfx.xml"
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+def test_kjv_build_input_is_generated_and_checksum_pinned():
+    assert cli.SOURCE_FILES["kjv"] == "KJV.imp.gz"
+    assert cli.KJV_SPEC.expected_alignment is not None
+    # The decompressed mod2imp export, not the gzip carrying it: scripts/fetch-kjv.sh writes
+    # that gzip with whichever implementation the build machine has, and Apple gzip and GNU
+    # gzip disagree byte-for-byte on identical input.
+    assert cli.KJV_SPEC.source_is_generated is True
+    assert (
+        cli.KJV_SPEC.expected_alignment.source_checksum
+        == "6b2a9ab832b597ffb90929d3c7ac0b2756991cdc6bf5d30eab046308aedca7ed"
+    )
+
+
 def test_baptist_confession_uses_reviewed_source_and_provenance():
     assert cli.SOURCE_FILES["baptist1689"] == "BaptistConfession1689-ed1.imp.gz"
     spec = cli.BAPTIST_1689_SPEC

@@ -10,14 +10,16 @@
 - CrossWire commentary/dictionary IMP exports or optional CCEL ThML through `formats/study.py`.
 - CrossReferences.org TSV through `formats/study.py`.
 
-The repository does not open installed SWORD module binaries directly. Export them with the official
-SWORD tools first; provenance and exact commands are recorded in `data/sources/README.md`.
+The importer does not open installed SWORD module binaries directly. Export them with the official
+SWORD tools first; `scripts/fetch-kjv.sh` performs that checksum-pinned acquisition/export for KJV.
+Provenance and exact commands are recorded in `data/sources/README.md`.
 
 ## Implemented commands
 
 ```bash
 # Build the complete shipped content set. The JSON report defaults to
 # data/content.sqlite.diagnostics.json; override it with --report <path>.
+bash scripts/fetch-kjv.sh
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 
 # Build only WEB
@@ -54,9 +56,11 @@ are no standalone `info` or `validate-versification` commands.
 Bible builds check duplicate/non-positive references, empty verses, missing/extra canonical books, and
 chapter gaps. An appended Bible starts with an empty alignment allow-list: exact alignment passes, but
 any undeclared difference is fatal before a write. The shipped KJV specification records the reviewed
-WEB↔KJV textual-variant verses and ties them to both source checksums. Those expected differences stay
-visible as warnings and structured report data. A changed/new source must be reviewed explicitly; the
-importer never silently renumbers or accepts new differences.
+WEB↔KJV textual-variant verses and ties them to both source checksums. The KJV build input is generated
+locally from an official CrossWire archive whose checksum is pinned by `scripts/fetch-kjv.sh`; it is
+not stored in Git. Those expected differences stay visible as warnings and structured report data. A
+changed/new source must be reviewed explicitly; the importer never silently renumbers or accepts new
+differences.
 
 XML and embedded OSIS fragments use `defusedxml`; study sources and expanded SWORD IMP streams have
 explicit size caps. USFX applies separate ZIP-container and expanded-XML ceilings, a ZIP entry-count
@@ -73,6 +77,7 @@ statistics, warnings/errors, and expected/unexpected alignment deltas.
 exactly with:
 
 ```bash
+bash scripts/fetch-kjv.sh
 apps/importer/.venv/bin/bibleimport build-all \
   --sources-dir data/sources \
   --out data/content.sqlite

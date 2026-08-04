@@ -371,13 +371,13 @@ display.
 
 The licensing gate above is **closed**, and no new Bible source is required.
 
-**The KJV we already import carries complete Strong's data.** `data/sources/KJV.imp.gz` (CrossWire
-KJV 3.1, already committed and already licensed for our use) tags every one of its 31,102 verses with
+**The KJV we already import carries complete Strong's data.** The checksum-pinned CrossWire KJV 3.1
+module fetched by `scripts/fetch-kjv.sh` tags every one of its 31,102 verses with
 word-level Strong's numbers and morphology. The current adapter reads the text out of those tags and
 **discards the attributes** — `_collect_text` in `apps/importer/bibleimport/formats/sword_bible.py`
 skips only `note` and `title`, so `<w>` contributes its text and its `lemma`/`morph` are dropped on
-the floor. M8 is therefore a parser and schema change against a source already in the repository, not
-an acquisition project.
+the floor. M8 was therefore a parser and schema change against the existing reviewed source, not a
+new rights decision; the public build now acquires that source directly from CrossWire.
 
 **Two public-domain lexicons supply the definitions:**
 
@@ -632,7 +632,7 @@ corresponding Strong's search.
   bump `SCHEMA_VERSION` to 3. The deploy is the standard ordered one: rebuild `content.sqlite` to a
   temporary path, atomically rename, restart the API, then deploy the SPA. Restarting first returns
   `503 schema-outdated` on every `/api/v1` request.
-- The KJV rebuild reparses an already-committed source, so the diff to verify is `verse_tokens` row
+- The KJV rebuild reparses the checksum-pinned build-fetched source, so the diff to verify is `verse_tokens` row
   counts per book, not new content. Gate the build on a token count for a known verse (Gen 1:1 has
   six spans and seven Strong's numbers) the way the Easton import gates on its entry count.
 - Documentation touchpoints: `plan/content_and_licensing.md` (two new PD works),
@@ -725,9 +725,9 @@ Shipped:
 
 ### M8 — Strong's
 
-Source and licensing are **resolved** (§10.1): the committed KJV already carries complete Strong's
-and morphology, and the two lexicon modules are public domain. No acquisition step and no owner
-decision gate remain.
+Source and licensing are **resolved** (§10.1): the build-fetched KJV carries complete Strong's and
+morphology, and the two lexicon modules are public domain. The automated acquisition step is
+checksum-pinned; no owner decision gate remains.
 
 **M8.1 — importer and data model — DELIVERED 2026-07-27**
 

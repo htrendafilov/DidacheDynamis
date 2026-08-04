@@ -6,7 +6,8 @@ private infrastructure details, non-redistributable content, or misleading histo
 
 **Decisions recorded 2026-08-01 (owner-approved):** clean-public-repo strategy (§0 path 2);
 code license **MIT**; **KJV dropped** from the public source set (fetched at build instead);
-live runbook stays **private/untracked**; `render.yaml` **deleted**; `uv.lock` **ignored**.
+live runbook stays **private/untracked**; `render.yaml` and the GitHub uptime workflow are
+**deleted**; UptimeRobot is the sole uptime monitor; `uv.lock` is **ignored**.
 New public repo: **`htrendafilov/DidacheDynamis`** — created 2026-08-01 as **private**; it flips
 to public only after the §6 gate passes (§7). The app renames to **DidacheDynamis** (§4.4).
 `bible_app_bg` remains the private operational archive.
@@ -132,14 +133,16 @@ prepare the repository for public release" line.
 
 ### 2.3 Source-data disposition
 
-No committed source-data file is presently a safe stale deletion other than `.gitkeep`:
+After removing the tracked KJV export, no other committed source-data file is presently a safe stale
+deletion other than `.gitkeep`:
 
-- the nine active compressed/TSV inputs are consumed by `bibleimport build-all`;
+- eight committed active compressed/TSV inputs are consumed by `bibleimport build-all`; the ninth
+  (`KJV.imp.gz`) is generated locally by the checksum-pinned CrossWire fetch step;
 - the original English 1689 export is the immutable provenance base for the reviewed edition;
 - the uncompressed Bulgarian 1689 IMP drives the revision, SWORD-package, and benchmark scripts;
 - the JSON metadata and correction record provide required rights/provenance evidence.
 
-The source directory is about 28 MiB and ten inputs use Git LFS. Public forks and downloads count
+The remaining committed source directory is about 24 MiB and nine inputs use Git LFS. Public forks and downloads count
 against the repository owner's LFS bandwidth, so set a budget/alert and reconsider release assets or
 external immutable source hosting if usage grows. GitHub's current
 [LFS billing documentation](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-git-large-file-storage/upgrading-git-large-file-storage)
@@ -147,8 +150,8 @@ records a 10 GiB monthly bandwidth allowance for GitHub Free/Pro and charges dow
 
 ## 3. Licensing and public-project files
 
-**Resolved 2026-08-01:** code license is **MIT**; **KJV is dropped** from the public source/build
-set (option "remove" in item 3 below).
+**Resolved 2026-08-01:** code license is **MIT**; **KJV is dropped** from the committed public source
+set and fetched only while building (option "remove" in item 3 below).
 
 1. Add a root code `LICENSE` (**MIT**). State explicitly that it covers code and original
    documentation, not third-party content.
@@ -159,8 +162,9 @@ set (option "remove" in item 3 below).
    build time** (pinned URL + checksum), rather than redistributing it in-repo. CrossWire's current
    module page records Crown rights on the base text, broad use of the KJV2003 project text, and a
    `GPL` module-distribution label; removal sidesteps the redistribution question entirely.
-   Implementation workstream: `apps/importer` `SOURCE_FILES`/CLI source acquisition,
-   `data/sources/README.md` table, Docker/CI build path, and the in-app "KJV" attribution strings.
+   Implemented by `scripts/fetch-kjv.sh`, the ignored `SOURCE_FILES["kjv"]` build input, the
+   Docker/CI build path, and the in-app KJV attribution. The clean `DidacheDynamis` history must
+   never contain `data/sources/KJV.imp.gz`, even while the target repository is still private.
    See the [official CrossWire module record](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV).
 4. Preserve the WEB trademark wording and TSK CC BY 4.0 attribution in both repository and UI.
 5. Update `docs/developer/contributing.md` with the selected inbound contribution terms. Add root
@@ -202,8 +206,8 @@ set (option "remove" in item 3 below).
 - `render.yaml` describes an M0-era free-tier route and contains comments that no longer match the
   implemented service. **Resolved 2026-08-01: delete it.** The README's Render-specific wording was
   already scrubbed in PR #30; no other references remain.
-- Once public, update the uptime workflow comment: public-repository Actions minutes are not the
-  reason for its current 90-minute cadence. Keep the cadence only if it is operationally desired.
+- **Resolved 2026-08-02:** delete `.github/workflows/uptime.yml`; UptimeRobot is the sole uptime
+  monitor and must probe `/ready`. This avoids duplicate alerts and recurring Actions runs.
 - Decide whether to keep the manual GHCR deploy workflow. If kept, remove references to the private
   runbook and verify least-privilege permissions and fork-PR workflow approval settings.
 
@@ -238,6 +242,8 @@ This section applies only to a release path that publishes rewritten history.
    Never run the rewrite in the day-to-day checkout.
 3. Use `git-filter-repo` 2.47+ with sensitive-data removal mode:
    - remove every historical path of the live runbook;
+   - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
+     never receives the KJV export, even during its private verification phase;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
    - optionally rewrite author/committer addresses in the same pass;
@@ -258,7 +264,8 @@ All of these must pass before visibility changes:
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
   zero exit code;
 - exact history searches for the external replacement-map values, employer author address if chosen,
-  private runbook paths, `.env` files, key formats, tokens, and unusually high-entropy strings;
+  private runbook and `data/sources/KJV.imp.gz` paths, `.env` files, key formats, tokens, and
+  unusually high-entropy strings;
 - `git fsck`, changed-ref review, current-tree diff review, and before/after `git lfs ls-files`;
 - `scripts/check.sh` on the candidate public tree;
 - fresh clone with no local config → `git lfs pull` → `bibleimport build-all` → API/SPA smoke test;
@@ -296,13 +303,16 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 4. ~~Live runbook~~ → **private/untracked** (§4.1).
 5. ~~`render.yaml`~~ → **deleted** (§4.3).
 6. ~~`uv.lock`~~ → **ignored** (§1.3).
+7. ~~GitHub Actions uptime workflow~~ → **deleted**; UptimeRobot is the sole monitor (§4.3).
 
 **Still pending:**
 
-7. Author/committer email rewrite (due before the §5 pass; with a clean repo the sanitized history
+8. Author/committer email rewrite (due before the §5 pass; with a clean repo the sanitized history
    is the only public history, so rewriting to the personal address is cheap to do in the same pass).
-8. Issues, Discussions, contribution terms, and code-of-conduct policy (due at §7).
-9. Public domain: keep `bible.trendafilovi.net` or rebrand with the app name (§4.4).
+9. Issues, Discussions, contribution terms, and code-of-conduct policy (due at §7).
+10. Public domain: keep `bible.trendafilovi.net` or rebrand with the app name (§4.4).
 
-The content-licensing implementation (§3.3 KJV fetch-at-build) is a hard gate. Everything else can
-be completed as a reviewable cleanup commit before the destructive release cutover.
+The content-licensing implementation (§3.3 KJV fetch-at-build) is complete. Proving that the
+candidate `DidacheDynamis` history never contains the former KJV path/LFS object remains a hard gate;
+everything else can be completed as a reviewable cleanup commit before the destructive release
+cutover.

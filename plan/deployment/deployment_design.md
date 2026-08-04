@@ -84,8 +84,8 @@ After this, dispatching `deploy.yml` drives the optional container rollout; comm
   as immutable; revalidate unhashed files and API JSON. Cloudflare respects these origin headers and
   must not apply a hostname-wide "Cache Everything" rule. This makes deployments visible immediately
   without giving up efficient caching of the large bundles.
-- **Uptime:** container `restart: always`; external monitors should hit `/ready` so a missing,
-  invalid, or schema-outdated database is detected.
+- **Uptime:** container `restart: always`; UptimeRobot is the sole external monitor and must hit
+  `/ready` so a missing, invalid, or schema-outdated database is detected.
 - Logs go to stdout without secrets or personal data.
 
 ## 6. Scaling / switching path

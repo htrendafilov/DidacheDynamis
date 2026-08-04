@@ -1,6 +1,7 @@
 # Monitoring, Health Probes & Alerts
 
-The production application is continuously monitored via HTTP readiness probes, external uptime pingers, and automated GitHub Actions alert workflows.
+The production application is monitored by UptimeRobot through the public Cloudflare route. GitHub
+Actions does not run a second uptime monitor.
 
 ## Health Probe Architecture & Semantics
 
@@ -28,17 +29,14 @@ flowchart TD
 
 ## Monitoring Infrastructure
 
-1. **UptimeRobot (Primary)**:
-   - Currently probes `https://bible.trendafilovi.net/health` every 5 minutes.
-   - It should be changed to `/ready` so database failures are detected as well.
-   - Email delivery still requires verification of the configured alert contact.
+1. **UptimeRobot (sole uptime monitor)**:
+   - Probe `https://bible.trendafilovi.net/ready` so database failures are detected as well as process
+     and network failures.
+   - Configure the desired interval and verify email delivery for the alert contact in UptimeRobot.
+   - The former `.github/workflows/uptime.yml` monitor was removed before publication to avoid
+     duplicate alerts and unnecessary Actions runs.
 
-2. **GitHub Actions Uptime Workflow (Secondary)**:
-   - File: [`.github/workflows/uptime.yml`](../../.github/workflows/uptime.yml).
-   - Probes both public endpoints every 90 minutes with retries.
-   - Automatically opens a deduplicated **`outage`** GitHub issue when probes fail, and closes it upon recovery.
-
-3. **Deployment Workflow (manual container path)**:
+2. **Deployment Workflow (manual container path)**:
    - [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) is manual
      (`workflow_dispatch`): it builds/pushes a commit-SHA + `latest` image to GHCR, SSHes to the VM,
      pulls with Compose, and checks readiness.

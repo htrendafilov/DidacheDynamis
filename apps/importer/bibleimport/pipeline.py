@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import sqlite3
@@ -61,6 +62,13 @@ class BibleSpec:
     direction: str = "ltr"
     expected_alignment: AlignmentExpectation | None = None
     lexical_sentinel: LexicalSentinel | None = None
+    # True when the source file is produced by a build step rather than committed. Such a
+    # source is identified by its decompressed content, never by the bytes of its container:
+    # gzip output is implementation-defined — Apple gzip and GNU gzip compress the identical
+    # KJV export to different bytes — so hashing the file would tie the reviewed checksum,
+    # and every works.checksum and content_version derived from it, to whichever gzip built
+    # it. The content hash is the same number on every machine.
+    source_is_generated: bool = False
 
 
 @dataclass
@@ -80,6 +88,15 @@ class BookSpec:
 def source_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def source_content_sha256(path: Path) -> str:
+    """SHA-256 of a gzipped source's decompressed content, for generated build inputs."""
+    h = hashlib.sha256()
+    with gzip.open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
@@ -496,7 +513,9 @@ def append_bible(
                 f"found {actual_spans}/{actual_ids}"
             )
             return diag
-    source_checksum = source_sha256(source)
+    source_checksum = (
+        source_content_sha256(source) if spec.source_is_generated else source_sha256(source)
+    )
     meta = WorkMeta(
         id=spec.work_id,
         type="bible",

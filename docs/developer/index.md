@@ -51,10 +51,12 @@ deactivate
 
 ### 2. Build the Content Database
 
-Build the single read-only SQLite database (`data/content.sqlite`) from committed source files:
+Build the single read-only SQLite database (`data/content.sqlite`) from the reviewed sources. KJV is
+fetched from a checksum-pinned official CrossWire archive and stays outside Git:
 
 ```bash
 . apps/importer/.venv/bin/activate
+bash scripts/fetch-kjv.sh
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 deactivate
 ```
