@@ -164,6 +164,11 @@ set and fetched only while building (option "remove" in item 3 below).
    versus built database/image — because they do not carry the same set of works. Kept aligned with
    `data/sources/README.md`, the `works` rows written by `apps/importer/bibleimport`, and
    `docs/extra/content-and-licensing.md`; re-check all four together whenever a source changes.
+   "Aligned" is exact for the **attribution** strings — `NOTICE` quotes what actually ships — and
+   substantive but not verbatim for the **license** fields, where `works.license` carries a short UI
+   label and `NOTICE` spells out the basis. Writing this record surfaced one real divergence: the
+   WEB attribution in `works` had dropped eBible's middle sentence, so the app showed a trademark
+   notice with no rights grant. Fixed in `WEB_SPEC.attribution`, not papered over in `NOTICE`.
 3. **KJV (partly resolved): remove `KJV.imp.gz` from the public source set and fetch it from
    CrossWire at build time** (pinned URL + checksum), rather than redistributing it in-repo.
    CrossWire's current module page records Crown rights on the base text, broad use of the KJV2003

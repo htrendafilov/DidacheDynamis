@@ -12,9 +12,20 @@ inside the container image, or served by the running application. Full texts of
 the non-public-domain licenses are in `LICENSES/`.
 
 Provenance detail — upstream module versions, export commands, checksums, and
-per-source import validation — is in `data/sources/README.md`. The same license and
-attribution strings are written into the `works` table of `content.sqlite` by the
-importer, and the application shows them in its attribution UI.
+per-source import validation — is in `data/sources/README.md`.
+
+The importer writes a license and attribution for each work into the `works` table
+of `content.sqlite`, and the application shows them in its attribution UI. The
+**attribution** strings quoted here are the exact strings that ship; where this file
+says "reproduce verbatim", that is the wording a reader sees.
+
+The **license** fields here are not verbatim copies of `works.license`. They are
+consistent with it, and deliberately fuller: `works.license` is a short label meant
+to fit a UI ("Public Domain", "CrossWire general public license; module distribution
+license: GPL"), while this file spells out the basis, the rights holder, and — for
+the KJV — that the terms for the distributed artifacts are unsettled. No work's
+terms differ in substance between the two; if they ever do, `works.license` is what
+a user actually reads in the app, and it is the one to correct first.
 
 
 -----------------------------------------------------------------------
@@ -51,8 +62,10 @@ World English Bible (Protestant)
   Modifications:  None to the text. Converted from USFX to this project's internal
                   representation at import.
   Required attribution — reproduce verbatim:
-      "The World English Bible is in the Public Domain. That means that it is not
-      copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
+      The World English Bible is in the Public Domain. That means that it is not
+      copyrighted. However, "World English Bible" is a Trademark of eBible.org.
+  This is the exact string the importer writes to works.attribution and the
+  application renders, so the wording required here is the wording a reader sees.
   Note: the text is public domain; "World English Bible" remains a trademark of
   eBible.org, so the name may not be used to label a modified text.
 

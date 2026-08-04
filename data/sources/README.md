@@ -16,7 +16,9 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 | `StrongsHebrew.imp.gz` | Strong's Hebrew Dictionary (M8 lexical data) | Public domain | CrossWire StrongsHebrew 1.2 |
 
 **World English Bible attribution (required):** "The World English Bible is in the Public Domain. That
-means that it is not copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
+means that it is not copyrighted. However, "World English Bible" is a Trademark of eBible.org."
+This exact string is what `WEB_SPEC.attribution` carries into `works.attribution`, so it reaches the
+reader rather than only this file.
 
 These committed large binaries are stored via **Git LFS** (see the repo `.gitattributes`). After
 cloning, run `git lfs install` once and `git lfs pull` to fetch the real files; the Docker build checks

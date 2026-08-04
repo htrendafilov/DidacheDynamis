@@ -24,6 +24,17 @@ def test_kjv_build_input_is_generated_and_checksum_pinned():
     )
 
 
+def test_web_carries_ebible_required_attribution_in_full():
+    # eBible.org's required wording has three sentences; the middle one is the public-domain
+    # grant. It was missing, so works.attribution — the string WorkFooter renders — asserted the
+    # trademark without the rights it qualifies. data/sources/README.md and NOTICE record this
+    # same string as required, and this spec is the only copy that reaches a reader.
+    assert cli.WEB_SPEC.attribution == (
+        "The World English Bible is in the Public Domain. That means that it is not "
+        'copyrighted. However, "World English Bible" is a Trademark of eBible.org.'
+    )
+
+
 def test_baptist_confession_uses_reviewed_source_and_provenance():
     assert cli.SOURCE_FILES["baptist1689"] == "BaptistConfession1689-ed1.imp.gz"
     spec = cli.BAPTIST_1689_SPEC
