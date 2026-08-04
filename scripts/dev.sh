@@ -20,6 +20,7 @@ if [ ! -d "$ROOT/apps/web/node_modules" ]; then
 fi
 
 if [ "${REBUILD_CONTENT:-0}" = "1" ] || [ ! -f "$DB" ]; then
+  bash "$ROOT/scripts/fetch-kjv.sh"
   "$IMPORTER" build-all \
     --sources-dir "$ROOT/data/sources" \
     --out "$DB"

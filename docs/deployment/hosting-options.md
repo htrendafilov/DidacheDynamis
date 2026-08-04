@@ -4,11 +4,11 @@
 
 ## Option 1: Native Systemd + Gunicorn (VM Setup)
 
-### Current production reference
+### Production reference shape
 
-Production runs as `deploy` from `/opt/bible-app/bible-app`. The complete, current unit and operational
-details are maintained in [`plan/deployment/live-runbook.md`](../../plan/deployment/live-runbook.md).
-The essential service shape is:
+A typical production install runs as a dedicated `deploy` user from `/opt/bible-app`. The live
+operator values (host, account, real paths) are intentionally kept in a private runbook — see
+[`plan/deployment/README.md`](../../plan/deployment/README.md). The essential service shape is:
 
 ```ini
 [Unit]
@@ -17,8 +17,8 @@ After=network.target
 
 [Service]
 User=deploy
-WorkingDirectory=/opt/bible-app/bible-app
-ExecStart=/opt/bible-app/bible-app/.venv/bin/gunicorn app.main:app \
+WorkingDirectory=/opt/bible-app
+ExecStart=/opt/bible-app/.venv/bin/gunicorn app.main:app \
   -k uvicorn.workers.UvicornWorker \
   -w 3 \
   -b 127.0.0.1:8080
@@ -49,7 +49,7 @@ For Docker-based environments or container orchestrators, the repository include
 flowchart TD
     subgraph Multi-Stage Build
         Stage1[Stage 1: Web Builder\nNode 22 -> npm run build] --> Assets[dist/*]
-        Stage2[Stage 2: Importer Builder\nPython 3.13 -> bibleimport build-all] --> DBArtifact[content.sqlite]
+        Stage2[Stage 2: Importer Builder\nFetch pinned KJV -> bibleimport build-all] --> DBArtifact[content.sqlite]
         
         Stage3[Stage 3: Production Runtime\nPython 3.13-slim + FastAPI + Gunicorn/Uvicorn]
         Assets --> Stage3

@@ -64,7 +64,7 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
   in-browser (IndexedDB), with optional Dropbox App Folder sync and explicit conflict copies. ✅
 - **M5** — hardening: **Cloudflare Tunnel** (CDN + closed origin bypass + no cert-renewal worry),
   a **Content-Security-Policy** (Dropbox-scoped), Playwright smoke + axe accessibility tests, a
-  keyboard-navigable mobile pane-tab layout, external uptime monitor (GitHub Actions + UptimeRobot),
+  keyboard-navigable mobile pane-tab layout, external UptimeRobot readiness monitoring,
   and a rehearsed atomic DB/SPA backup & rollback (versioned releases + symlink swap). ✅
 - **M6** — General Books: hierarchical SWORD `mod2imp` adapter, read-only book API, a TOC reader pane
   (paged/scroll with scroll-spy), full-text book search, and shareable section deep links
@@ -100,6 +100,7 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
 # 1) build the content DB (once)
 python3 -m venv apps/importer/.venv && . apps/importer/.venv/bin/activate
 pip install -e "apps/importer[dev]"
+bash scripts/fetch-kjv.sh  # requires the SWORD utilities (`mod2imp`), curl, and unzip
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 
 # 2) API on :8080
@@ -132,3 +133,9 @@ and reads/writes only `/notes-v1.json` inside the app's private App Folder.
 No Dropbox app secret belongs in this repository or in the browser build. Dropbox recommends OAuth
 code flow with PKCE and short-lived tokens (without refresh tokens) for pure JavaScript apps, so a
 browser session occasionally needs to reconnect.
+
+## License
+
+The code and original documentation are under the [MIT License](LICENSE). Third-party content inputs
+in [`data/sources/`](data/sources/README.md), plus the KJV fetched from CrossWire during the build,
+keep their own recorded terms — the MIT license does not cover them.

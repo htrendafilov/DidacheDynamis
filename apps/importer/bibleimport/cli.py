@@ -25,6 +25,7 @@ from .pipeline import (
     append_study_content,
     build_bible,
     easton_source_version,
+    source_content_sha256,
     source_sha256,
 )
 from .schema import SCHEMA_VERSION
@@ -76,7 +77,10 @@ KJV_SPEC = BibleSpec(
     expected_alignment=AlignmentExpectation(
         base_work_id="web",
         base_checksum="f751bc6a4663829c4912c190586d919cfad4eb38af27218cee9a85658fcf18e0",
-        source_checksum="6155ed9188d3a1fcfb5e535c8f17bd72cda75c00f8828aa58e34ce213825610c",
+        # The decompressed mod2imp export that scripts/fetch-kjv.sh produces from the
+        # checksum-pinned official CrossWire module. This pins the content, not the gzip
+        # file carrying it — see BibleSpec.source_is_generated for why.
+        source_checksum="6b2a9ab832b597ffb90929d3c7ac0b2756991cdc6bf5d30eab046308aedca7ed",
         missing_in_other=frozenset(
             {
                 ("Rom", 14, 24),
@@ -104,6 +108,7 @@ KJV_SPEC = BibleSpec(
         strong_ids=7,
     ),
     ai_context_policy="allowed",
+    source_is_generated=True,
 )
 
 BAPTIST_1689_SPEC = BookSpec(
@@ -172,13 +177,22 @@ def _audit_record(
     statistics: dict | None = None,
     source_version: str | None = None,
     diagnostics=None,
+    is_generated: bool = False,
 ) -> dict:
     path = Path(source)
     record = {
         "work_id": work_id,
         "source": path.name,
         "source_bytes": path.stat().st_size if path.exists() else None,
-        "sha256": source_sha256(path) if path.is_file() else None,
+        # A generated source is recorded by its decompressed content, matching works.checksum.
+        # Hashing the file would put a per-machine number in the provenance record: the gzip is
+        # written locally by whichever gzip the builder has, so two correct builds of identical
+        # text would appear to disagree about their source.
+        "sha256": (
+            (source_content_sha256(path) if is_generated else source_sha256(path))
+            if path.is_file()
+            else None
+        ),
         "source_version": source_version,
         "ai_context_policy": ai_context_policy,
         "result": result,
@@ -354,6 +368,7 @@ def _cmd_add_kjv(args) -> int:
         statistics=diag.stats,
         source_version=KJV_SPEC.source_version,
         diagnostics=diag,
+        is_generated=KJV_SPEC.source_is_generated,
     )
     code = _report(diag, audit)
     _write_report(args, [audit], result="ok" if code == 0 else "failed")
@@ -475,6 +490,7 @@ def _cmd_build_all(args) -> int:
         statistics=diag.stats,
         source_version=KJV_SPEC.source_version,
         diagnostics=diag,
+        is_generated=KJV_SPEC.source_is_generated,
     )
     imports.append(audit)
     code = _report(diag, audit)

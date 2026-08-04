@@ -6,7 +6,6 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 | File | Work | License | Source |
 |---|---|---|---|
 | `engwebp_usfx.zip` | World English Bible (Protestant) | Public domain | https://ebible.org/find/details.php?id=engwebp |
-| `KJV.imp.gz` | King James Version (1769), CrossWire 3.1 | CrossWire general public license; module distribution: GPL | https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV |
 | `MHC.imp.gz` | Matthew Henry's Complete Commentary | Public domain | CrossWire MHC 2.2 |
 | `Easton.raw.imp.gz` | Easton's Bible Dictionary (raw structured export; active importer input) | Public domain | CrossWire Easton module |
 | `crossreferences_kjv.tsv` | TSK-derived cross-references | CC BY 4.0 | CrossReferences.org KJV mapping |
@@ -19,12 +18,26 @@ redistributable sources belong here** (owner-provided/licensed texts stay out of
 **World English Bible attribution (required):** "The World English Bible is in the Public Domain. That
 means that it is not copyrighted. However, 'World English Bible' is a Trademark of eBible.org."
 
-These large binaries are stored via **Git LFS** (see the repo `.gitattributes`). After cloning, run
-`git lfs install` once and `git lfs pull` to fetch the real files; the Docker build checks out with LFS.
+These committed large binaries are stored via **Git LFS** (see the repo `.gitattributes`). After
+cloning, run `git lfs install` once and `git lfs pull` to fetch the real files; the Docker build checks
+out with LFS.
+
+## Build-fetched KJV
+
+`KJV.imp.gz` is deliberately **not committed** to the public repository. Before `build-all`, run
+`bash scripts/fetch-kjv.sh` from the repository root. The script downloads CrossWire's official KJV
+3.1 raw module over HTTPS, requires the pinned archive SHA-256, exports it with the official
+`mod2imp` tool, verifies the expanded IMP SHA-256, and writes a deterministic, git-ignored
+`data/sources/KJV.imp.gz`. Docker and GitHub Actions perform this step automatically.
+
+Required local tools: `curl`, `unzip`, `gzip`, and the SWORD utilities (`mod2imp`).
+For an offline/repeated build, `KJV_ARCHIVE=/path/to/KJV.zip bash scripts/fetch-kjv.sh` reuses a
+local archive but enforces the same pinned checksum.
 
 Rebuild the whole database in one step (the Docker build uses exactly this):
 
 ```
+bash scripts/fetch-kjv.sh
 bibleimport build-all --sources-dir data/sources --out data/content.sqlite
 ```
 
@@ -54,7 +67,6 @@ The commentary and dictionary exports come from CrossWire modules whose module p
 parsing SWORD binaries in this repository:
 
 ```bash
-SWORD_PATH=/path/to/unpacked/modules mod2imp KJV | gzip -9 > KJV.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp MHC | gzip -9 > MHC.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp Easton | gzip -n -9 > Easton.raw.imp.gz
 SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
@@ -65,8 +77,14 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
   - CrossWire grants a general public license to use the KJV2003 Project text for any purpose and
     lists the module distribution license as GPL; its page also records Crown of England rights in
     the base text. The app reproduces these terms in its attribution dialog.
-  - raw module SHA-256: `873815aa4b4123025616d1f41eae75f412111275f4c3884e36f92d4f46dcba1d`
-  - committed raw-OSIS export SHA-256: `6155ed9188d3a1fcfb5e535c8f17bd72cda75c00f8828aa58e34ce213825610c`
+  - official raw ZIP URL:
+    `https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/KJV.zip`
+  - pinned raw ZIP SHA-256:
+    `873815aa4b4123025616d1f41eae75f412111275f4c3884e36f92d4f46dcba1d`
+  - verified expanded raw-OSIS IMP SHA-256:
+    `6b2a9ab832b597ffb90929d3c7ac0b2756991cdc6bf5d30eab046308aedca7ed`
+  - deterministic generated `KJV.imp.gz` SHA-256:
+    `0d1da256b8a0a2407bf4f19474fba3c46b98acffa9578eccb8371c124c603ecc`
 - MHC module: https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=MHC
   - raw module SHA-256: `6bcb936873ca144e317805e5c1677940fd86e2403f7c14517752e44f25c8882b`
   - committed raw-OSIS export SHA-256: `3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0`

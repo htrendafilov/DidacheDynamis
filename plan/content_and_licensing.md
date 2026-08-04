@@ -10,7 +10,7 @@ before shipping, and store that evidence with the work.
 | Work | Type | Language | License | Notes |
 |---|---|---|---|---|
 | World English Bible (WEB) | Bible | EN | Public domain | Red-letter (words-of-Jesus) capable. Primary EN text. |
-| KJV (CrossWire 3.1) | Bible | EN | CrossWire general public license; module distribution: GPL | Second selectable EN Bible; raw module/export and attribution are shipped. |
+| KJV (CrossWire 3.1) | Bible | EN | CrossWire general public license; module distribution: GPL | Second selectable EN Bible; fetched from CrossWire during the build, never committed, with attribution shipped. |
 | Matthew Henry's Complete Commentary | Commentary | EN | Public domain | CrossWire MHC 2.2 module; exported with official SWORD tools. |
 | Easton's Bible Dictionary | Dictionary | EN | Public domain | CrossWire Easton module; exported with official SWORD tools. |
 | Treasury of Scripture Knowledge-derived mapping | Cross-refs | — | CC BY 4.0 | CrossReferences.org KJV mapping; explicit attribution stored and shown. |
@@ -30,14 +30,15 @@ those declarations are the recorded basis for the committed exports.
 CrossWire's KJV 3.1 page expressly grants a general public license to use its KJV2003 Project text
 for any purpose and lists the module distribution license as GPL. It also states that rights to the
 base text are held by the Crown of England, so the app does **not** label this edition public domain;
-it displays CrossWire's terms and source, and the repository includes the exact source export and
-conversion code.
+it displays CrossWire's terms and source. The repository includes the checksum-pinned acquisition and
+conversion code, but no KJV text or export; the build fetches the official module directly from
+CrossWire.
 
 ## Strong's lexical works (M8) — cleared 2026-07-27
 
 The KJV row above already covers the word-level Strong's numbers and morphology **embedded in** the
-KJV module (`<w lemma="strong:…" morph="…">`) — they are part of the committed KJV export, not a new
-text. The two lexicon works that supply definitions are recorded here per the gate in
+KJV module (`<w lemma="strong:…" morph="…">`) — they are part of the build-fetched KJV export, not a
+new text. The two lexicon works that supply definitions are recorded here per the gate in
 [`search_workspace.md`](search_workspace.md) §10.1:
 
 | Work | Type | Language | License | Notes |

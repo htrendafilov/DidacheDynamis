@@ -387,7 +387,7 @@ ai_context_policy = allowed | allowed_no_training | prohibited | unknown
 
 **Data direction.** Outward only: importer → `works` table in `content.sqlite` → `GET /api/v1/works` → browser. Nothing is sent to the server; the server stays read-only and stateless.
 
-**This is a schema change and must be sequenced like one.** Adding a column to `works` bumps `SCHEMA_VERSION` (`apps/importer/bibleimport/schema.py`, **3 → 4**; M8.4 already took it to 3 for the diacritic-folded search columns) and therefore the API's `CONTENT_SCHEMA_VERSION`. Per `plan/deployment/live-runbook.md`, an API whose expected schema version has changed **must not be restarted before the rebuilt database is in place**; reversing the order makes every `/api/v1` request return `503 schema-outdated` (`main.py:53`) and pages the readiness monitor.
+**This is a schema change and must be sequenced like one.** Adding a column to `works` bumps `SCHEMA_VERSION` (`apps/importer/bibleimport/schema.py`, **3 → 4**; M8.4 already took it to 3 for the diacritic-folded search columns) and therefore the API's `CONTENT_SCHEMA_VERSION`. Per the release procedure in `docs/deployment/backups-and-rollback.md`, an API whose expected schema version has changed **must not be restarted before the rebuilt database is in place**; reversing the order makes every `/api/v1` request return `503 schema-outdated` (`main.py:53`) and pages the readiness monitor.
 
 | Layer | Change |
 |---|---|

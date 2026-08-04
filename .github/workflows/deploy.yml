@@ -4,7 +4,8 @@ name: deploy
 # optional GHCR/Compose path using VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR secrets.
 #
 # Those four secrets are NOT configured today, so the "Deploy to VM" step cannot run. Production
-# currently uses the native systemd + gunicorn path in plan/deployment/live-runbook.md, not Docker.
+# currently uses the native systemd + gunicorn path (generic procedure: docs/deployment/; operator
+# values live in the intentionally private live runbook), not Docker.
 # The image build/push below is useful on its own, so it still runs; the preflight before the SSH
 # step explains the failure instead of letting ssh-action report a bare "missing server host".
 on:
@@ -23,19 +24,19 @@ jobs:
     env:
       IMAGE: ghcr.io/${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           lfs: true
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: deploy/Dockerfile
@@ -71,8 +72,8 @@ jobs:
               echo
               echo "This workflow is the *future* hands-off Docker path. Production runs the native"
               echo "systemd + gunicorn service behind the Cloudflare Tunnel, which this workflow does"
-              echo "not touch. Release it with the procedure in"
-              echo "\`plan/deployment/live-runbook.md\` → \"Update the app or content\"."
+              echo "not touch. Release it with the operator's private live runbook"
+              echo "(generic procedure: \`docs/deployment/\`)."
               echo
               echo "To enable this path instead, install Docker on the VM, create a deploy user + key,"
               echo "then set the four secrets above."
@@ -82,7 +83,7 @@ jobs:
 
       # Deploy to the VM over SSH. The VM only pulls from GHCR.
       - name: Deploy to VM
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}

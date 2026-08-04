@@ -10,6 +10,7 @@ from bibleimport.pipeline import (
     append_bible,
     append_strongs,
     build_bible,
+    source_content_sha256,
     source_sha256,
 )
 from bibleimport.schema import SCHEMA_VERSION
@@ -351,3 +352,29 @@ def test_token_lexicon_join_on_normalized_ids(tmp_path):
         "WHERE t.work_id='kjv' AND t.osis_code='Gen' AND t.chapter=1 AND t.verse=1"
     ).fetchall()
     assert joined == [("In the beginning", "re-shiyth")]
+
+
+# A generated source is carried by a gzip the build machine writes, and gzip output is
+# implementation-defined: Apple gzip and GNU gzip compress the identical KJV export to
+# different bytes. Pinning the file hash meant the reviewed checksum only ever matched on the
+# machine that produced it — scripts/fetch-kjv.sh aborted, and bibleimport recorded a source
+# checksum error, on every other platform including CI and the Docker build.
+def test_generated_source_checksum_ignores_gzip_framing(tmp_path):
+    import gzip as gzip_mod
+
+    content = b"KJV IMP export content\n" * 500
+
+    slow = tmp_path / "slow.imp.gz"
+    with gzip_mod.GzipFile(filename=str(slow), mode="wb", compresslevel=9, mtime=0) as f:
+        f.write(content)
+
+    # Different compression level, a stored original filename, and a non-zero timestamp: every
+    # gzip-framing knob that distinguishes one implementation's output from another's.
+    fast = tmp_path / "fast.imp.gz"
+    with open(fast, "wb") as raw, gzip_mod.GzipFile(
+        filename="KJV.imp", mode="wb", compresslevel=1, mtime=1_700_000_000, fileobj=raw
+    ) as f:
+        f.write(content)
+
+    assert source_sha256(slow) != source_sha256(fast)
+    assert source_content_sha256(slow) == source_content_sha256(fast)

@@ -1,8 +1,9 @@
 # Deployment Design (v1)
 
 Current production is a native systemd service behind Cloudflare Tunnel. A portable Docker/GHCR path
-remains supported. See [`live-runbook.md`](live-runbook.md) for authoritative live operations and
-[`../00_system_design.md`](../00_system_design.md) for the system boundary.
+remains supported. Live operator values (host, account, paths) are intentionally private — see
+[`README.md`](README.md) in this directory — and [`../00_system_design.md`](../00_system_design.md)
+defines the system boundary.
 
 ## 0. Hosting options
 
@@ -32,9 +33,10 @@ one-liner: push image to GHCR, deploy elsewhere, repoint DNS.
 
 ## 3. CI and manual container deployment
 
-The current live VM uses the native systemd/atomic-release procedure in
-[`live-runbook.md`](live-runbook.md). The repository also retains a portable GHCR/Docker deployment
-workflow:
+The current live VM uses the native systemd/atomic-release procedure documented generically in
+[`docs/deployment/`](../../docs/deployment/index.md) (operator values are private — see
+[`README.md`](README.md) in this directory). The repository also retains a portable GHCR/Docker
+deployment workflow:
 
 **`ci.yml`** (PR + push): runs `scripts/check.sh` — backend ruff + pytest, frontend lint/type-check +
 Vitest + `vite build`. Required check before merge to `main`.
@@ -82,8 +84,8 @@ After this, dispatching `deploy.yml` drives the optional container rollout; comm
   as immutable; revalidate unhashed files and API JSON. Cloudflare respects these origin headers and
   must not apply a hostname-wide "Cache Everything" rule. This makes deployments visible immediately
   without giving up efficient caching of the large bundles.
-- **Uptime:** container `restart: always`; external monitors should hit `/ready` so a missing,
-  invalid, or schema-outdated database is detected.
+- **Uptime:** container `restart: always`; UptimeRobot is the sole external monitor and must hit
+  `/ready` so a missing, invalid, or schema-outdated database is detected.
 - Logs go to stdout without secrets or personal data.
 
 ## 6. Scaling / switching path
@@ -116,4 +118,6 @@ DB never enters git.)
 
 The current live path uses a virtualenv, Gunicorn systemd unit (`Restart=always`), FastAPI-served
 versioned SPA files, and `content.sqlite` on disk. Cloudflare Tunnel targets the loopback service.
-Release/rollback commands live only in `live-runbook.md`.
+The generic release/rollback commands live in
+[`docs/deployment/backups-and-rollback.md`](../../docs/deployment/backups-and-rollback.md); the
+operator-specific invocation stays in the private runbook.

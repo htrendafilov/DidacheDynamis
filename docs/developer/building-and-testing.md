@@ -39,7 +39,9 @@ cd apps/web
 npm run e2e
 ```
 Playwright starts [`scripts/e2e-server.sh`](../../scripts/e2e-server.sh) through `webServer`, rebuilding
-the content database and SPA unless `E2E_REUSE=1` is set. The manual GitHub workflow is
+the content database and SPA unless `E2E_REUSE=1` is set. A local rebuild requires the SWORD
+utilities (`mod2imp`), `curl`, and `unzip` so the checksum-pinned KJV input can be fetched; CI installs
+them automatically. The manual GitHub workflow is
 [`e2e.yml`](../../.github/workflows/e2e.yml).
 
 ### 4. Read-concurrency load smoke

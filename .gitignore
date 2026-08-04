@@ -32,6 +32,9 @@ data/*.diagnostics.json
 # Public-domain sources ARE committed (see data/sources/README.md); owner-provided/licensed
 # texts must not be — keep those out with a *.private.* suffix.
 data/sources/*.private.*
+# CrossWire KJV is fetched from a checksum-pinned official archive during the build. The generated
+# IMP export is never committed to the public DidacheDynamis repository.
+data/sources/KJV.imp.gz
 
 # Session handoff artifacts (local only)
 .continues-handoff.md
@@ -39,6 +42,13 @@ data/sources/*.private.*
 .kilo/
 .claude/
 .ua/
+
+# uv is not the documented install path (pip + pyproject is); ignore its lockfiles until adopted
+uv.lock
+
+# Private operations runbook — intentionally not committed/published.
+# See plan/deployment/README.md.
+plan/deployment/live-runbook.md
 
 # Local release driver — drives production from a workstation that holds the SSH
 # access and secret-store configuration, so it is intentionally not committed.
