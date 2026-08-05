@@ -5,7 +5,8 @@ branch (merged as PR #30, `cc25716`). **Goal:** publish the project without expo
 private infrastructure details, non-redistributable content, or misleading historical plans.
 
 **Decisions recorded 2026-08-01 (owner-approved):** clean-public-repo strategy (§0 path 2);
-code license **MIT**; **KJV dropped** from the public source set (fetched at build instead);
+code license **MIT**; **KJV dropped** from the public source set (fetched at build instead — its
+presence in the built database and image is a separate open gate, decision 11);
 live runbook stays **private/untracked**; `render.yaml` and the GitHub uptime workflow are
 **deleted**; UptimeRobot is the sole uptime monitor; `uv.lock` is **ignored**.
 New public repo: **`htrendafilov/DidacheDynamis`** — created 2026-08-01 as **private**; it flips
@@ -155,17 +156,41 @@ set and fetched only while building (option "remove" in item 3 below).
 
 1. Add a root code `LICENSE` (**MIT**). State explicitly that it covers code and original
    documentation, not third-party content.
-2. Add `NOTICE` plus a `LICENSES/README.md` (and full applicable license texts) that maps every file
-   in `data/sources/` to its source, version, rights holder, redistribution terms, attribution, and
-   modification status. Keep this aligned with `data/sources/README.md` and imported `works` rows.
-3. **KJV (resolved): remove `KJV.imp.gz` from the public source set and fetch it from CrossWire at
-   build time** (pinned URL + checksum), rather than redistributing it in-repo. CrossWire's current
-   module page records Crown rights on the base text, broad use of the KJV2003 project text, and a
-   `GPL` module-distribution label; removal sidesteps the redistribution question entirely.
-   Implemented by `scripts/fetch-kjv.sh`, the ignored `SOURCE_FILES["kjv"]` build input, the
-   Docker/CI build path, and the in-app KJV attribution. The clean `DidacheDynamis` history must
-   never contain `data/sources/KJV.imp.gz`, even while the target repository is still private.
-   See the [official CrossWire module record](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV).
+2. ~~Add `NOTICE` plus a `LICENSES/README.md` (and full applicable license texts) that maps every
+   file in `data/sources/` to its source, version, rights holder, redistribution terms, attribution,
+   and modification status.~~ **Done.** Root `NOTICE` covers every committed source, the
+   build-fetched KJV, and the original assets (logo, screenshots); `LICENSES/` carries the verbatim
+   CC BY 4.0 and CC0 1.0 texts. `NOTICE` is written against the *distribution surfaces* — repository
+   versus built database/image — because they do not carry the same set of works. Kept aligned with
+   `data/sources/README.md`, the `works` rows written by `apps/importer/bibleimport`, and
+   `docs/extra/content-and-licensing.md`; re-check all four together whenever a source changes.
+   "Aligned" is exact for the **attribution** strings — `NOTICE` quotes what actually ships — and
+   substantive but not verbatim for the **license** fields, where `works.license` carries a short UI
+   label and `NOTICE` spells out the basis. Writing this record surfaced one real divergence: the
+   WEB attribution in `works` had dropped eBible's middle sentence, so the app showed a trademark
+   notice with no rights grant. Fixed in `WEB_SPEC.attribution`, not papered over in `NOTICE`.
+3. **KJV (partly resolved): remove `KJV.imp.gz` from the public source set and fetch it from
+   CrossWire at build time** (pinned URL + checksum), rather than redistributing it in-repo.
+   CrossWire's current module page records Crown rights on the base text, broad use of the KJV2003
+   project text, and a `GPL` module-distribution label. Implemented by `scripts/fetch-kjv.sh`, the
+   ignored `SOURCE_FILES["kjv"]` build input, the Docker/CI build path, and the in-app KJV
+   attribution. The clean `DidacheDynamis` history must never contain `data/sources/KJV.imp.gz`,
+   even while the target repository is still private.
+
+   **What this does not settle — publication gate, decision 11 (§8).** Removing the export from git
+   removes it from *git*, not from what the project distributes. `deploy/Dockerfile` fetches the
+   module, compiles all 31,102 verses into `content.sqlite`, and copies that database into the
+   runtime image; `deploy.yml` pushes the image to GHCR, whose visibility §7.5 sets deliberately.
+   The converted KJV text therefore ships inside the published image and is served by the live
+   site. An earlier draft of this section claimed removal "sidesteps the redistribution question
+   entirely" — it does so for the repository only. Before publication, either record an explicit
+   owner decision that distributing the generated database and image is acceptable under the
+   module's GPL distribution label and the Crown's rights, or exclude the KJV from the
+   distributable artifacts (build it locally only, ship the image without it, or gate it behind a
+   build flag). `NOTICE` §3 records the upstream terms and marks this open; it does not interpret
+   them.
+   See the [official CrossWire module record](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV)
+   and [CrossWire's KJV licensing notes](https://wiki.crosswire.org/CrossWire_KJV).
 4. Preserve the WEB trademark wording and TSK CC BY 4.0 attribution in both repository and UI.
 5. Update `docs/developer/contributing.md` with the selected inbound contribution terms. Add root
    `SECURITY.md`; add a code of conduct only if the maintainer is prepared to enforce it.
@@ -272,7 +297,10 @@ All of these must pass before visibility changes:
 - Markdown-link check and a manual pass through README, docs, license/attribution, and screenshots;
 - anonymous-access rehearsal against the candidate remote, including source archives and LFS;
 - audit of PRs/issues, Actions logs/artifacts, packages, deployments, variables, and repository
-  settings; record the result in the release issue.
+  settings; record the result in the release issue;
+- decision 11 answered and recorded: whether the KJV ships inside the published `content.sqlite`
+  and GHCR image, or is excluded from the distributed artifacts. The repository-level removal does
+  not answer this, and the image is published by the same cutover.
 
 ## 7. Publication and post-flip checks
 
@@ -299,7 +327,8 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 1. ~~Existing repository rewrite vs clean public repository~~ → **clean public repository**
    (`htrendafilov/DidacheDynamis`).
 2. ~~Code license~~ → **MIT**.
-3. ~~KJV~~ → **removed** from the public source/build; fetched from CrossWire at build time (§3.3).
+3. ~~KJV in the repository~~ → **removed** from the public source set; fetched from CrossWire at
+   build time (§3.3). Distributing it in the built database/image is *not* settled — decision 11.
 4. ~~Live runbook~~ → **private/untracked** (§4.1).
 5. ~~`render.yaml`~~ → **deleted** (§4.3).
 6. ~~`uv.lock`~~ → **ignored** (§1.3).
@@ -311,8 +340,14 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    is the only public history, so rewriting to the personal address is cheap to do in the same pass).
 9. Issues, Discussions, contribution terms, and code-of-conduct policy (due at §7).
 10. Public domain: keep `bible.trendafilovi.net` or rebrand with the app name (§4.4).
+11. **KJV in the distributable artifacts — publication gate (§3.3).** The build compiles the KJV
+    into `content.sqlite` and the runtime image, which `deploy.yml` pushes to GHCR and the live
+    site serves. Either record an owner decision accepting that under the module's GPL
+    distribution label and the Crown's rights, or exclude the KJV from the distributed artifacts.
+    Due before §7, and it must be answered rather than inherited from the repository-level
+    decision, which does not cover it.
 
-The content-licensing implementation (§3.3 KJV fetch-at-build) is complete. Proving that the
-candidate `DidacheDynamis` history never contains the former KJV path/LFS object remains a hard gate;
-everything else can be completed as a reviewable cleanup commit before the destructive release
-cutover.
+The §3.3 fetch-at-build implementation is complete for the repository. Two hard gates remain:
+proving the candidate `DidacheDynamis` history never contains the former KJV path/LFS object, and
+decision 11 on the KJV in the published database and image. Everything else can be completed as a
+reviewable cleanup commit before the destructive release cutover.

@@ -50,9 +50,14 @@ WEB_SPEC = BibleSpec(
     language="en",
     versification="kjv",
     license="Public Domain",
+    # eBible.org's required wording, in full. The middle sentence is not decoration: it is
+    # what states the public-domain grant, and dropping it left the app showing a trademark
+    # notice with no accompanying rights grant. data/sources/README.md and NOTICE record this
+    # same string as the required attribution, and this is the copy that actually reaches a
+    # reader — it travels into works.attribution and is rendered by WorkFooter.
     attribution=(
-        'The World English Bible is in the Public Domain. '
-        '"World English Bible" is a Trademark of eBible.org.'
+        "The World English Bible is in the Public Domain. That means that it is not "
+        'copyrighted. However, "World English Bible" is a Trademark of eBible.org.'
     ),
     source_url="https://ebible.org/find/details.php?id=engwebp",
     source_version="World English Bible Updated (2023 text; eBible archive 2026-07-10)",
