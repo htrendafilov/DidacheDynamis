@@ -90,8 +90,15 @@ Audit or remove before the flip:
 - 2 retained Docker build-record artifacts (about 45 KiB total); delete if they have no release value;
 - repository variables, environments, deployments, release assets, wiki pages, projects, webhooks,
   and GitHub Pages configuration;
-- remote branches. Eleven merged topic branches are still advertised in addition to `main`; delete
-  obsolete branches before the rewrite and ensure no stale branch can reintroduce old history;
+- ~~remote branches. Eleven merged topic branches are still advertised in addition to `main`; delete
+  obsolete branches before the rewrite and ensure no stale branch can reintroduce old history;~~
+  **Done 2026-08-05.** Only `main` remains, locally and on the remote. The last five were checked
+  against `main` by content rather than by commit SHA — every one had landed through a squash, so
+  none of their commits was an ancestor of `main` and a SHA test would have called them all
+  unmerged. Each added line was confirmed present in `main` or deliberately superseded (schema
+  version 3 → 4, the three-value `ai_context_policy` union → four, `m9.0b-bulgarian-benchmark.md`
+  split into `m9.0b-1`/`m9.0b-2`, and a `.gitignore` comment rewritten by this very cleanup). Their
+  tip SHAs are recorded in the release issue in case anything needs recovering before gc;
 - GHCR package contents and visibility, which are managed separately from repository visibility.
 
 GitHub supports deleting completed workflow runs. Keep an audit note listing which runs/artifacts
@@ -221,8 +228,15 @@ set and fetched only while building (option "remove" in item 3 below).
 
 ### 4.2 Public-facing docs
 
-- Finish the README transition: code/content license links, build status, public contribution link,
-  privacy summary, and accurate production/chat feature status.
+- ~~Finish the README transition: code/content license links, build status, public contribution link,
+  privacy summary, and accurate production/chat feature status.~~ **Done.** Licence links and
+  `NOTICE`/`LICENSES` pointers landed with the attribution record; this pass adds CI and MIT badges,
+  a "Privacy in short" section (local-first, plus the two opt-in third-party paths), a
+  "Contributing and security" section linking `docs/developer/contributing.md` and `SECURITY.md`,
+  and the two `docs/extra/` guides to the documentation list. The chat status line was already
+  accurate — it records M9.1–M9.3d as shipped and states the feature is build-time gated and off in
+  production — so it was left alone. The contribution *terms* behind that link remain blocked on
+  decision 9; the link itself is not.
 - ~~Document the optional browser-direct OpenRouter assistant in user/developer privacy docs before
   it is enabled in any public build: what leaves the browser, key storage, context selection,
   provider terms, local history, and the content `ai_context_policy` gate.~~ **Done** in
@@ -234,7 +248,14 @@ set and fetched only while building (option "remove" in item 3 below).
 - Refresh `docs/extra/security-and-privacy.md` and `docs/extra/content-and-licensing.md` against the
   final source set and NOTICE.
 - Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be enabled.
-- Sweep links and references after deletions and the private-runbook move.
+- ~~Sweep links and references after deletions and the private-runbook move.~~ **Done 2026-08-05 —
+  nothing to fix.** All 169 relative markdown links across 63 files resolve, and all 89 repo-path
+  references inside source files point at something that exists. Every surviving mention of a
+  removed file (`render.yaml`, `uptime.yml`, the six PR #30 deletions, the two chat proposals, the
+  live runbook) is a deliberate record of the removal — the "Removed" table here, `plan/deployment/
+  README.md` explaining the private runbook, `monitoring-and-alerts.md` noting the retired workflow,
+  and `interactive_chat_plan.md` §Appendix B listing what was carried over — not a dangling pointer.
+  Re-run before the §6 gate, since the rewrite moves files again.
 
 ### 4.3 Stale deployment choices
 
@@ -252,6 +273,9 @@ The public app is named **DidacheDynamis** (decided 2026-08-01). The rename land
 tree before the first push, not in the private repo's day-to-day history:
 
 - README/docs product name, repository description/topics, and the `NOTICE`/attribution lines.
+- **README badges.** The CI badge added 2026-08-05 hard-codes
+  `github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`; it renders as "no status" from
+  the new repository until repointed. Include both badge URLs in the rename pass.
 - GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `deploy.yml` and Compose (the
   package itself is created by the first push from the new repo).
 - **Not renamed by default:** the public domain `bible.trendafilovi.net`, the Cloudflare tunnel, and
