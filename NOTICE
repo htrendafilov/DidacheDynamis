@@ -206,13 +206,33 @@ King James Version (1769)
       module distribution license: GPL. The rights to the base text are held by the
       Crown of England."
 
-  UNRESOLVED — requires an owner decision before publication. Excluding the export
-  from the repository does not exclude the KJV text from what this project
-  distributes: the build compiles it into content.sqlite, and the container image
-  embeds that database. The interaction between the module's GPL distribution
-  label, the Crown's rights in the base text, and this project's MIT-licensed code
-  has not been assessed here. This notice records the upstream terms as CrossWire
-  states them; it does not interpret them.
+  Distribution — decided 2026-08-06 (plan/going_public.md, decision 11). Excluding
+  the export from the repository does not exclude the KJV text from what this
+  project distributes: the build compiles it into content.sqlite, the container
+  image embeds that database, and the live site serves it. That distribution is
+  intended, on this basis:
+
+    - CrossWire, holder of whatever copyright exists in the KJV2003 effort, grants
+      use of the text FOR ANY PURPOSE — quoted in the attribution above and
+      repeated on their wiki. The rights holder has permitted in writing exactly
+      what this project does.
+    - The module's "DistributionLicense: GPL" field is metadata describing the
+      SWORD module package, which this project does not redistribute: the build
+      extracts the text with mod2imp and ships a derived database.
+    - The Crown's rights in the base text are territorial. Perpetual Crown
+      copyright applies in the United Kingdom, and CrossWire records that in most
+      of the world the Authorized Version has passed out of copyright and is
+      freely reproduced.
+
+  The obligations a GPL reading would impose are met regardless, because they cost
+  nothing: attribution and copyright notices are preserved here and in the
+  application's attribution UI; the licence text is included at
+  LICENSES/GPL-2.0.txt (the module records "GPL" with no version, and SWORD itself
+  is GPL-2.0); and scripts/fetch-kjv.sh is the corresponding source, checksum-pinned
+  to the exact upstream archive and to the exact mod2imp output.
+
+  Copyleft is not treated as reaching this project's MIT-licensed code:
+  content.sqlite is data the application reads, not code linked into it.
 
 
 -----------------------------------------------------------------------
