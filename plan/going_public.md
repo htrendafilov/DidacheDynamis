@@ -302,30 +302,41 @@ domain. Run it when the new domain is registered.
 
 **Infrastructure.**
 
-3. Register the domain (Cloudflare Registrar — decision 10) and create its Cloudflare zone.
+3. ~~Register the domain~~ **done 2026-08-05 at Porkbun** (decision 10). Create a Cloudflare zone
+   for each domain, then replace Porkbun's nameservers with the two Cloudflare assigns —
+   they are still on `*.ns.porkbun.com` as registered, so nothing routes through Cloudflare yet.
 4. Add the new public hostname to the Cloudflare Tunnel ingress; keep the old hostname routed until
    the redirect is in place.
 5. Add the new vhost to the Caddy config on the VM — `deploy/Caddyfile.snippet` hard-codes
    `bible.trendafilovi.net` and is the template for it.
 6. Repoint the UptimeRobot monitor at `https://<new-domain>/ready` (§4.3: it must probe `/ready`,
    not `/`, so database failures are caught and not just process liveness).
-7. Set the GitHub repository Website field and social preview to the new domain.
+7. **`.app` is on the HSTS preload list.** Browsers refuse plain HTTP to any `.app` host, with no
+   click-through. That is satisfied automatically behind the Cloudflare proxy, but it also means
+   there is no HTTP fallback for debugging on that hostname — including locally, if a
+   `didachedynamis.app` name is ever mapped in `/etc/hosts` for testing. Not an issue for `.com` or
+   `.org`.
+8. **If mail is ever put on a DidacheDynamis domain** (Proton, as with the existing domains): keep
+   the three DKIM records **DNS-only (grey cloud)** — Cloudflare will otherwise proxy the CNAMEs and
+   DKIM resolves to the proxy instead of Proton, so signing fails silently — and do **not** enable
+   Cloudflare Email Routing on that zone, since it inserts its own MX records and fights Proton's.
+9. Set the GitHub repository Website field and social preview to the new domain.
 
 **Tracked references — 16 files at the 2026-08-06 audit** (`git grep -l bible\.trendafilovi\.net`).
 
-8. Update: `README.md` (header line and the Dropbox redirect-URI example),
+10. Update: `README.md` (header line and the Dropbox redirect-URI example),
    `apps/web/public/embed.js` (header comment and usage example),
    `apps/web/src/state/deeplink.ts` (comment), `deploy/Caddyfile.snippet`,
    `docs/deployment/index.md`, `docs/deployment/monitoring-and-alerts.md`,
    `docs/user/embedding-scripture.md` (four mentions, including the CSP guidance quoted to
    embedders), `ideas/desktop-04-pwa.md`, `plan/00_system_design.md` (two mentions),
    `plan/linking_and_embeds.md`, and this file.
-9. **Two that are not prose and will misbehave rather than merely read wrong:**
+11. **Two that are not prose and will misbehave rather than merely read wrong:**
    - `scripts/capture_real_docs_screenshots.js` — `LIVE_URL` points at the live site, so
      re-captured user-guide screenshots would keep showing the old domain in the address bar;
    - `scripts/bench_measure_tokens.py` — sends `HTTP-Referer: https://bible.trendafilovi.net` to
      OpenRouter, which is how the account attributes benchmark spend.
-10. **Leave alone — dated evidence, not configuration.** `plan/chat/m9.0-findings.md` and
+12. **Leave alone — dated evidence, not configuration.** `plan/chat/m9.0-findings.md` and
     `plan/chat/m9.2-workspace-and-provider.md` record that a CORS preflight *from that origin*
     returned a particular status on a particular date; rewriting the host would falsify a record of
     what was actually tested. `plan/interactive_chat_plan.md` Appendix A names the origin a user
@@ -452,6 +463,23 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
 **Resolved 2026-08-06:**
 
+10. ~~Public domain: keep `bible.trendafilovi.net` or rebrand with the app name~~ → **rebrand.**
+    Registered 2026-08-05 at **Porkbun**: `didachedynamis.com`, `didachedynamis.org`, and
+    `didachedynamis.app`. **`didachedynamis.com` is the primary**, with `.org` and `.app` redirecting
+    to it — correct this line if the intent is otherwise. The cutover itself is still to run (§4.4);
+    all three are on Porkbun nameservers as registered.
+
+    **Registrar: Porkbun, DNS: Cloudflare.** Cloudflare Registrar was the first candidate — registry
+    cost, no markup, one account — but it **does not support `.eu`**, so it can never hold
+    `trendafilovi.eu` and cannot be a single home for these domains. Porkbun carries `.eu`, `.com`,
+    `.net`, `.org`, and — unlike Cloudflare Registrar, which mandates its own nameservers — permits
+    external ones. So the registrar consolidates while Cloudflare keeps DNS, the proxy, and the
+    Tunnel exactly as they are today.
+
+    Consolidating the existing domains is a **separate, later** job: transfers need the domain 60+
+    days old, unlocked, with an auth code, and `.eu` follows EURid's own transfer-code process
+    rather than the ICANN rule. Do not couple either to this release.
+
 11. ~~KJV in the distributable artifacts~~ → **accepted; the KJV ships in `content.sqlite`, the
     GHCR image, and the live site.** The basis, from the two primary sources:
 
@@ -488,25 +516,6 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 8. Author/committer email rewrite (due before the §5 pass; with a clean repo the sanitized history
    is the only public history, so rewriting to the personal address is cheap to do in the same pass).
 9. Issues, Discussions, contribution terms, and code-of-conduct policy (due at §7).
-10. Public domain — **direction decided 2026-08-06: rebrand.** The site moves off
-    `bible.trendafilovi.net` to a DidacheDynamis domain. The domain itself is **not yet bought**,
-    so this stays pending until the name is registered and the §4.4 cutover checklist is run.
-
-    Checked 2026-08-06 against the registries (Verisign for `.com`, PIR for `.org`, not a generic
-    whois client — a generic client answers from IANA about the *TLD* and looks like a match):
-    **`didachedynamis.com` and `didachedynamis.org` were both unregistered**, with no nameservers.
-    Re-check immediately before buying; availability is a snapshot, not a reservation.
-
-    Registrar direction: **Cloudflare Registrar**, which sells at registry cost with no markup and
-    includes WHOIS redaction, and which puts registrar, DNS, and the Tunnel in one account. Its one
-    constraint — domains registered there must use Cloudflare nameservers and cannot be pointed
-    elsewhere while they stay there — costs nothing here, because DNS already runs on Cloudflare.
-    Buy it at the registrar it should live at: a newly registered domain **cannot be transferred to
-    another registrar for 60 days** (ICANN), which would otherwise span the whole release window.
-
-    Migrating `trendafilovi.net` off its current Bulgarian registrar is a **separate** job. Do not
-    couple it to this release.
-
 The §3.3 fetch-at-build implementation is complete, and decision 11 settles the artifact question.
 One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former KJV
 path or its LFS object. Everything else can be completed as a reviewable cleanup commit before the
