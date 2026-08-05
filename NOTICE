@@ -220,12 +220,19 @@ King James Version (1769)
 -----------------------------------------------------------------------
 
 Logo / application icon
+  Files:          apps/web/public/brand/logo.png (1024px master), logo-dark.png
+                  (dark-theme variant), and the derived 512/192/180/32/16px icons.
   Rights holder:  Project owner
   License:        CC0 1.0 Universal — full text in LICENSES/CC0-1.0.txt
   Origin:         AI-generated with Google Gemini by the owner (2026). Purely
                   AI-generated images may not be copyrightable in some
                   jurisdictions; the owner's explicit CC0 dedication removes the
                   downstream ambiguity either way.
+  Modifications:  The delivered export had the editor's transparency checkerboard
+                  flattened into RGB pixels (no alpha channel) and a detached
+                  artifact in the lower right. Both were removed, the mark cropped
+                  and padded square, and the dark-theme variant recoloured from it.
+                  The CC0 dedication covers these derivatives.
 
 User-guide screenshots
   Rights holder:  Project owner

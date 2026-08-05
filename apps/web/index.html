@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The mark is dark navy, which all but disappears on a dark tab strip, so each scheme
+         gets its own file. Browsers that ignore `media` on an icon link fall back to the last
+         matching one, so the light icon is listed last as the safe default. -->
+    <link rel="icon" type="image/png" sizes="32x32" media="(prefers-color-scheme: dark)" href="/brand/logo-dark-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" media="(prefers-color-scheme: dark)" href="/brand/logo-dark-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/logo-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/logo-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/brand/logo-180.png" />
     <title>Bible Reader</title>
   </head>
   <body>

@@ -192,8 +192,13 @@ set and fetched only while building (option "remove" in item 3 below).
    See the [official CrossWire module record](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV)
    and [CrossWire's KJV licensing notes](https://wiki.crosswire.org/CrossWire_KJV).
 4. Preserve the WEB trademark wording and TSK CC BY 4.0 attribution in both repository and UI.
-5. Update `docs/developer/contributing.md` with the selected inbound contribution terms. Add root
-   `SECURITY.md`; add a code of conduct only if the maintainer is prepared to enforce it.
+5. Update `docs/developer/contributing.md` with the selected inbound contribution terms — **still
+   blocked on decision 9**; the terms have to be chosen before they can be written down. ~~Add root
+   `SECURITY.md`~~ **done**: private vulnerability reporting via the GitHub Security tab rather than
+   a published email address, so no personal contact detail is committed. It states the supported
+   versions and, in scope, that provider-side issues belong to the provider because the assistant
+   calls it directly from the browser. Add a code of conduct only if the maintainer is prepared to
+   enforce it.
 
 ## 4. Tree and documentation changes before release
 
@@ -218,9 +223,14 @@ set and fetched only while building (option "remove" in item 3 below).
 
 - Finish the README transition: code/content license links, build status, public contribution link,
   privacy summary, and accurate production/chat feature status.
-- Document the optional browser-direct OpenRouter assistant in user/developer privacy docs before it
-  is enabled in any public build: what leaves the browser, key storage, context selection, provider
-  terms, local history, and the content `ai_context_policy` gate.
+- ~~Document the optional browser-direct OpenRouter assistant in user/developer privacy docs before
+  it is enabled in any public build: what leaves the browser, key storage, context selection,
+  provider terms, local history, and the content `ai_context_policy` gate.~~ **Done** in
+  `docs/extra/security-and-privacy.md`, which had no mention of the assistant at all. Covers all
+  six points, states that the API server is not in the request path and that the CSP `connect-src`
+  is what enforces it, and is explicit that privacy routing and the account-logging confirmation
+  constrain what the app *sends* rather than proving what the provider *does*. Re-check it whenever
+  the request body, the stored credentials, or `connect-src` change.
 - Refresh `docs/extra/security-and-privacy.md` and `docs/extra/content-and-licensing.md` against the
   final source set and NOTICE.
 - Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be enabled.
@@ -251,11 +261,26 @@ tree before the first push, not in the private repo's day-to-day history:
   post-release; only user-visible branding blocks publication.
 - **Logo (selected 2026-08-01):** a geometric lighthouse mark — dark-navy interlocking triangles
   forming the tower, white light beams fanning left and right, flanked by cyan accent dots with red
-  centers, on a light-gray field. AI-generated with Gemini by the owner (2026); the owner dedicates
-  it to the public domain via CC0, recorded alongside `NOTICE` (purely AI-generated images may not
-  be copyrightable in some jurisdictions — the explicit dedication removes downstream ambiguity).
-  The source PNG lands in the sanitized tree (`apps/web/public/brand/`) as the favicon/app icon and
-  is set as the GitHub social preview at §7.
+  centers. AI-generated with Gemini by the owner (2026); the owner dedicates it to the public
+  domain via CC0, recorded alongside `NOTICE` (purely AI-generated images may not be copyrightable
+  in some jurisdictions — the explicit dedication removes downstream ambiguity).
+
+  **Landed in `apps/web/public/brand/`** rather than waiting for the sanitized tree: `git
+  filter-repo` removes paths, it does not add them, so the asset has to be committed somewhere
+  before the mirror is built. Corrected on the way in — the delivered export was RGB with **no
+  alpha channel**, carrying the editor's transparency checkerboard as real pixels (80% of the
+  image), plus a detached artifact in the lower right. This section previously described that
+  checkerboard as "a light-gray field"; it was neither a field nor intended. Both were removed, the
+  mark cropped and padded square, and a dark-theme variant recoloured from it because the navy
+  tower is illegible on a dark tab strip. `index.html` selects between them with
+  `prefers-color-scheme`; the icons are ordinary blobs, not LFS, so forks cost no LFS bandwidth.
+
+  Two properties of the artwork itself were **not** changed, and are open if the owner wants them
+  addressed: the cream light beams are near-white and all but vanish on a white background, and the
+  mark is a wide horizontal composition, so squaring it for a 16/32px favicon leaves the tower
+  small. A tower-only crop for the small sizes would fix the second.
+
+  Set as the GitHub social preview at §7.
 
 ## 5. History rewrite procedure
 
@@ -313,12 +338,21 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    private-to-public visibility change.
 4. Configure public-fork Actions approval, read-only default `GITHUB_TOKEN`, Dependabot, secret
    scanning/push protection, and code scanning as appropriate.
-5. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
-6. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
+5. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
+   reporters to the Security tab's "Report a vulnerability" button, and that button does not exist
+   until this is switched on — GitHub offers the feature for **public repositories only**, so it
+   cannot be enabled on `bible_app_bg` in advance and must be done here, right after the flip.
+   Until then `SECURITY.md`'s fallback (open an issue asking for a private channel, no details)
+   is the only route. There is no automation to add: `repository_advisory` is not an event that can
+   trigger a workflow, and reading unpublished advisories over the API needs a token with
+   `repository_advisories:read`, which is not worth storing as a secret in a public repository.
+   GitHub already notifies maintainers on submission and confirms receipt to the reporter.
+6. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
+7. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
    not receive secrets or write tokens.
-7. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
+8. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
    the live site from an anonymous browser.
-8. Watch Actions/LFS usage and security alerts during the first week.
+9. Watch Actions/LFS usage and security alerts during the first week.
 
 ## 8. Decisions
 
