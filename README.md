@@ -1,5 +1,8 @@
 # bible_app_bg
 
+[![CI](https://github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml/badge.svg)](https://github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Bilingual, multi-pane Bible reading web app served at **bible.trendafilovi.net**.
 
 - 1–3 resizable panes; each pane can be a Bible, commentary, dictionary, General Book, or notes.
@@ -27,6 +30,30 @@ Comprehensive project documentation is available in [`docs/`](docs/):
 - [`docs/user/index.md`](docs/user/index.md) — User Guide (Pane management, reading modes, rich text notes, Dropbox sync)
 - [`docs/developer/index.md`](docs/developer/index.md) — Developer Guide (Setup, architecture, CIR data model, web SPA, FastAPI & testing)
 - [`docs/deployment/index.md`](docs/deployment/index.md) — Deployment & Operations Guide (Cloudflare Tunnel, systemd, zero-downtime releases & monitoring)
+- [`docs/extra/security-and-privacy.md`](docs/extra/security-and-privacy.md) — threat model, every storage location, and what the AI assistant sends where
+- [`docs/extra/content-and-licensing.md`](docs/extra/content-and-licensing.md) — per-work rights matrix
+
+## Privacy in short
+
+Everything personal stays in your browser. There are no user accounts and no server-side user data:
+notes, assistant conversations, reading preferences, and access tokens all live in browser storage,
+and the API server only serves read-only content from a SQLite database.
+
+Two features talk to third parties, both opt-in and both direct from your browser, never via this
+project's server:
+
+- **Dropbox sync** for notes, over OAuth 2.0 PKCE;
+- **the AI study assistant**, which is off unless the build enables it *and* you supply your own
+  provider API key. Your question and the sources you tick go straight to your chosen provider under
+  your own account and billing.
+
+Full detail, including what is *not* encrypted, is in
+[`docs/extra/security-and-privacy.md`](docs/extra/security-and-privacy.md).
+
+## Contributing and security
+
+- Contributions — see [`docs/developer/contributing.md`](docs/developer/contributing.md).
+- Security issues — please do **not** open a public issue; follow [`SECURITY.md`](SECURITY.md).
 
 ## Monorepo layout
 
