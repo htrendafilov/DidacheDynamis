@@ -151,6 +151,42 @@ describe("parseMessage", () => {
     ]);
   });
 
+  // ++ is a real token in prose. Without a non-space rule at both ends, the two "C++" pair
+  // with each other and " vs C" disappears into an underline — content loss, not just a
+  // cosmetic slip. "==" fails identically around comparisons.
+  it("does not let C++ in prose pair into an underline", () => {
+    expect(parseInline("I know C++ well")).toEqual([{ type: "text", text: "I know C++ well" }]);
+    expect(parseInline("C++ vs C++ debate")).toEqual([
+      { type: "text", text: "C++ vs C++ debate" },
+    ]);
+  });
+
+  it("still parses a real marker in the same line as C++", () => {
+    expect(parseInline("C++ is ++great++")).toEqual([
+      { type: "text", text: "C++ is " },
+      { type: "underline", text: "great" },
+    ]);
+  });
+
+  it("does not pair == across a comparison", () => {
+    expect(parseInline("2 == 2 and 3 == 3")).toEqual([
+      { type: "text", text: "2 == 2 and 3 == 3" },
+    ]);
+  });
+
+  it("rejects a marker whose content is padded with spaces", () => {
+    expect(parseInline("== spaced ==")).toEqual([{ type: "text", text: "== spaced ==" }]);
+    expect(parseInline("++ spaced ++")).toEqual([{ type: "text", text: "++ spaced ++" }]);
+  });
+
+  it("accepts single-character content", () => {
+    expect(parseInline("==h== ++u++")).toEqual([
+      { type: "highlight", text: "h" },
+      { type: "text", text: " " },
+      { type: "underline", text: "u" },
+    ]);
+  });
+
   it("leaves an unpaired or empty marker as literal text", () => {
     expect(parseInline("2 == 2 and 1 ++ 1")).toEqual([{ type: "text", text: "2 == 2 and 1 ++ 1" }]);
     expect(parseInline("==== ++++")).toEqual([{ type: "text", text: "==== ++++" }]);

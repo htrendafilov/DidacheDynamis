@@ -25,8 +25,15 @@ export type BlockNode =
   | { type: "list"; ordered: boolean; items: InlineNode[][] }
   | { type: "codeBlock"; text: string };
 
+// == and ++ require non-space at both ends of their content, which ** and * predate and do
+// not. That is not fussiness: ++ is a real token in prose ("C++"), and without the rule
+// "C++ vs C++ debate" pairs the two C++ into an underline and swallows " vs C". "2 == 2 and
+// 3 == 3" fails the same way. CommonMark rejects "** bold **" for exactly this reason, so
+// the stricter form is also the more conventional one. ** and * are left as they are —
+// changing them would alter how existing answers render, and a literal "**" in prose is not
+// a realistic thing to type.
 const INLINE_TOKEN =
-  /\[S[^[\]]*\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|==[^=\n]+==|\+\+[^+\n]+\+\+/g;
+  /\[S[^[\]]*\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
 
 export function parseInline(text: string): InlineNode[] {
   const nodes: InlineNode[] = [];
