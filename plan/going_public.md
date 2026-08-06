@@ -294,11 +294,19 @@ domain. Run it when the new domain is registered.
    one *before* the domain serves traffic. It is an exact-match allowlist: notes sync fails at the
    OAuth step for anyone on the new host until it is added, and the failure looks like a Dropbox
    problem rather than a DNS change.
-2. **Keep the old host alive as a redirect, do not retire it.** `embed.js` is the reason:
-   third-party sites load `https://bible.trendafilovi.net/embed.js` and, per
-   `docs/user/embedding-scripture.md`, allowlist that exact host in *their* CSP. Retiring the old
-   domain breaks every existing embed on sites you do not control and cannot fix. Publicly shared
-   deep links (`#/b/…`, `#/book/…`) have the same problem, though a redirect handles those.
+2. **Keep the old host SERVING `/embed.js` and `/api/*` — a redirect is not enough for embeds.**
+   Third-party sites load `https://bible.trendafilovi.net/embed.js` and, per
+   `docs/user/embedding-scripture.md`, we tell them to allowlist that exact host in *their*
+   `script-src`. A cross-origin redirect is re-checked against that policy and blocked, so **the
+   embedders who followed our own security advice are precisely the ones a blanket redirect
+   breaks**. Even without a CSP it only half-works: `apps/web/public/embed.js` derives its API base
+   from `script.src`, which reflects the original attribute rather than the redirect target, so its
+   API calls keep going to the old host regardless.
+
+   So: redirect the app/HTML routes, but keep serving `/embed.js` and `/api/*` from the old
+   hostname, which means keeping its Tunnel route alive. Publicly shared deep links need no special
+   handling — `#/b/…` and `#/book/…` are hash fragments that never reach the server, and browsers
+   reattach them after a 301.
 
 **Infrastructure.**
 
@@ -307,10 +315,19 @@ domain. Run it when the new domain is registered.
    they are still on `*.ns.porkbun.com` as registered, so nothing routes through Cloudflare yet.
 4. Add the new public hostname to the Cloudflare Tunnel ingress; keep the old hostname routed until
    the redirect is in place.
-5. Add the new vhost to the Caddy config on the VM — `deploy/Caddyfile.snippet` hard-codes
-   `bible.trendafilovi.net` and is the template for it.
-6. Repoint the UptimeRobot monitor at `https://<new-domain>/ready` (§4.3: it must probe `/ready`,
-   not `/`, so database failures are caught and not just process liveness).
+5. **No webserver change — Caddy is not in this app's request path.** `cloudflared` reaches the
+   service directly on `127.0.0.1:8080`; `docs/deployment/index.md` states there is no public Caddy
+   vhost or direct-IP route for it, and Caddy serves only unrelated applications on that VM.
+   `deploy/Caddyfile.snippet` is a leftover template, not live configuration. Serving a new hostname
+   is entirely step 4 (a Tunnel ingress entry) plus Cloudflare DNS — nothing on the VM changes.
+   Consider deleting the snippet, or retitling it so it stops implying a vhost exists.
+6. Repoint the UptimeRobot monitor at `https://<new-domain>/ready`. **It is currently pointed at
+   `https://bible.trendafilovi.net/health`, which is the wrong endpoint** (monitor id 803560065,
+   checked 2026-08-06): `apps/api/app/routers/health.py` documents `/health` as liveness that
+   "stays 200 even if the content DB is missing", while `/ready` returns 503 when content is
+   missing, corrupt, or schema-incompatible. Today a content-database failure would leave the site
+   reported UP while serving no Bible text. Worth fixing now rather than waiting for the cutover —
+   it is a one-call change and independent of the domain.
 7. **`.app` is on the HSTS preload list.** Browsers refuse plain HTTP to any `.app` host, with no
    click-through. That is satisfied automatically behind the Cloudflare proxy, but it also means
    there is no HTTP fallback for debugging on that hostname — including locally, if a
@@ -465,9 +482,41 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
 10. ~~Public domain: keep `bible.trendafilovi.net` or rebrand with the app name~~ → **rebrand.**
     Registered 2026-08-05 at **Porkbun**: `didachedynamis.com`, `didachedynamis.org`, and
-    `didachedynamis.app`. **`didachedynamis.com` is the primary**, with `.org` and `.app` redirecting
-    to it — correct this line if the intent is otherwise. The cutover itself is still to run (§4.4);
-    all three are on Porkbun nameservers as registered.
+    `didachedynamis.app`.
+
+    **Cut over 2026-08-06 — done.** `didachedynamis.com` is the primary and serves the app through
+    the existing Cloudflare Tunnel. `www.didachedynamis.com` and `didachedynamis.org` (+`www`)
+    301 to it. `bible.trendafilovi.net` **302**s to it — deliberately 302 rather than 301 so it
+    stays reversible while it proves itself; promote to 301 before public launch so search engines
+    transfer authority. `/embed.js` and `/api/*` are **excluded from that redirect** and still
+    served from the old hostname, because existing third-party embeds allowlist it in their own CSP
+    (§4.4 checklist item 2). UptimeRobot now probes `https://didachedynamis.com/ready`. The Dropbox
+    OAuth allowlist carries `.com` and `.org` alongside the old host, verified against Dropbox's
+    authorize endpoint with an unregistered control URI to prove the check discriminates.
+
+    **`didachedynamis.app` is reserved, not redirected — unused for now.** It is held for a future
+    *technical* site about the software itself: release notes and new-feature announcements,
+    contributor documentation, and developer-facing material — as distinct from `.com`, which is
+    the reader-facing application. It is still on Porkbun nameservers with no Cloudflare zone and
+    no DNS pointing anywhere, and it is deliberately **not** in the Dropbox redirect-URI allowlist.
+    When it is built out: create the zone, move its nameservers, add the Dropbox URI only if it
+    ever needs sync, and note that `.app` is HSTS-preloaded (§4.4 checklist item 7).
+
+    **Blog — decided 2026-08-06: `blog.didachedynamis.com`**, a subdomain rather than a `/blog`
+    path. A separate project; hosting undecided. The subdomain keeps the two independently
+    deployable and lets the blog move hosts without touching the reader app's routing. It also
+    avoids a real collision: the API falls back to the SPA's `index.html` for any unknown path, so
+    `didachedynamis.com/blog` already returns the reader app today and would have to be routed
+    around at the edge or in the tunnel before a blog could claim it. Hash routing (`#/book/…`)
+    means app routes never occupy path space, so the conflict is only that fallback.
+
+    Nothing to do now beyond the reservation. When it is built: add the DNS record, and — if the
+    blog is ever expected to serve from `.org` instead — carve its path out of the `.org` redirect,
+    which is currently blanket. For the scripture pop-ups the blog wants, `embed.js` already does
+    exactly that for third-party pages (`docs/user/embedding-scripture.md`); it needs no new code,
+    only the host allowlisted if the blog sets a CSP. The blog's own README should carry the WEB
+    trademark line and the TSK CC BY 4.0 attribution rather than relying on this repository's
+    `NOTICE`.
 
     **Registrar: Porkbun, DNS: Cloudflare.** Cloudflare Registrar was the first candidate — registry
     cost, no markup, one account — but it **does not support `.eu`**, so it can never hold
