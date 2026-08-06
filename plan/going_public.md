@@ -502,6 +502,22 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
     When it is built out: create the zone, move its nameservers, add the Dropbox URI only if it
     ever needs sync, and note that `.app` is HSTS-preloaded (§4.4 checklist item 7).
 
+    **Blog — decided 2026-08-06: `blog.didachedynamis.com`**, a subdomain rather than a `/blog`
+    path. A separate project; hosting undecided. The subdomain keeps the two independently
+    deployable and lets the blog move hosts without touching the reader app's routing. It also
+    avoids a real collision: the API falls back to the SPA's `index.html` for any unknown path, so
+    `didachedynamis.com/blog` already returns the reader app today and would have to be routed
+    around at the edge or in the tunnel before a blog could claim it. Hash routing (`#/book/…`)
+    means app routes never occupy path space, so the conflict is only that fallback.
+
+    Nothing to do now beyond the reservation. When it is built: add the DNS record, and — if the
+    blog is ever expected to serve from `.org` instead — carve its path out of the `.org` redirect,
+    which is currently blanket. For the scripture pop-ups the blog wants, `embed.js` already does
+    exactly that for third-party pages (`docs/user/embedding-scripture.md`); it needs no new code,
+    only the host allowlisted if the blog sets a CSP. The blog's own README should carry the WEB
+    trademark line and the TSK CC BY 4.0 attribution rather than relying on this repository's
+    `NOTICE`.
+
     **Registrar: Porkbun, DNS: Cloudflare.** Cloudflare Registrar was the first candidate — registry
     cost, no markup, one account — but it **does not support `.eu`**, so it can never hold
     `trendafilovi.eu` and cannot be a single home for these domains. Porkbun carries `.eu`, `.com`,
