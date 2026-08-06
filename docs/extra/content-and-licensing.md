@@ -18,7 +18,7 @@ artifacts as well as the repository. Full license texts are in
 | **1689 London Baptist Confession** | English | Public Domain | ✅ Unrestricted | Historical reformed Baptist confession |
 | **Баптистка изповед на вярата от 1689 г.** | Bulgarian | CC0 1.0 Universal | ✅ Unrestricted | Reviewed Bulgarian translation and editorial revision |
 | **TSK Cross-References** | English | CC BY 4.0 | ✅ Permitted with attribution | Treasury of Scripture Knowledge cross-references |
-| **King James Version (KJV)** | English | CrossWire Dist. License / UK Crown Copyright | ⚠️ GPL Module License — **open** | Official module fetched from CrossWire during the build; no KJV text is committed. The build still compiles it into `content.sqlite` and the container image, so redistribution is not avoided — an owner decision is required before publication (`plan/going_public.md` decision 11) |
+| **King James Version (KJV)** | English | CrossWire grant (any purpose) / UK Crown Copyright | ✅ Permitted, with attribution | Official module fetched from CrossWire during the build; no KJV text is committed, but the build compiles it into `content.sqlite` and the container image. CrossWire grants use of the KJV2003 text for any purpose; Crown rights are UK-territorial. Decided 2026-08-06 — `plan/going_public.md` decision 11, `NOTICE` §3 |
 | **Bulgarian Bible** | Bulgarian | **Not cleared** | ❌ Not shipped | Deferred until written permission or a verified public-domain source is obtained |
 
 ## Rules for New Content Submissions
