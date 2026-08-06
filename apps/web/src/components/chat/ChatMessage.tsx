@@ -26,6 +26,10 @@ function InlineRun({
       return <strong>{node.text}</strong>;
     case "italic":
       return <em>{node.text}</em>;
+    case "highlight":
+      return <mark className="chat-mark">{node.text}</mark>;
+    case "underline":
+      return <u className="chat-underline">{node.text}</u>;
     case "code":
       return <code>{node.text}</code>;
     case "citation": {

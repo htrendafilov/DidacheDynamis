@@ -125,4 +125,54 @@ describe("parseMessage", () => {
       ],
     });
   });
+
+  // The reader asked for a highlight and an underline because the assistant was falling back
+  // to CAPS. Plain markdown has no syntax for either, so these are bespoke tokens — which
+  // means the parser, not a library, is what has to be right about them.
+  it("parses ==highlight== and ++underline++", () => {
+    expect(parseInline("a ==important== and ++noted++ b")).toEqual([
+      { type: "text", text: "a " },
+      { type: "highlight", text: "important" },
+      { type: "text", text: " and " },
+      { type: "underline", text: "noted" },
+      { type: "text", text: " b" },
+    ]);
+  });
+
+  it("keeps the new marks distinct from bold and italic", () => {
+    expect(parseInline("**b** *i* ==h== ++u++")).toEqual([
+      { type: "bold", text: "b" },
+      { type: "text", text: " " },
+      { type: "italic", text: "i" },
+      { type: "text", text: " " },
+      { type: "highlight", text: "h" },
+      { type: "text", text: " " },
+      { type: "underline", text: "u" },
+    ]);
+  });
+
+  it("leaves an unpaired or empty marker as literal text", () => {
+    expect(parseInline("2 == 2 and 1 ++ 1")).toEqual([{ type: "text", text: "2 == 2 and 1 ++ 1" }]);
+    expect(parseInline("==== ++++")).toEqual([{ type: "text", text: "==== ++++" }]);
+  });
+
+  it("does not let a marker span a line break", () => {
+    expect(parseInline("==open\nclose==")).toEqual([{ type: "text", text: "==open\nclose==" }]);
+  });
+
+  // The allowlist is the whole defence: widening it must not have opened a path for raw HTML.
+  it("still refuses <mark> and <u> written by the model itself", () => {
+    expect(parseInline("<mark>x</mark> <u>y</u>")).toEqual([
+      { type: "text", text: "<mark>x</mark> <u>y</u>" },
+    ]);
+    expect(parseInline('<span style="background:red">x</span>')).toEqual([
+      { type: "text", text: '<span style="background:red">x</span>' },
+    ]);
+  });
+
+  it("does not treat marks inside a fenced code block as markup", () => {
+    expect(parseMessage("```\n==not a highlight==\n```")).toEqual([
+      { type: "codeBlock", text: "==not a highlight==" },
+    ]);
+  });
 });

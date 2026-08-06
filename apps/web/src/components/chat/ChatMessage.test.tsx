@@ -81,4 +81,34 @@ describe("ChatMessage", () => {
     expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).toContain("http://evil.example/x");
   });
+
+  it("renders ==highlight== as <mark> and ++underline++ as <u>", () => {
+    const manifest = buildManifest([source()]);
+    const { container } = render(
+      <ChatMessage text="a ==key point== and ++a note++." manifest={manifest} onCitationClick={vi.fn()} />,
+    );
+    const mark = container.querySelector("mark");
+    const underline = container.querySelector("u");
+    expect(mark).toHaveTextContent("key point");
+    expect(mark).toHaveClass("chat-mark");
+    expect(underline).toHaveTextContent("a note");
+    expect(underline).toHaveClass("chat-underline");
+  });
+
+  // Widening the allowlist must not have created a route for model-authored HTML: a <mark>
+  // the model writes itself has to stay visible text, not become an element.
+  it("renders model-written <mark>/<u> HTML as inert text, not elements", () => {
+    const manifest = buildManifest([source()]);
+    const { container } = render(
+      <ChatMessage
+        text={'<mark>x</mark> <u>y</u> <span style="background:red">z</span>'}
+        manifest={manifest}
+        onCitationClick={vi.fn()}
+      />,
+    );
+    expect(container.querySelector("mark")).toBeNull();
+    expect(container.querySelector("u")).toBeNull();
+    expect(container.querySelector("span[style]")).toBeNull();
+    expect(container.textContent).toContain("<mark>x</mark>");
+  });
 });
