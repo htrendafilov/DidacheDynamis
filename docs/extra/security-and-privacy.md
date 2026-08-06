@@ -68,9 +68,11 @@ information in search queries.
 
 ## Assistant privacy (optional AI study assistant)
 
-The assistant is **off unless the build enables it** (`VITE_CHAT_ENABLED=true`) *and* you supply
-your own provider API key. There is no shared or project-provided key: with no key, nothing about
-the assistant reaches any third party.
+The assistant is an **alpha**, enabled in production builds since 2026-08-07 (`VITE_CHAT_ENABLED`
+still gates it at build time, and defaults on in a release build). It does nothing until **you**
+supply your own provider API key: there is no shared or project-provided key, so with no key
+nothing about the assistant reaches any third party. Being alpha changes none of the privacy
+properties below — it means M9.4 and M9.5 are still planned, not that anything here is provisional.
 
 This is the one feature that sends your data to a company other than the site operator, so it is
 described here in full.
