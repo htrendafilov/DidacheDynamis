@@ -355,13 +355,11 @@ domain. Run it when the new domain is registered.
    `docs/user/embedding-scripture.md` (four mentions, including the CSP guidance quoted to
    embedders), `ideas/desktop-04-pwa.md`, `plan/00_system_design.md` (two mentions),
    `plan/linking_and_embeds.md`, and this file.
-11. **Gitignored operator tooling holds the hostname too, and no repo sweep can see it.**
-    `scripts/release.sh` is untracked by design (§4.1), and its `SITE` still pointed at
-    `bible.trendafilovi.net` after the cutover. Its probes use `curl` without `-L`, so they read
-    Cloudflare's 301 HTML instead of JSON: the build-id preflight came back empty and forced a
-    needless content rebuild, and the post-deploy check reported `/ready is not reporting ready`
-    on a completely healthy release. Fixed locally 2026-08-07. The lesson generalises — after a
-    hostname change, grep the untracked operator scripts as well as the tracked tree.
+11. **Untracked operator tooling can hold the hostname too, and no repo sweep will see it.**
+    Anything git-ignored under §4.1 is invisible to the audit above by construction. After a
+    hostname change, grep it separately. One such tool did break on this cutover, in a way that
+    reported a failure on a healthy release; the specifics belong in the private runbook, not
+    here.
 12. **Two that are not prose and will misbehave rather than merely read wrong:**
    - `scripts/capture_real_docs_screenshots.js` — `LIVE_URL` points at the live site, so
      re-captured user-guide screenshots would keep showing the old domain in the address bar;
