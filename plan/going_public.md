@@ -294,11 +294,19 @@ domain. Run it when the new domain is registered.
    one *before* the domain serves traffic. It is an exact-match allowlist: notes sync fails at the
    OAuth step for anyone on the new host until it is added, and the failure looks like a Dropbox
    problem rather than a DNS change.
-2. **Keep the old host alive as a redirect, do not retire it.** `embed.js` is the reason:
-   third-party sites load `https://bible.trendafilovi.net/embed.js` and, per
-   `docs/user/embedding-scripture.md`, allowlist that exact host in *their* CSP. Retiring the old
-   domain breaks every existing embed on sites you do not control and cannot fix. Publicly shared
-   deep links (`#/b/…`, `#/book/…`) have the same problem, though a redirect handles those.
+2. **Keep the old host SERVING `/embed.js` and `/api/*` — a redirect is not enough for embeds.**
+   Third-party sites load `https://bible.trendafilovi.net/embed.js` and, per
+   `docs/user/embedding-scripture.md`, we tell them to allowlist that exact host in *their*
+   `script-src`. A cross-origin redirect is re-checked against that policy and blocked, so **the
+   embedders who followed our own security advice are precisely the ones a blanket redirect
+   breaks**. Even without a CSP it only half-works: `apps/web/public/embed.js` derives its API base
+   from `script.src`, which reflects the original attribute rather than the redirect target, so its
+   API calls keep going to the old host regardless.
+
+   So: redirect the app/HTML routes, but keep serving `/embed.js` and `/api/*` from the old
+   hostname, which means keeping its Tunnel route alive. Publicly shared deep links need no special
+   handling — `#/b/…` and `#/book/…` are hash fragments that never reach the server, and browsers
+   reattach them after a 301.
 
 **Infrastructure.**
 
@@ -307,10 +315,19 @@ domain. Run it when the new domain is registered.
    they are still on `*.ns.porkbun.com` as registered, so nothing routes through Cloudflare yet.
 4. Add the new public hostname to the Cloudflare Tunnel ingress; keep the old hostname routed until
    the redirect is in place.
-5. Add the new vhost to the Caddy config on the VM — `deploy/Caddyfile.snippet` hard-codes
-   `bible.trendafilovi.net` and is the template for it.
-6. Repoint the UptimeRobot monitor at `https://<new-domain>/ready` (§4.3: it must probe `/ready`,
-   not `/`, so database failures are caught and not just process liveness).
+5. **No webserver change — Caddy is not in this app's request path.** `cloudflared` reaches the
+   service directly on `127.0.0.1:8080`; `docs/deployment/index.md` states there is no public Caddy
+   vhost or direct-IP route for it, and Caddy serves only unrelated applications on that VM.
+   `deploy/Caddyfile.snippet` is a leftover template, not live configuration. Serving a new hostname
+   is entirely step 4 (a Tunnel ingress entry) plus Cloudflare DNS — nothing on the VM changes.
+   Consider deleting the snippet, or retitling it so it stops implying a vhost exists.
+6. Repoint the UptimeRobot monitor at `https://<new-domain>/ready`. **It is currently pointed at
+   `https://bible.trendafilovi.net/health`, which is the wrong endpoint** (monitor id 803560065,
+   checked 2026-08-06): `apps/api/app/routers/health.py` documents `/health` as liveness that
+   "stays 200 even if the content DB is missing", while `/ready` returns 503 when content is
+   missing, corrupt, or schema-incompatible. Today a content-database failure would leave the site
+   reported UP while serving no Bible text. Worth fixing now rather than waiting for the cutover —
+   it is a one-call change and independent of the domain.
 7. **`.app` is on the HSTS preload list.** Browsers refuse plain HTTP to any `.app` host, with no
    click-through. That is satisfied automatically behind the Cloudflare proxy, but it also means
    there is no HTTP fallback for debugging on that hostname — including locally, if a
