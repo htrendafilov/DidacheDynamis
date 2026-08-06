@@ -397,6 +397,23 @@ input[type="search"] {
 .chat-message-text {
   white-space: pre-wrap;
 }
+
+/* ==highlight== and ++underline++ in an assistant answer (chat/markdown.ts). Reuses --mark,
+   the same theme-aware pair .update-notice already uses, so a highlight matches the banner
+   rather than introducing a second yellow; it also avoids the UA default black-on-yellow,
+   unreadable on the dark background. Colour is set explicitly alongside it because some
+   browsers impose their own <mark> foreground regardless of the background. */
+.chat-mark {
+  background: var(--mark);
+  color: var(--fg);
+  padding: 0 0.15em;
+  border-radius: 2px;
+}
+.chat-underline {
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.15em;
+}
 .chat-message-flag {
   font-size: 0.72rem;
   font-weight: 600;

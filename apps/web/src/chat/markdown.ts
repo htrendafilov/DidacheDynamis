@@ -1,6 +1,6 @@
 // A very small, safe parser for assistant answers (M9.3 step 5, §8). Paragraphs,
-// unordered/ordered lists, bold, italic, inline code, fenced code, and [S#] citations —
-// nothing else. No raw HTML, no link auto-detection (a plain URL in the text is just
+// unordered/ordered lists, bold, italic, ==highlight==, ++underline++, inline code, fenced
+// code, and [S#] citations — nothing else. No raw HTML, no link auto-detection (a plain URL in the text is just
 // text). Treat the input as hostile: this only ever produces a data tree: ChatMessage.tsx
 // renders it as React elements, never via dangerouslySetInnerHTML, so anything this parser
 // does not explicitly recognize (an HTML tag, a javascript: URL, a fake system-prompt
@@ -11,6 +11,12 @@ export type InlineNode =
   | { type: "text"; text: string }
   | { type: "bold"; text: string }
   | { type: "italic"; text: string }
+  // Emphasis the reader asked for that plain markdown has no syntax for. Deliberately new
+  // tokens rather than raw HTML: a <mark> or <u> the model wrote itself would arrive as an
+  // HTML tag, which this parser leaves as inert text — the allowlist is the whole defence,
+  // so widening it is the only safe way to add a colour or an underline.
+  | { type: "highlight"; text: string }
+  | { type: "underline"; text: string }
   | { type: "code"; text: string }
   | { type: "citation"; token: CitationToken };
 
@@ -19,7 +25,15 @@ export type BlockNode =
   | { type: "list"; ordered: boolean; items: InlineNode[][] }
   | { type: "codeBlock"; text: string };
 
-const INLINE_TOKEN = /\[S[^[\]]*\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`/g;
+// == and ++ require non-space at both ends of their content, which ** and * predate and do
+// not. That is not fussiness: ++ is a real token in prose ("C++"), and without the rule
+// "C++ vs C++ debate" pairs the two C++ into an underline and swallows " vs C". "2 == 2 and
+// 3 == 3" fails the same way. CommonMark rejects "** bold **" for exactly this reason, so
+// the stricter form is also the more conventional one. ** and * are left as they are —
+// changing them would alter how existing answers render, and a literal "**" in prose is not
+// a realistic thing to type.
+const INLINE_TOKEN =
+  /\[S[^[\]]*\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
 
 export function parseInline(text: string): InlineNode[] {
   const nodes: InlineNode[] = [];
@@ -36,6 +50,10 @@ export function parseInline(text: string): InlineNode[] {
       nodes.push({ type: "bold", text: raw.slice(2, -2) });
     } else if (raw.startsWith("`")) {
       nodes.push({ type: "code", text: raw.slice(1, -1) });
+    } else if (raw.startsWith("==")) {
+      nodes.push({ type: "highlight", text: raw.slice(2, -2) });
+    } else if (raw.startsWith("++")) {
+      nodes.push({ type: "underline", text: raw.slice(2, -2) });
     } else if (raw.startsWith("*")) {
       nodes.push({ type: "italic", text: raw.slice(1, -1) });
     } else {
