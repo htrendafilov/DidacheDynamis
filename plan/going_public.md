@@ -482,9 +482,25 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
 10. ~~Public domain: keep `bible.trendafilovi.net` or rebrand with the app name~~ → **rebrand.**
     Registered 2026-08-05 at **Porkbun**: `didachedynamis.com`, `didachedynamis.org`, and
-    `didachedynamis.app`. **`didachedynamis.com` is the primary**, with `.org` and `.app` redirecting
-    to it — correct this line if the intent is otherwise. The cutover itself is still to run (§4.4);
-    all three are on Porkbun nameservers as registered.
+    `didachedynamis.app`.
+
+    **Cut over 2026-08-06 — done.** `didachedynamis.com` is the primary and serves the app through
+    the existing Cloudflare Tunnel. `www.didachedynamis.com` and `didachedynamis.org` (+`www`)
+    301 to it. `bible.trendafilovi.net` **302**s to it — deliberately 302 rather than 301 so it
+    stays reversible while it proves itself; promote to 301 before public launch so search engines
+    transfer authority. `/embed.js` and `/api/*` are **excluded from that redirect** and still
+    served from the old hostname, because existing third-party embeds allowlist it in their own CSP
+    (§4.4 checklist item 2). UptimeRobot now probes `https://didachedynamis.com/ready`. The Dropbox
+    OAuth allowlist carries `.com` and `.org` alongside the old host, verified against Dropbox's
+    authorize endpoint with an unregistered control URI to prove the check discriminates.
+
+    **`didachedynamis.app` is reserved, not redirected — unused for now.** It is held for a future
+    *technical* site about the software itself: release notes and new-feature announcements,
+    contributor documentation, and developer-facing material — as distinct from `.com`, which is
+    the reader-facing application. It is still on Porkbun nameservers with no Cloudflare zone and
+    no DNS pointing anywhere, and it is deliberately **not** in the Dropbox redirect-URI allowlist.
+    When it is built out: create the zone, move its nameservers, add the Dropbox URI only if it
+    ever needs sync, and note that `.app` is HSTS-preloaded (§4.4 checklist item 7).
 
     **Registrar: Porkbun, DNS: Cloudflare.** Cloudflare Registrar was the first candidate — registry
     cost, no markup, one account — but it **does not support `.eu`**, so it can never hold
