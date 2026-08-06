@@ -234,8 +234,9 @@ set and fetched only while building (option "remove" in item 3 below).
   a "Privacy in short" section (local-first, plus the two opt-in third-party paths), a
   "Contributing and security" section linking `docs/developer/contributing.md` and `SECURITY.md`,
   and the two `docs/extra/` guides to the documentation list. The chat status line was already
-  accurate — it records M9.1–M9.3d as shipped and states the feature is build-time gated and off in
-  production — so it was left alone. The contribution *terms* behind that link remain blocked on
+  accurate at the time — it recorded M9.1–M9.3d as shipped and the feature as gated off in
+  production. Updated 2026-08-07 when the assistant was enabled as an alpha; the §4.2 privacy
+  documentation that had to land first was this PR's own work. The contribution *terms* behind that link remain blocked on
   decision 9; the link itself is not.
 - ~~Document the optional browser-direct OpenRouter assistant in user/developer privacy docs before
   it is enabled in any public build: what leaves the browser, key storage, context selection,

@@ -43,9 +43,10 @@ Two features talk to third parties, both opt-in and both direct from your browse
 project's server:
 
 - **Dropbox sync** for notes, over OAuth 2.0 PKCE;
-- **the AI study assistant**, which is off unless the build enables it *and* you supply your own
-  provider API key. Your question and the sources you tick go straight to your chosen provider under
-  your own account and billing.
+- **the AI study assistant** (**alpha**), which does nothing until you supply your own provider
+  API key. There is no shared or project-provided key: with no key, nothing about the assistant
+  reaches any third party. Your question and the sources you tick go straight to your chosen
+  provider under your own account and billing.
 
 Full detail, including what is *not* encrypted, is in
 [`docs/extra/security-and-privacy.md`](docs/extra/security-and-privacy.md).
@@ -117,8 +118,9 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
   external sites (CORS-enabled read API). ✅ (fallback auto-linkifier deferred)
 - **M9.1–M9.3d** — content-level AI-use policy, browser-direct OpenRouter integration, selected
   grounded context, citation validation, local chat history, responsive chat layout, and bounded
-  context/answer budgets. ✅ The feature remains build-time gated and off in production while M9.4
-  topical retrieval and M9.5 hardening remain planned.
+  context/answer budgets. ✅ **Enabled in production as an alpha since 2026-08-07** — it needs your
+  own OpenRouter key, and M9.4 topical retrieval and M9.5 hardening are still planned, so expect
+  rough edges. `VITE_CHAT_ENABLED` still gates it at build time for anyone building their own.
 - **Next:** prepare the repository for public release (see [`plan/going_public.md`](plan/going_public.md)).
 
 ## Run it locally
