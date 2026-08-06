@@ -1,5 +1,11 @@
-name: deploy
+name: publish image
 
+# Named for what it reliably does. It was `deploy.yml`, which promised more than it delivers:
+# production is the native systemd + gunicorn service released with the operator's local
+# scripts/release.sh, and this workflow does not touch it. Not renamed to `release.yml` either —
+# that is what release.sh already is, and two things called "release" would be worse than one
+# called "deploy".
+#
 # Deliberately manual: the image rebuilds content.sqlite from the committed sources and deploys the
 # optional GHCR/Compose path using VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR secrets.
 #

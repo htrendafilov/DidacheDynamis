@@ -187,7 +187,7 @@ set and fetched only while building (option "remove" in item 3 below).
    **What this does not settle — settled instead by decision 11 (§8).** Removing the export from git
    removes it from *git*, not from what the project distributes. `deploy/Dockerfile` fetches the
    module, compiles all 31,102 verses into `content.sqlite`, and copies that database into the
-   runtime image; `deploy.yml` pushes the image to GHCR, whose visibility §7.5 sets deliberately.
+   runtime image; `publish-image.yml` pushes the image to GHCR, whose visibility §7.5 sets deliberately.
    The converted KJV text therefore ships inside the published image and is served by the live
    site. An earlier draft of this section claimed removal "sidesteps the redistribution question
    entirely" — it does so for the repository only. **Resolved 2026-08-06 by decision 11:** the KJV
@@ -219,7 +219,7 @@ set and fetched only while building (option "remove" in item 3 below).
   `docs/deployment/index.md` was listed here earlier but is not a referrer):
   `docs/deployment/hosting-options.md`, `docs/deployment/monitoring-and-alerts.md`,
   `plan/deployment/deployment_design.md` (3 mentions), `plan/chat/m9.1-licence-metadata.md`,
-  `plan/interactive_chat_plan.md` — plus `.github/workflows/deploy.yml`'s runbook pointer in its
+  `plan/interactive_chat_plan.md` — plus `.github/workflows/publish-image.yml`'s runbook pointer in its
   header comment. Where the surrounding procedure is generic, repoint to
   `docs/deployment/backups-and-rollback.md` (which documents the same atomic DB replacement and
   restart ordering).
@@ -264,8 +264,15 @@ set and fetched only while building (option "remove" in item 3 below).
   already scrubbed in PR #30; no other references remain.
 - **Resolved 2026-08-02:** delete `.github/workflows/uptime.yml`; UptimeRobot is the sole uptime
   monitor and must probe `/ready`. This avoids duplicate alerts and recurring Actions runs.
-- Decide whether to keep the manual GHCR deploy workflow. If kept, remove references to the private
-  runbook and verify least-privilege permissions and fork-PR workflow approval settings.
+- ~~Decide whether to keep the manual GHCR deploy workflow.~~ **Resolved 2026-08-07: keep it, and
+  rename it.** The image build works and is worth having; only the SSH step is inert, and its
+  preflight already fails loudly with a summary explaining why. What was wrong was the name:
+  `deploy.yml` promised a deployment it does not perform — production is the native systemd service
+  released from the operator's local `scripts/release.sh`. Renamed to **`publish-image.yml`**, with
+  the workflow's `name:` changed to match, since that is what shows in the Actions UI. Deliberately
+  **not** `release.yml`: that is what `release.sh` already is, and two things called "release" would
+  be a worse trap than one called "deploy". Runbook references were already removed in PR #31;
+  least-privilege permissions and fork-PR approval remain due at §7.4.
 
 ### 4.4 App rename to DidacheDynamis
 
@@ -276,7 +283,7 @@ tree before the first push, not in the private repo's day-to-day history:
 - **README badges.** The CI badge added 2026-08-05 hard-codes
   `github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`; it renders as "no status" from
   the new repository until repointed. Include both badge URLs in the rename pass.
-- GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `deploy.yml` and Compose (the
+- GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `publish-image.yml` and Compose (the
   package itself is created by the first push from the new repo).
 - **Not renamed by default:** the public domain `bible.trendafilovi.net`, the Cloudflare tunnel, and
   the Caddy vhost keep working regardless of the repo name. Changing the domain is a separate owner
@@ -348,12 +355,19 @@ domain. Run it when the new domain is registered.
    `docs/user/embedding-scripture.md` (four mentions, including the CSP guidance quoted to
    embedders), `ideas/desktop-04-pwa.md`, `plan/00_system_design.md` (two mentions),
    `plan/linking_and_embeds.md`, and this file.
-11. **Two that are not prose and will misbehave rather than merely read wrong:**
+11. **Gitignored operator tooling holds the hostname too, and no repo sweep can see it.**
+    `scripts/release.sh` is untracked by design (§4.1), and its `SITE` still pointed at
+    `bible.trendafilovi.net` after the cutover. Its probes use `curl` without `-L`, so they read
+    Cloudflare's 301 HTML instead of JSON: the build-id preflight came back empty and forced a
+    needless content rebuild, and the post-deploy check reported `/ready is not reporting ready`
+    on a completely healthy release. Fixed locally 2026-08-07. The lesson generalises — after a
+    hostname change, grep the untracked operator scripts as well as the tracked tree.
+12. **Two that are not prose and will misbehave rather than merely read wrong:**
    - `scripts/capture_real_docs_screenshots.js` — `LIVE_URL` points at the live site, so
      re-captured user-guide screenshots would keep showing the old domain in the address bar;
    - `scripts/bench_measure_tokens.py` — sends `HTTP-Referer: https://bible.trendafilovi.net` to
      OpenRouter, which is how the account attributes benchmark spend.
-12. **Leave alone — dated evidence, not configuration.** `plan/chat/m9.0-findings.md` and
+13. **Leave alone — dated evidence, not configuration.** `plan/chat/m9.0-findings.md` and
     `plan/chat/m9.2-workspace-and-provider.md` record that a CORS preflight *from that origin*
     returned a particular status on a particular date; rewriting the host would falsify a record of
     what was actually tested. `plan/interactive_chat_plan.md` Appendix A names the origin a user

@@ -41,7 +41,7 @@ deployment workflow:
 **`ci.yml`** (PR + push): runs `scripts/check.sh` — backend ruff + pytest, frontend lint/type-check +
 Vitest + `vite build`. Required check before merge to `main`.
 
-**`deploy.yml`** (**manual `workflow_dispatch`**, not triggered by a commit):
+**`publish-image.yml`** (**manual `workflow_dispatch`**, not triggered by a commit):
 1. Build the image (`deploy/Dockerfile`); tag with commit SHA + `latest`.
 2. Push to **GHCR** (`ghcr.io/htrendafilov/bible_app_bg`).
 3. **Deploy over SSH** (`SSH_DEPLOY_KEY` + `VM_HOST` repo secrets): connect as a limited deploy user,
@@ -76,7 +76,7 @@ deploy production; the workflow must be dispatched deliberately.
 5. **Cloudflare:** respect origin `Cache-Control`; do not add a hostname-wide "Cache Everything" rule.
 6. Add GitHub repo secrets: `SSH_DEPLOY_KEY`, `VM_HOST` (and `VM_USER`, `DEPLOY_DIR` if not defaulted).
 
-After this, dispatching `deploy.yml` drives the optional container rollout; commits do not auto-deploy.
+After this, dispatching `publish-image.yml` drives the optional container rollout; commits do not auto-deploy.
 
 ## 5. Edge / caching / uptime
 
@@ -110,7 +110,7 @@ separate post-deploy measurement.
 `content.sqlite` is a **build artifact**, not committed. Public-domain **sources** live in
 `data/sources/` (committed); the Docker build's `content` stage runs `bibleimport` to regenerate the DB
 reproducibly. In the container path, a content change = update source/importer → commit → manually
-dispatch `deploy.yml` → image/DB rebuild and rollout. Native production follows the atomic build/swap
+dispatch `publish-image.yml` → image/DB rebuild and rollout. Native production follows the atomic build/swap
 procedure in the live runbook. Reverting/redeploying the prior release is rollback. (No Git LFS — the
 DB never enters git.)
 

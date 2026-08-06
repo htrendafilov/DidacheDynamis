@@ -67,5 +67,5 @@ steps:
   6. publish update manifest (tauri/electron)
 ```
 
-The existing `ci.yml`/`deploy.yml` workflows are the template; this becomes a new
+The existing `ci.yml`/`publish-image.yml` workflows are the template; this becomes a new
 `desktop-release.yml` triggered on tags.

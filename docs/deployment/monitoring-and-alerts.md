@@ -37,7 +37,7 @@ flowchart TD
      duplicate alerts and unnecessary Actions runs.
 
 2. **Deployment Workflow (manual container path)**:
-   - [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) is manual
+   - [`.github/workflows/publish-image.yml`](../../.github/workflows/publish-image.yml) is manual
      (`workflow_dispatch`): it builds/pushes a commit-SHA + `latest` image to GHCR, SSHes to the VM,
      pulls with Compose, and checks readiness.
    - It intentionally does not deploy on every commit. The generic native production procedures are
