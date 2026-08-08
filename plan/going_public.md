@@ -271,8 +271,16 @@ set and fetched only while building (option "remove" in item 3 below).
   released from the operator's local `scripts/release.sh`. Renamed to **`publish-image.yml`**, with
   the workflow's `name:` changed to match, since that is what shows in the Actions UI. Deliberately
   **not** `release.yml`: that is what `release.sh` already is, and two things called "release" would
-  be a worse trap than one called "deploy". Runbook references were already removed in PR #31;
-  least-privilege permissions and fork-PR approval remain due at §7.4.
+  be a worse trap than one called "deploy".
+
+  Review then caught that renaming alone swaps one misleading action for another: the workflow
+  still ran `docker compose up -d`, so once the four VM secrets existed, dispatching something
+  called "publish image" would also have changed production. And with the secrets absent it exited
+  1 *after* a successful push, leaving a publishing workflow with no green path — a red that means
+  nothing. Publishing and rolling out are now separate jobs; the rollout is opt-in via a
+  `deploy_to_vm` dispatch input, is skipped rather than failed when not requested, and its
+  preflight failure now means "you asked for a deploy that cannot happen". Runbook references were
+  already removed in PR #31; least-privilege permissions and fork-PR approval remain due at §7.4.
 
 ### 4.4 App rename to DidacheDynamis
 
