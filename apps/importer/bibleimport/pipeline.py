@@ -361,9 +361,16 @@ def append_study_content(
         direction="ltr",
         versification="kjv",
         license="CC BY 4.0",
+        # CC BY 4.0 §3(a)(1) asks for the creator, a licence notice, a URI to the licence, and
+        # — §3(a)(1)(B) — an indication of whether the material was modified. This string is what
+        # travels in works.attribution into content.sqlite and the container image, and what
+        # WorkFooter renders, so it is the only place those can reach someone holding just the
+        # artifact. The licence URI and the no-modification statement were missing.
         attribution=(
             "Cross-reference data derived from the Treasury of Scripture Knowledge; "
-            "CrossReferences.org, CC BY 4.0."
+            "CrossReferences.org, CC BY 4.0 "
+            "(https://creativecommons.org/licenses/by/4.0/). "
+            "Reference data used unmodified; mapped to this application's verse identifiers."
         ),
         source_url="https://github.com/CrossReferences-org/bible-cross-references",
         source_version="KJV mapping",
