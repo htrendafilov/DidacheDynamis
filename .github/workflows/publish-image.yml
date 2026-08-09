@@ -1,22 +1,36 @@
-name: deploy
+name: publish image
 
-# Deliberately manual: the image rebuilds content.sqlite from the committed sources and deploys the
-# optional GHCR/Compose path using VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR secrets.
+# Named for what a plain dispatch does: build the image and push it to GHCR. It was `deploy.yml`,
+# which promised a deployment it does not perform — production is the native systemd + gunicorn
+# service released with the operator's local scripts/release.sh. Not renamed to `release.yml`
+# either: that is what release.sh already is, and two things called "release" would be worse than
+# one called "deploy".
 #
-# Those four secrets are NOT configured today, so the "Deploy to VM" step cannot run. Production
-# currently uses the native systemd + gunicorn path (generic procedure: docs/deployment/; operator
-# values live in the intentionally private live runbook), not Docker.
-# The image build/push below is useful on its own, so it still runs; the preflight before the SSH
-# step explains the failure instead of letting ssh-action report a bare "missing server host".
+# Deploying is a SEPARATE, OPT-IN job. The rename alone would have swapped one misleading name for
+# another — a workflow called "publish image" that also ran `docker compose up -d` the moment the
+# VM secrets existed. So the container rollout now requires ticking `deploy_to_vm` on dispatch,
+# appears as its own job in the Actions UI, and is skipped (not failed) when it is not requested.
+#
+# Deliberately manual. The image rebuilds content.sqlite from the committed sources; the optional
+# rollout uses VM_HOST/VM_USER/SSH_DEPLOY_KEY/DEPLOY_DIR. Those four secrets are NOT configured
+# today, so the rollout cannot run even if requested — production is the native systemd + gunicorn
+# path (generic procedure: docs/deployment/; operator values live in the intentionally private live
+# runbook), not Docker. The preflight says so plainly rather than letting ssh-action report a bare
+# "missing server host".
 on:
   workflow_dispatch:
+    inputs:
+      deploy_to_vm:
+        description: "Also roll the pushed image out to the VM (container path — leave off to publish only)"
+        type: boolean
+        default: false
 
 concurrency:
-  group: deploy-production
+  group: publish-image
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,8 +62,21 @@ jobs:
             ${{ env.IMAGE }}:${{ github.sha }}
             ${{ env.IMAGE }}:latest
 
+  # Opt-in only. Without this gate a workflow named "publish image" would also change production
+  # as soon as the four secrets existed — the same misleading-action problem the rename fixed,
+  # pointing the other way. Not requesting a deploy is a success, not a failure: publishing an
+  # image is a complete outcome on its own, and a workflow with no green path is a workflow whose
+  # red means nothing.
+  deploy-to-vm:
+    needs: publish
+    if: ${{ inputs.deploy_to_vm }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
       # The `secrets` context is not available in a step-level `if:`, so this is a scripted
-      # preflight rather than a condition. It reports every missing name at once.
+      # preflight rather than a condition. It reports every missing name at once. Reaching it
+      # means a deploy was explicitly asked for, so missing secrets are a real failure here.
       - name: Check VM deploy secrets
         env:
           VM_HOST: ${{ secrets.VM_HOST }}
@@ -66,7 +93,8 @@ jobs:
             {
               echo "### Container deploy is not configured"
               echo
-              echo "The image **was** built and pushed to GHCR — only the VM step is blocked."
+              echo "The image **was** built and pushed to GHCR by the \`publish\` job — only this"
+              echo "opt-in VM rollout is blocked."
               echo
               echo "Missing repository secrets:\`$missing\`"
               echo

@@ -86,7 +86,7 @@ content.sqlite  (built offline by the bibleimport CLI)
 
 ```
 bible_app_bg/                    # git repo root (GitHub: htrendafilov/bible_app_bg)
-├── .github/workflows/{ci.yml,deploy.yml}
+├── .github/workflows/{ci.yml,publish-image.yml}
 ├── apps/
 │   ├── web/                     # React + Vite SPA
 │   ├── api/                     # FastAPI (serves API + built SPA)
