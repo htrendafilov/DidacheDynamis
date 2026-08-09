@@ -38,8 +38,10 @@ flowchart TD
 
 2. **Deployment Workflow (manual container path)**:
    - [`.github/workflows/publish-image.yml`](../../.github/workflows/publish-image.yml) is manual
-     (`workflow_dispatch`): it builds/pushes a commit-SHA + `latest` image to GHCR, SSHes to the VM,
-     pulls with Compose, and checks readiness.
+     (`workflow_dispatch`). By default it only builds and pushes a commit-SHA + `latest` image to
+     GHCR. Rolling that image out is a **separate, opt-in job**: tick `deploy_to_vm` on dispatch and
+     it SSHes to the VM, pulls with Compose, and checks readiness. Left unticked, the rollout job is
+     skipped and the run still succeeds.
    - It intentionally does not deploy on every commit. The generic native production procedures are
      documented in this guide ([hosting options](hosting-options.md),
      [backups & rollback](backups-and-rollback.md)); live operator values stay in the private
