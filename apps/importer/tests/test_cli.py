@@ -309,3 +309,98 @@ def test_add_strongs_appends_lexicons_and_reports_diagnostics(tmp_path, capsys, 
     assert by_work["strongshebrew"]["statistics"]["lexicon_entries"] == 3
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT count(*) FROM strong_lexicon").fetchone()[0] == 5
+
+
+def test_every_shipped_work_is_declared_in_notice_and_the_rights_matrix():
+    """The one-way invariant docs/extra/content-and-licensing.md states.
+
+    The rights matrix silently omitted Strong's Greek and Hebrew for two milestones — both
+    public domain, so nothing shipped against its licence, but a table read as the complete
+    answer was not complete. A doc cannot enforce that about itself, so it is asserted here
+    against the work ids the CLI actually builds.
+    """
+    root = Path(__file__).resolve().parents[3]
+    notice = (root / "NOTICE").read_text(encoding="utf-8")
+    matrix = (root / "docs" / "extra" / "content-and-licensing.md").read_text(encoding="utf-8")
+
+    # How each shipped work is named in the human-facing matrix.
+    matrix_names = {
+        "web": "World English Bible",
+        "kjv": "King James Version",
+        "mhc": "Matthew Henry",
+        "easton": "Easton",
+        "tsk": "TSK",
+        "baptist1689": "1689 London Baptist",
+        "baptist1689bg": "Баптистка",
+        "strongsgreek": "Strong's Greek",
+        "strongshebrew": "Strong's Hebrew",
+    }
+    shipped = set(cli.SOURCE_FILES) | {"baptist1689bg"}
+    assert shipped == set(matrix_names), (
+        "a source was added or removed without updating this test, NOTICE, and the rights matrix"
+    )
+    for work_id, display in sorted(matrix_names.items()):
+        assert f"Work id:        {work_id}" in notice, f"{work_id} is missing from NOTICE"
+        assert display in matrix, f"{work_id} is missing from the rights matrix"
+
+
+def _shipped_attributions() -> dict[str, str]:
+    """Every attribution literal the importer can write into works.attribution.
+
+    Read from the source rather than by building a database: these are static literals,
+    and a test that needs a 30-second build is a test that gets skipped.
+    """
+    import ast
+
+    from bibleimport import cli as _cli
+    from bibleimport import pipeline as _pipeline
+
+    out: dict[str, str] = {}
+    for module in (_pipeline, _cli):
+        tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            for kw in getattr(node, "keywords", []) or []:
+                if kw.arg != "attribution":
+                    continue
+                try:
+                    value = ast.literal_eval(kw.value)
+                except ValueError:
+                    continue  # not a plain literal; nothing to compare
+                if isinstance(value, str):
+                    out[value] = Path(module.__file__).name
+    return out
+
+
+def test_notice_quotes_every_shipped_attribution_verbatim():
+    """NOTICE promises its quoted attribution strings are exactly what ships.
+
+    They drifted once already: the TSK attribution gained a CC BY licence URI and a
+    modification statement while NOTICE went on quoting the older wording, and the
+    container image then carried both — two different licensing records for one work
+    inside a single artifact. A promise of verbatim equality has to be mechanical, so
+    this compares the literals the importer writes against NOTICE's text, normalising
+    only the line wrapping NOTICE applies for readability.
+    """
+    notice = " ".join(
+        (Path(__file__).resolve().parents[3] / "NOTICE").read_text(encoding="utf-8").split()
+    )
+    shipped = _shipped_attributions()
+    assert len(shipped) >= 8, "attribution literals are no longer being found in the source"
+    missing = [
+        f"{origin}: {text}" for text, origin in shipped.items() if " ".join(text.split()) not in notice
+    ]
+    assert not missing, "NOTICE does not quote these shipped attributions verbatim: " + "; ".join(
+        missing
+    )
+
+
+def test_tsk_attribution_carries_the_cc_by_licence_uri_and_modification_status():
+    """CC BY 4.0 asks for a licence URI and an indication of modification.
+
+    works.attribution is the only one of these that reaches someone holding just
+    content.sqlite or the container image, so the notice has to be inside it.
+    """
+    tsk = next(t for t in _shipped_attributions() if t.startswith("Cross-reference data"))
+    assert "https://creativecommons.org/licenses/by/4.0/" in tsk
+    assert "unmodified" in tsk
+

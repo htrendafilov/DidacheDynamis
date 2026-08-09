@@ -246,8 +246,30 @@ set and fetched only while building (option "remove" in item 3 below).
   is what enforces it, and is explicit that privacy routing and the account-logging confirmation
   constrain what the app *sends* rather than proving what the provider *does*. Re-check it whenever
   the request body, the stored credentials, or `connect-src` change.
-- Refresh `docs/extra/security-and-privacy.md` and `docs/extra/content-and-licensing.md` against the
-  final source set and NOTICE.
+- ~~Refresh `docs/extra/security-and-privacy.md` and `docs/extra/content-and-licensing.md` against
+  the final source set and NOTICE.~~ **Done 2026-08-08.** The refresh was not cosmetic: the
+  user-facing rights matrix was missing **Strong's Greek and Hebrew entirely** — two works the
+  application serves, with no rights row at all, under a heading claiming every shipped work had
+  recorded terms. Both added, and three rows corrected to state obligations the table omitted: the
+  WEB trademark, TSK's CC BY 4.0 attribution travelling with the data into `content.sqlite` and the
+  image, and that the shipped English 1689 is editorial revision 1 with 67 documented corrections
+  rather than the raw module. `security-and-privacy.md` needed nothing — PR #34 added the assistant
+  section and PR #42 updated it for the alpha.
+
+  Review then caught that the doc asserted more than the artifacts delivered: TSK's `works` row
+  carried the licence *name* but no licence URI and no modification statement, and the runtime
+  image copied neither `NOTICE` nor `LICENSES/`. Someone holding only `content.sqlite` or the
+  image — which is what redistribution means here — therefore could not see either. Both fixed:
+  the CC BY notice is now inside `works.attribution` (so it reaches the DB, the image, and the
+  app's attribution UI) and the image ships `NOTICE` and `LICENSES/`. Whether the earlier form was
+  already "reasonable for the medium" under CC BY §3(a)(2) is a judgement this plan does not make;
+  carrying more is unambiguous and cost nothing.
+
+  The invariant is **one-way and enforced in CI**: every work the application serves must appear
+  in the matrix and in `NOTICE`; the matrix may also list works deliberately not shipped, which is
+  why "equal, work for work" was the wrong claim. `test_every_shipped_work_is_declared_in_notice_
+  and_the_rights_matrix` asserts it against `SOURCE_FILES`, so the omission that started this
+  cannot recur silently.
 - Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be enabled.
 - ~~Sweep links and references after deletions and the private-runbook move.~~ **Done 2026-08-05 —
   nothing to fix.** All 169 relative markdown links across 63 files resolve, and all 89 repo-path

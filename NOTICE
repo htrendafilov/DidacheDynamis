@@ -104,7 +104,10 @@ Treasury of Scripture Knowledge cross-references
   Source:         https://github.com/CrossReferences-org/bible-cross-references
   Modifications:  None to the data. Imported as verse-to-verse reference rows.
   Attribution:    "Cross-reference data derived from the Treasury of Scripture
-                  Knowledge; CrossReferences.org, CC BY 4.0."
+                  Knowledge; CrossReferences.org, CC BY 4.0
+                  (https://creativecommons.org/licenses/by/4.0/). Reference
+                  data used unmodified; mapped to this application's verse
+                  identifiers."
   Note: CC BY 4.0 requires that this attribution, a link to the license, and an
   indication of any changes accompany redistribution — including redistribution of
   content.sqlite and of the container image.
@@ -135,6 +138,13 @@ The Baptist Confession of Faith of 1689 — reviewed edition (English)
                   modernization was intended. The complete editorial policy,
                   verification sources, and before/after correction list are in
                   data/sources/BaptistConfession1689-ed1.info.json.
+  Attribution:    "The Baptist Confession of Faith of 1689. Based on the
+                  public-domain CrossWire BaptistConfession1689 1.0.2 module,
+                  obtained from reformed.org with thanks to Ed Walsh. Obvious
+                  transcription omissions, Scripture-reference errors, and
+                  markup defects were corrected against the historical 1677
+                  text. No doctrinal or stylistic modernization was intended.
+                  Editorial changes are recorded in the source info manifest."
 
 Баптистка изповед на вярата от 1689 г. — Bulgarian translation
   Work id:        baptist1689bg
@@ -151,6 +161,10 @@ The Baptist Confession of Faith of 1689 — reviewed edition (English)
                   data/sources/BaptistConfession1689_BG.info.json; the complete
                   editorial record is
                   data/sources/BaptistConfession1689_BG.corrections.md.
+  Attribution:    "Български превод и редакционни промени, предоставени по CC0
+                  1.0 Universal. Основан на публичнодостъпния модул CrossWire
+                  BaptistConfession1689 1.0.2 и прегледаната английска
+                  редакция 1 на bible_app_bg."
 
 Strong's Greek Dictionary
   Work id:        strongsgreek

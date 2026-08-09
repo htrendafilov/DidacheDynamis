@@ -47,6 +47,12 @@ COPY --from=web /web/dist ./web_dist
 # Read-only content database, built in the content stage
 COPY --from=content /out/content.sqlite ./data/content.sqlite
 
+# Attribution travels with the artifact, not just the repository. content.sqlite carries texts
+# whose licences require notices to accompany redistribution (TSK is CC BY 4.0; the KJV rides on
+# CrossWire's grant), and an image is a redistribution — whoever pulls it may never see the repo.
+COPY NOTICE ./NOTICE
+COPY LICENSES/ ./LICENSES/
+
 EXPOSE 8080
 # On Render bind $PORT; N workers tuned for the VM (see backend_design §5).
 CMD ["gunicorn", "app.main:app", \
