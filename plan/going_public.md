@@ -81,15 +81,32 @@ Changing visibility exposes more than git objects. GitHub explicitly states that
 logs become public and that all push rulesets are disabled during a private-to-public change; review
 the current [visibility-change consequences](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility).
 
-Audit or remove before the flip:
+**Audited 2026-08-10 — and most of this list turns out to be moot.** It was written for §0's
+path 1, flipping *this* repository to public. Path 2 was chosen instead: `bible_app_bg` stays
+private permanently as the operational archive, and only sanitized history is pushed to a fresh
+`DidacheDynamis` that starts with no pull requests, issues, runs or artifacts. So none of the
+GitHub-hosted material below ever becomes public, and auditing 384 run logs for operator metadata
+would have been work done against a risk the strategy already removed. Recorded rather than
+deleted, because it is exactly what would be required if the strategy ever reverted to path 1.
 
-- 27 pull requests and 2 issues, including bodies, comments, reviews, attachments, and referenced
-  commit SHAs;
-- 293 workflow runs at the audit snapshot; delete any run whose logs reveal private paths, hostnames,
-  runner details, or other operator metadata;
-- 2 retained Docker build-record artifacts (about 45 KiB total); delete if they have no release value;
-- repository variables, environments, deployments, release assets, wiki pages, projects, webhooks,
-  and GitHub Pages configuration;
+**"Starts with" is the operative word.** None of this archive's history transfers, but the new
+repository begins accruing its own the moment it is written to: `ci.yml` runs on `push` to `main`,
+so pushing the sanitized mirror (§7.2) creates a workflow run there, and *that* run's logs are
+public after the flip. The §6 gate therefore applies to the new repository's own runs, not to this
+one's. Either review that first run's logs before flipping visibility, or disable Actions on
+`DidacheDynamis` for the initial push and re-enable once the tree is verified.
+
+Inventory at the 2026-08-10 audit, for the archive record:
+
+- 41 pull requests and 2 issues, including bodies, comments, reviews, attachments, and referenced
+  commit SHAs — **stay private with this repository**;
+- 384 workflow runs — **stay private**; under path 1 the instruction was to delete any run whose
+  logs reveal private paths, hostnames, runner details, or other operator metadata;
+- 2 retained Docker build-record artifacts (44.5 KiB total) — **stay private**;
+- repository variables (0), environments (0), deployments (none), releases (none), GitHub Pages
+  (not configured), webhooks (none), wiki (disabled) — nothing to audit;
+- Actions secrets: **1**, `DROPBOX_APP_KEY`. It does not transfer: the new repository needs its own
+  copy before `publish-image.yml` can build there;
 - ~~remote branches. Eleven merged topic branches are still advertised in addition to `main`; delete
   obsolete branches before the rewrite and ensure no stale branch can reintroduce old history;~~
   **Done 2026-08-05.** Only `main` remains, locally and on the remote. The last five were checked
@@ -99,7 +116,16 @@ Audit or remove before the flip:
   version 3 → 4, the three-value `ai_context_policy` union → four, `m9.0b-bulgarian-benchmark.md`
   split into `m9.0b-1`/`m9.0b-2`, and a `.gitignore` comment rewritten by this very cleanup). Their
   tip SHAs are recorded in the release issue in case anything needs recovering before gc;
-- GHCR package contents and visibility, which are managed separately from repository visibility.
+- **GHCR package — the one item path 2 does *not* neutralise.** Package visibility is managed
+  separately from repository visibility, so a private repo does not imply a private package. An
+  image **was published and may still exist**: run `30153760051` (2026-07-25) shows `Build and push
+  image` succeeding before the run failed at `Deploy to VM`, so `ghcr.io/htrendafilov/bible_app_bg`
+  received a full `content.sqlite` — every imported text, including the KJV (decision 11) — under
+  the pre-rename name. Whether it is *still* there, and whether it is public, is **not established**:
+  the audit token lacked `read:packages`, and an unauthenticated pull returns 401 either way, which
+  cannot distinguish a private package from a deleted one. Before §7, check with a `read:packages`
+  token and then delete it or confirm it is private. Note the two historical runs are both marked *failure* while one of them
+  published successfully — the misleading signal §4.3 has since fixed by splitting the jobs.
 
 GitHub supports deleting completed workflow runs. Keep an audit note listing which runs/artifacts
 were retained or removed rather than assuming secret masking made every log safe.
@@ -474,6 +500,9 @@ All of these must pass before visibility changes:
 - anonymous-access rehearsal against the candidate remote, including source archives and LFS;
 - audit of PRs/issues, Actions logs/artifacts, packages, deployments, variables, and repository
   settings; record the result in the release issue;
+- the **new** repository's own workflow runs reviewed, not this archive's. Pushing the mirror
+  triggers `ci.yml`, and those logs are public after the flip — check them for anything the runner
+  echoed, or keep Actions disabled on `DidacheDynamis` until the tree is verified (§1.4);
 - ~~decision 11 answered and recorded: whether the KJV ships inside the published
   `content.sqlite` and GHCR image, or is excluded from the distributed artifacts.~~ **Answered
   2026-08-06 — it ships (§8).** What remains verifiable here: `LICENSES/GPL-2.0.txt` is present,
@@ -501,11 +530,18 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    `repository_advisories:read`, which is not worth storing as a secret in a public repository.
    GitHub already notifies maintainers on submission and confirms receipt to the reporter.
 6. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
-7. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
+   Also settle the **old** `ghcr.io/htrendafilov/bible_app_bg` package: an image holding a full
+   `content.sqlite` was pushed to it on 2026-07-25 and may still be there (§1.4 — current state
+   unverified, needs `read:packages`). Check, then delete it or confirm it is private. It is not
+   covered by the repository staying private.
+7. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
+   and `publish-image.yml` builds the SPA with it, so without it a published image would ship a
+   build whose Dropbox sync cannot authenticate.
+8. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
    not receive secrets or write tokens.
-8. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
+9. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
    the live site from an anonymous browser.
-9. Watch Actions/LFS usage and security alerts during the first week.
+10. Watch Actions/LFS usage and security alerts during the first week.
 
 ## 8. Decisions
 
