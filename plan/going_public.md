@@ -333,9 +333,15 @@ Measured against the built `content.sqlite`, not inferred from the plan that rep
 | Missing entirely | every numbered book — 1/2 Sam, 1/2 Kgs, 1/2 Chr, 1/2 Cor, 1/2 Thess, 1/2 Tim, 1/2 Pet, 1/2/3 John — plus **Revelation** |
 | Build result | `result: ok`, no warnings |
 
-Two independent causes, both diagnosed in `plan/mhc_translation/07_master_plan.md` §M1: book-name
-aliases (Roman-numeral and alternative forms are not matched), and chapter introductions keyed at
-verse `0`, which the importer discards at `chapter < 1`.
+Two independent causes, both diagnosed in `plan/mhc_translation/07_master_plan.md` §M1.
+
+Book-name aliases: Roman-numeral and alternative forms are not matched, so every numbered book falls
+out. And introductions keyed at verse `0`, which `apps/importer/bibleimport/formats/study.py:297`
+discards on `chapter < 1 or verse < 1`. Both halves of that guard bite, on different things —
+measured against `MHC.imp.gz`, 1,255 keys end in `:0`, of which **66 are `0:0`** book introductions
+caught by `chapter < 1`, and **1,189 are `Book N:0`** chapter introductions caught by `verse < 1`
+because their chapter is positive. Naming only the chapter half, as an earlier draft of this section
+did, points a repair at the wrong condition.
 
 Why this is a going-public item and not only a product bug: `NOTICE` records MHC as *"Modifications:
 None to the text"*, which a reader takes to mean the complete Matthew Henry. It is not. No licence
@@ -523,6 +529,10 @@ This section applies only to a release path that publishes rewritten history.
    - remove every historical path of the live runbook;
    - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
      never receives the KJV export, even during its private verification phase;
+   - remove every historical `plan/mhc_translation/` path (§2.2 — the translation project's planning
+     history stays out of the public tree; only its finished result is intended to reach it). A
+     no-op while the directory is untracked, which is why it must be *in* the invocation rather than
+     assumed: if any of it is ever committed, an unchanged command would carry it over silently;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
    - optionally rewrite author/committer addresses in the same pass;
@@ -543,7 +553,8 @@ All of these must pass before visibility changes:
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
   zero exit code;
 - exact history searches for the external replacement-map values, employer author address if chosen,
-  private runbook and `data/sources/KJV.imp.gz` paths, `.env` files, key formats, tokens, and
+  private runbook, `data/sources/KJV.imp.gz` and `plan/mhc_translation/` paths, `.env` files,
+  key formats, tokens, and
   unusually high-entropy strings;
 - `git fsck`, changed-ref review, current-tree diff review, and before/after `git lfs ls-files`;
 - `scripts/check.sh` on the candidate public tree;
