@@ -164,6 +164,13 @@ prepare the repository for public release" line.
   `scripts/capture_real_docs_screenshots.js`. Re-capture them when the public UI changes; do not
   delete them merely because they are binaries.
 - `ideas/` is clearly future-facing and can remain public after a content review.
+- `plan/mhc_translation/` — **excluded from the public tree (owner, 2026-08-10).** The Bulgarian
+  Matthew Henry translation is a separate project; only its finished result is intended to reach
+  the new repository, not its planning history. Nothing here excludes it automatically: the
+  sanitized tree carries whatever is tracked, so this has to be an explicit path removal in the
+  §5 `git-filter-repo` invocation, and it must be re-checked at §6 rather than assumed. Note the
+  directory is untracked today, so if it is never committed the removal is a no-op — which is the
+  cheapest way to honour this decision.
 
 ### 2.3 Source-data disposition
 
@@ -175,6 +182,12 @@ deletion other than `.gitkeep`:
 - the original English 1689 export is the immutable provenance base for the reviewed edition;
 - the uncompressed Bulgarian 1689 IMP drives the revision, SWORD-package, and benchmark scripts;
 - the JSON metadata and correction record provide required rights/provenance evidence.
+
+A later addition will change these numbers: `plan/mhc_translation/07_master_plan.md` §M3 adds an
+LFS rule for `data/sources/mhc_bg/books/*.jsonl.gz`, and the translated book packages that follow
+land as new LFS objects. The rule alone costs nothing — no objects exist until that project's M5/M6
+— but the budget and alert set below are calibrated against today's set and will need revisiting
+before those packages are committed.
 
 The remaining committed source directory is about 24 MiB and nine inputs use Git LFS. Public forks and downloads count
 against the repository owner's LFS bandwidth, so set a budget/alert and reconsider release assets or
@@ -305,6 +318,68 @@ set and fetched only while building (option "remove" in item 3 below).
   README.md` explaining the private runbook, `monitoring-and-alerts.md` noting the retired workflow,
   and `interactive_chat_plan.md` §Appendix B listing what was carried over — not a dangling pointer.
   Re-run before the §6 gate, since the rewrite moves files again.
+
+### 4.2b Corpus completeness — MHC repair before the flip
+
+**Prerequisite for publication, added 2026-08-10.** The shipped Matthew Henry commentary is
+materially incomplete, and `NOTICE` says otherwise.
+
+Measured against the built `content.sqlite`, not inferred from the plan that reported it:
+
+| | |
+|---|---|
+| Books with commentary | **48 of 66** |
+| Entries imported | **3,479**, from **5,506** keys in `MHC.imp.gz` |
+| Missing entirely | every numbered book — 1/2 Sam, 1/2 Kgs, 1/2 Chr, 1/2 Cor, 1/2 Thess, 1/2 Tim, 1/2 Pet, 1/2/3 John — plus **Revelation** |
+| Build result | `result: ok`, no warnings |
+
+Two independent causes, both diagnosed in `plan/mhc_translation/07_master_plan.md` §M1.
+
+Book-name aliases: Roman-numeral and alternative forms are not matched, so every numbered book falls
+out. And records keyed at verse `0`, which `apps/importer/bibleimport/formats/study.py:297` discards
+on `chapter < 1 or verse < 1`. Both halves of that guard bite, on different things, and only one of
+them is losing prose. Measured directly from `MHC.imp.gz`, 1,255 keys end in `:0`:
+
+| Keys | Caught by | Content |
+|---|---|---|
+| **66** `Book 0:0` | `chapter < 1` | milestone markup only, **max 2 words** — not introductions, and no loss |
+| **1,106** `Book N:0` | `verse < 1` | **real chapter introductions: 199,096 words**, up to 1,248 each |
+| **83** `Book N:0` | `verse < 1` | scaffolding, under 5 words |
+
+The split is clean — nothing falls between 5 and 20 words — so the repair can classify by content
+rather than guess. **The loss that matters is those 1,106 introductions**, not the raw 1,255. An
+earlier draft of this section named only `chapter < 1` and called the 66 "book introductions"; both
+would have pointed a repair at the wrong records.
+
+Why this is a going-public item and not only a product bug: `NOTICE` records MHC as *"Modifications:
+None to the text"*, which a reader takes to mean the complete Matthew Henry. It is not. No licence
+is breached — the work is public domain and no obligation is unmet — but it is an inaccuracy in the
+attribution record this whole section exists to make trustworthy, and the same claim now ships
+inside `content.sqlite` and the container image. It is also plainly user-visible: the reader and the
+assistant both return nothing for Revelation.
+
+**Do M1 before §5.** Publishing first and repairing after means the public repository's opening
+state is a silently lossy importer paired with a `NOTICE` that contradicts it. Repairing first costs
+one milestone of work that was already planned.
+
+**M2 and M3 are not prerequisites**, but M3 is not as invisible as it first looks. M2 bumps the
+content schema and adds `entry_id` to the API — ordinary product work with no bearing on licensing,
+privacy or history, and with no users to migrate.
+
+M3 is *not* merely gitignored scaffolding: only its `data/mhc_bg_work/` workspace and caches are
+ignored. It also commits **`scripts/mhc_bg/`** tooling, the benchmark manifest, rubric, frozen
+prompt, `model_snapshot.json`, blinded scores and results under `plan/mhc_translation/bench/v1/`,
+the `.gitattributes` LFS rule (§2.3) and the `.gitignore` entry. The split matters here: the bench
+artifacts sit inside the path §2.2 excludes and are removed by §5, but **`scripts/mhc_bg/` does
+not** — it would ship publicly like any other tooling. That is acceptable (it is the owner's own
+MIT-licensed code), but it should be a decision rather than a surprise, so run M3 before the flip
+only if that tooling is meant to be public on day one.
+
+**D1 is not triggered yet but will be.** That project gates the Bulgarian translation's licence on
+"any public release". No translated text exists, so nothing blocks this flip. When `mhcbg` ships it
+needs a `NOTICE` entry and a rights-matrix row, and
+`test_every_shipped_work_is_declared_in_notice_and_the_rights_matrix` will fail until it has both —
+which is the intended behaviour, not an obstacle.
 
 ### 4.3 Stale deployment choices
 
@@ -471,6 +546,10 @@ This section applies only to a release path that publishes rewritten history.
    - remove every historical path of the live runbook;
    - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
      never receives the KJV export, even during its private verification phase;
+   - remove every historical `plan/mhc_translation/` path (§2.2 — the translation project's planning
+     history stays out of the public tree; only its finished result is intended to reach it). A
+     no-op while the directory is untracked, which is why it must be *in* the invocation rather than
+     assumed: if any of it is ever committed, an unchanged command would carry it over silently;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
    - optionally rewrite author/committer addresses in the same pass;
@@ -491,7 +570,8 @@ All of these must pass before visibility changes:
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
   zero exit code;
 - exact history searches for the external replacement-map values, employer author address if chosen,
-  private runbook and `data/sources/KJV.imp.gz` paths, `.env` files, key formats, tokens, and
+  private runbook, `data/sources/KJV.imp.gz` and `plan/mhc_translation/` paths, `.env` files,
+  key formats, tokens, and
   unusually high-entropy strings;
 - `git fsck`, changed-ref review, current-tree diff review, and before/after `git lfs ls-files`;
 - `scripts/check.sh` on the candidate public tree;
@@ -500,6 +580,8 @@ All of these must pass before visibility changes:
 - anonymous-access rehearsal against the candidate remote, including source archives and LFS;
 - audit of PRs/issues, Actions logs/artifacts, packages, deployments, variables, and repository
   settings; record the result in the release issue;
+- MHC corpus repair landed and verified (§4.2b): 66 books present, the source's 5,506 keys fully
+  accounted for, and `NOTICE`'s "None to the text" true of what actually ships;
 - the **new** repository's own workflow runs reviewed, not this archive's. Pushing the mirror
   triggers `ci.yml`, and those logs are public after the flip — check them for anything the runner
   echoed, or keep Actions disabled on `DidacheDynamis` until the tree is verified (§1.4);
