@@ -336,12 +336,20 @@ Measured against the built `content.sqlite`, not inferred from the plan that rep
 Two independent causes, both diagnosed in `plan/mhc_translation/07_master_plan.md` §M1.
 
 Book-name aliases: Roman-numeral and alternative forms are not matched, so every numbered book falls
-out. And introductions keyed at verse `0`, which `apps/importer/bibleimport/formats/study.py:297`
-discards on `chapter < 1 or verse < 1`. Both halves of that guard bite, on different things —
-measured against `MHC.imp.gz`, 1,255 keys end in `:0`, of which **66 are `0:0`** book introductions
-caught by `chapter < 1`, and **1,189 are `Book N:0`** chapter introductions caught by `verse < 1`
-because their chapter is positive. Naming only the chapter half, as an earlier draft of this section
-did, points a repair at the wrong condition.
+out. And records keyed at verse `0`, which `apps/importer/bibleimport/formats/study.py:297` discards
+on `chapter < 1 or verse < 1`. Both halves of that guard bite, on different things, and only one of
+them is losing prose. Measured directly from `MHC.imp.gz`, 1,255 keys end in `:0`:
+
+| Keys | Caught by | Content |
+|---|---|---|
+| **66** `Book 0:0` | `chapter < 1` | milestone markup only, **max 2 words** — not introductions, and no loss |
+| **1,106** `Book N:0` | `verse < 1` | **real chapter introductions: 199,096 words**, up to 1,248 each |
+| **83** `Book N:0` | `verse < 1` | scaffolding, under 5 words |
+
+The split is clean — nothing falls between 5 and 20 words — so the repair can classify by content
+rather than guess. **The loss that matters is those 1,106 introductions**, not the raw 1,255. An
+earlier draft of this section named only `chapter < 1` and called the 66 "book introductions"; both
+would have pointed a repair at the wrong records.
 
 Why this is a going-public item and not only a product bug: `NOTICE` records MHC as *"Modifications:
 None to the text"*, which a reader takes to mean the complete Matthew Henry. It is not. No licence
@@ -354,9 +362,18 @@ assistant both return nothing for Revelation.
 state is a silently lossy importer paired with a `NOTICE` that contradicts it. Repairing first costs
 one milestone of work that was already planned.
 
-**M2 and M3 are not prerequisites.** M2 bumps the content schema and adds `entry_id` to the API —
-ordinary product work with no bearing on licensing, privacy or history, and with no users to
-migrate. M3 is gitignored scaffolding; its only public-surface effect is the LFS rule noted in §2.3.
+**M2 and M3 are not prerequisites**, but M3 is not as invisible as it first looks. M2 bumps the
+content schema and adds `entry_id` to the API — ordinary product work with no bearing on licensing,
+privacy or history, and with no users to migrate.
+
+M3 is *not* merely gitignored scaffolding: only its `data/mhc_bg_work/` workspace and caches are
+ignored. It also commits **`scripts/mhc_bg/`** tooling, the benchmark manifest, rubric, frozen
+prompt, `model_snapshot.json`, blinded scores and results under `plan/mhc_translation/bench/v1/`,
+the `.gitattributes` LFS rule (§2.3) and the `.gitignore` entry. The split matters here: the bench
+artifacts sit inside the path §2.2 excludes and are removed by §5, but **`scripts/mhc_bg/` does
+not** — it would ship publicly like any other tooling. That is acceptable (it is the owner's own
+MIT-licensed code), but it should be a decision rather than a surprise, so run M3 before the flip
+only if that tooling is meant to be public on day one.
 
 **D1 is not triggered yet but will be.** That project gates the Bulgarian translation's licence on
 "any public release". No translated text exists, so nothing blocks this flip. When `mhcbg` ships it
