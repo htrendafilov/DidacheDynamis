@@ -284,11 +284,21 @@ def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
     return rows
 
 
-# A `Book 0:0` record has no chapter for content to attach to, so it cannot become a commentary
-# entry whatever it holds. In this corpus all 66 are markup: 61 empty, 5 carrying only the book's
-# own title (max 2 words). A longer one would mean the source has book-level introductions this
-# loader does not handle, so it is fatal rather than dropped — the point is to notice, not to guess.
-_BOOK_MILESTONE_MAX_WORDS = 5
+# Spelled-out ordinals used in book titles ("Second John" for 2 John). Needed to recognise a
+# milestone whose entire content is the book's own name.
+_ORDINAL_WORDS = {"first": "1", "second": "2", "third": "3"}
+
+
+def _is_book_title(text: str, osis: str) -> bool:
+    """True when `text` is nothing but this book's own name.
+
+    A `Book 0:0` milestone may be ignored only when it says nothing beyond the title. Allowing
+    any short record through instead let "A brief book introduction." — four words of real
+    content — be discarded while the audit still balanced.
+    """
+    words = re.sub(r"[^a-z0-9\s]", " ", text.lower()).split()
+    words = [_ORDINAL_WORDS.get(w, w) for w in words]
+    return bool(words) and _osis_book("".join(words)) == osis
 
 
 @dataclass
@@ -335,8 +345,14 @@ def load_sword_commentary(
             #
             # So: a record at a real coordinate is content, however short. Only a record with no
             # coordinate to attach to can be scaffolding, and then only when it is empty.
-            words = len(plain.split())
-            has_content = bool(text) and bool(body["blocks"]) and bool(plain.strip())
+            # Emptiness is judged on the RAW text with markup stripped, not on the CIR parse.
+            # Judging it after parsing meant a record the parser could not represent —
+            # "<p>Real prose disappears here.</p>" — looked empty and was filed as scaffolding,
+            # losing visible text while the accounting still balanced. If there is visible text
+            # but no CIR came out of it, that is a parse failure and must stop the build.
+            visible = re.sub(r"<[^>]+>", " ", text or "").strip()
+            has_content = bool(visible)
+            parse_failed = has_content and not body["blocks"]
 
             match = _IMP_COMMENTARY_KEY.match(key)
             osis = _osis_book(match.group("book")) if match else None
@@ -354,12 +370,20 @@ def load_sword_commentary(
             verse = int(match.group("verse"))
 
             if chapter < 1:
-                # A book milestone. There is no chapter to attach content to, so this can never
-                # become an entry; the only question is whether we are discarding something real.
-                if not has_content or words <= _BOOK_MILESTONE_MAX_WORDS:
+                # A book milestone: no chapter for content to attach to, so it can never become an
+                # entry. Ignorable only when it is empty or says nothing but the book's own name.
+                # Anything else means the source carries book-level introductions this loader does
+                # not handle, and that must be noticed rather than guessed at.
+                if not has_content or _is_book_title(visible, osis):
                     if audit:
                         audit.ignored_scaffolding += 1
                 elif audit:
+                    audit.fatal_unmatched.append(key)
+                continue
+
+            if parse_failed:
+                # Visible text that produced no CIR. Never silently dropped.
+                if audit:
                     audit.fatal_unmatched.append(key)
                 continue
 

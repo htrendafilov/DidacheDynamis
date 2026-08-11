@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from bibleimport.books import CANON
 from bibleimport.formats.study import (
     load_commentary,
     load_dictionary,
@@ -251,19 +252,132 @@ def test_a_short_chapter_introduction_is_kept_too(tmp_path):
     assert len(rows) == 1 and rows[0].verse_start is None
 
 
-def test_a_book_milestone_carrying_prose_is_fatal(tmp_path):
-    """`Book 0:0` cannot become an entry, so prose there means the source has book
-    introductions this loader does not handle. Notice, do not guess."""
+@pytest.mark.parametrize(
+    "body",
+    [
+        "prose " * 40,
+        # Four words was under the old threshold and vanished into ignored_scaffolding while
+        # the accounting still balanced. A milestone may say the book's name and nothing else.
+        "A brief book introduction.",
+    ],
+)
+def test_a_book_milestone_saying_more_than_the_title_is_fatal(tmp_path, body):
     from bibleimport.formats.study import CommentaryKeyAudit, load_sword_commentary
 
     src = tmp_path / "bookintro.imp"
-    src.write_text("$$$John 0:0\n" + "prose " * 40 + "\n", encoding="utf-8")
+    src.write_text(f"$$$John 0:0\n{body}\n", encoding="utf-8")
     audit = CommentaryKeyAudit()
     load_sword_commentary([src], audit=audit)
     assert audit.fatal_unmatched == ["John 0:0"]
+    assert audit.ignored_scaffolding == 0
 
 
-def test_per_book_counts_are_pinned_to_the_source_checksum():
+@pytest.mark.parametrize(
+    "key,title",
+    [("Obadiah 0:0", "Obadiah"), ("II John 0:0", "Second John"), ("Jude 0:0", "Jude")],
+)
+def test_a_book_milestone_saying_only_the_title_is_scaffolding(tmp_path, key, title):
+    """The 5 real ones carry the book's own name, including spelled-out ordinals."""
+    from bibleimport.formats.study import CommentaryKeyAudit, load_sword_commentary
+
+    src = tmp_path / "title.imp"
+    src.write_text(f"$$${key}\n<title>{title}</title>\n", encoding="utf-8")
+    audit = CommentaryKeyAudit()
+    load_sword_commentary([src], audit=audit)
+    assert audit.ignored_scaffolding == 1
+    assert audit.fatal_unmatched == []
+
+
+def test_visible_text_that_produces_no_cir_is_fatal(tmp_path):
+    """Emptiness is judged on the raw text, not on the parse.
+
+    Judging after parsing meant a record the parser could not represent looked empty and was
+    filed as scaffolding — visible text lost while the accounting still balanced.
+    """
+    from bibleimport.formats.study import CommentaryKeyAudit, load_sword_commentary
+
+    src = tmp_path / "unparseable.imp"
+    src.write_text("$$$Nowhere 1:1\n<p>Real prose disappears here.</p>\n", encoding="utf-8")
+    audit = CommentaryKeyAudit()
+    load_sword_commentary([src], audit=audit)
+    assert audit.fatal_unmatched == ["Nowhere 1:1"]
+    assert audit.ignored_scaffolding == 0
+
+
+# The complete per-book map, generated from the checksummed source. Spot-checking three books
+# let the other 63 and the canonical order drift while the global totals still passed.
+# osis: (entries, introductions) — the complete map, in canonical order.
+EXPECTED_PER_BOOK = {
+    "Gen": (288, 49),
+    "Exod": (175, 39),
+    "Lev": (114, 26),
+    "Num": (142, 35),
+    "Deut": (134, 33),
+    "Josh": (97, 23),
+    "Judg": (92, 20),
+    "Ruth": (15, 3),
+    "1Sam": (132, 30),
+    "2Sam": (99, 23),
+    "1Kgs": (95, 21),
+    "2Kgs": (106, 24),
+    "1Chr": (94, 28),
+    "2Chr": (118, 35),
+    "Ezra": (35, 9),
+    "Neh": (44, 12),
+    "Esth": (30, 9),
+    "Job": (175, 41),
+    "Ps": (594, 149),
+    "Prov": (547, 11),
+    "Eccl": (53, 11),
+    "Song": (33, 7),
+    "Isa": (257, 65),
+    "Jer": (199, 51),
+    "Lam": (18, 4),
+    "Ezek": (180, 47),
+    "Dan": (51, 11),
+    "Hos": (46, 13),
+    "Joel": (12, 2),
+    "Amos": (29, 8),
+    "Obad": (4, 1),
+    "Jonah": (12, 3),
+    "Mic": (23, 6),
+    "Nah": (9, 2),
+    "Hab": (11, 2),
+    "Zeph": (12, 2),
+    "Hag": (6, 1),
+    "Zech": (47, 13),
+    "Mal": (12, 3),
+    "Matt": (158, 27),
+    "Mark": (84, 15),
+    "Luke": (132, 23),
+    "John": (116, 20),
+    "Acts": (136, 27),
+    "Rom": (63, 15),
+    "1Cor": (82, 15),
+    "2Cor": (50, 12),
+    "Gal": (23, 5),
+    "Eph": (23, 5),
+    "Phil": (22, 3),
+    "Col": (20, 3),
+    "1Thess": (22, 4),
+    "2Thess": (11, 2),
+    "1Tim": (22, 5),
+    "2Tim": (16, 3),
+    "Titus": (10, 2),
+    "Phlm": (2, 0),
+    "Heb": (45, 12),
+    "Jas": (17, 4),
+    "1Pet": (26, 4),
+    "2Pet": (15, 2),
+    "1John": (30, 4),
+    "2John": (6, 1),
+    "3John": (4, 0),
+    "Jude": (4, 0),
+    "Rev": (76, 21),
+}
+
+
+def test_per_book_counts_match_the_checksummed_source_exactly():
     """Per-book counts mean nothing without the source they were measured from."""
     import hashlib
 
@@ -272,25 +386,25 @@ def test_per_book_counts_are_pinned_to_the_source_checksum():
         pytest.skip(f"real corpus not present: {source}")
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     assert digest == "3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0", (
-        "MHC source changed; re-measure plan/mhc_translation/08_english_baseline.md before "
-        "updating this checksum"
+        "MHC source changed; re-measure plan/mhc_translation/08_english_baseline.md and "
+        "regenerate EXPECTED_PER_BOOK before updating this checksum"
     )
 
     rows, _ = _mhc_audit()
-    per_book: dict[str, int] = {}
+    entries: dict[str, int] = {}
     intros: dict[str, int] = {}
     for row in rows:
-        per_book[row.osis] = per_book.get(row.osis, 0) + 1
+        entries[row.osis] = entries.get(row.osis, 0) + 1
         if row.verse_start is None:
             intros[row.osis] = intros.get(row.osis, 0) + 1
-    # Spot-checks across the three groups that were broken or absent before M1.
-    assert per_book["Rev"] == 76, "Revelation was missing entirely before the alias fix"
-    assert per_book["1Sam"] == 132, "Roman-numeral books were missing entirely"
-    assert per_book["3John"] == 4
-    assert intros["Gen"] == 49, "chapter introductions were dropped entirely"
-    assert intros["Rev"] == 21
-    assert sum(per_book.values()) == 5355
-    assert sum(intros.values()) == 1106
+    actual = {osis: (n, intros.get(osis, 0)) for osis, n in entries.items()}
+    assert actual == EXPECTED_PER_BOOK, "per-book entry/introduction counts drifted"
+
+    # Canonical order, not just membership: the map is written in canon order and the books
+    # present must be exactly the canon's, in that order.
+    canon_order = [b.osis for b in CANON if b.osis in actual]
+    assert list(EXPECTED_PER_BOOK) == canon_order
+    assert len(canon_order) == 66
 
 
 def test_the_real_corpus_accounting_balances():
