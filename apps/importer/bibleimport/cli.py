@@ -518,7 +518,13 @@ def _cmd_build_all(args) -> int:
             src / SOURCE_FILES["mhc"],
             result="ok",
             ai_context_policy="allowed",
-            statistics={"commentary_entries": stats["commentary_entries"]},
+            # The key accounting travels into the audit record, not just the console: an
+            # importer that once dropped 18 books while reporting success needs its buckets
+            # checkable after the fact.
+            statistics={
+                "commentary_entries": stats["commentary_entries"],
+                **({"commentary_keys": stats["commentary_keys"]} if "commentary_keys" in stats else {}),
+            },
             source_version="CrossWire MHC 2.2",
         ),
         _easton_audit(src / SOURCE_FILES["easton"], stats, easton_diag),
