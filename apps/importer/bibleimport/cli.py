@@ -173,6 +173,19 @@ def _report_path(args) -> Path:
     return Path(args.report) if args.report else Path(f"{args.out}.diagnostics.json")
 
 
+def _mhc_statistics(stats: dict) -> dict:
+    """MHC audit statistics, including the three-way key accounting when it is available.
+
+    Shared by `build-all` and `add-study`: `add-study` published only the entry count, so the
+    documented second entry point could report a successful import with no key buckets at all —
+    the same silent-success M1 exists to remove, on the other path.
+    """
+    out = {"commentary_entries": stats["commentary_entries"]}
+    if "commentary_keys" in stats:
+        out["commentary_keys"] = stats["commentary_keys"]
+    return out
+
+
 def _audit_record(
     work_id: str,
     source: str | Path,
@@ -339,7 +352,7 @@ def _cmd_add_study(args) -> int:
                 source,
                 result="ok",
                 ai_context_policy="allowed",
-                statistics={"commentary_entries": stats["commentary_entries"]},
+                statistics=_mhc_statistics(stats),
                 source_version="CrossWire MHC 2.2",
             )
         )
@@ -521,10 +534,7 @@ def _cmd_build_all(args) -> int:
             # The key accounting travels into the audit record, not just the console: an
             # importer that once dropped 18 books while reporting success needs its buckets
             # checkable after the fact.
-            statistics={
-                "commentary_entries": stats["commentary_entries"],
-                **({"commentary_keys": stats["commentary_keys"]} if "commentary_keys" in stats else {}),
-            },
+            statistics=_mhc_statistics(stats),
             source_version="CrossWire MHC 2.2",
         ),
         _easton_audit(src / SOURCE_FILES["easton"], stats, easton_diag),

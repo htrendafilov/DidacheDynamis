@@ -1037,7 +1037,10 @@ def test_search_finds_a_chapter_introduction_without_inventing_a_verse(tmp_path,
     monkeypatch.setattr(settings, "CONTENT_DB_PATH", out)
     with TestClient(app) as c:
         # "regeneration" appears only in the introduction, never in a verse entry.
-        res = c.get("/api/v1/search", params={"q": "regeneration", "type": "commentary"})
+        # `types`, not `type`: FastAPI ignores an unknown query param, so `type` silently ran a
+        # multi-type "All" search and the assertions passed without exercising the single-type
+        # commentary path this test exists to cover.
+        res = c.get("/api/v1/search", params={"q": "regeneration", "types": "commentary"})
         assert res.status_code == 200, res.text
         hits = [h for g in res.json()["groups"] for h in g["hits"] if g["type"] == "commentary"]
         assert len(hits) == 1

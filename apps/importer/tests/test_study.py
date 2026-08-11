@@ -415,3 +415,52 @@ def test_the_real_corpus_accounting_balances():
     assert audit.ignored_scaffolding == 151
     assert len({r.osis for r in rows}) == 66, "all 66 canonical books must be present"
     assert sum(1 for r in rows if r.verse_start is None) == 1106
+
+
+def test_append_study_content_refuses_to_build_when_a_key_is_unclassifiable(tmp_path):
+    """The raise is the only thing that turns classification into a build failure.
+
+    The loader tests assert that unplaceable prose lands in `fatal_unmatched`, but a refactor
+    could keep the buckets and drop the raise without CI noticing — and a bucket nobody acts on
+    is exactly the silent success M1 removed.
+    """
+    out = tmp_path / "content.sqlite"
+    spec = BibleSpec(
+        work_id="web",
+        title="World English Bible",
+        abbrev="WEB",
+        language="en",
+        versification="kjv",
+        license="Public Domain",
+        attribution="WEB is public domain.",
+        ai_context_policy="allowed",
+    )
+    assert build_bible(FIXTURES / "mini_usfx.xml", spec, out, fmt="usfx").ok
+
+    bad = tmp_path / "bad.imp"
+    bad.write_text("$$$Nowhere 1:1\n" + "prose " * 40 + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="could not be placed"):
+        append_study_content(
+            out,
+            [bad],
+            FIXTURES / "mini_easton_raw.imp",
+            FIXTURES / "mini_xrefs.tsv",
+        )
+
+    # And nothing was written for the work whose import failed.
+    with sqlite3.connect(out) as conn:
+        rows = conn.execute("SELECT COUNT(*) FROM commentary_entries WHERE work_id='mhc'").fetchone()
+    assert rows[0] == 0, "a refused build must not leave commentary rows behind"
+
+
+def test_add_study_and_build_all_publish_the_same_mhc_statistics():
+    """Both documented entry points must carry the key accounting, not just build-all."""
+    from bibleimport.cli import _mhc_statistics
+
+    stats = {
+        "commentary_entries": 5355,
+        "commentary_keys": {"imported": 5355, "ignored_scaffolding": 151, "fatal_unmatched": 0},
+    }
+    assert _mhc_statistics(stats)["commentary_keys"]["imported"] == 5355
+    # Non-SWORD commentary has no buckets; the helper must not invent them.
+    assert "commentary_keys" not in _mhc_statistics({"commentary_entries": 3})
