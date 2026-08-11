@@ -284,11 +284,11 @@ def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
     return rows
 
 
-# Boundaries of the measured gap between scaffolding and prose in the Matthew Henry corpus:
-# 151 records hold fewer than 5 words, 5,355 hold more than 20, and none fall between. A record
-# inside the gap invalidates the threshold and is treated as fatal rather than classified.
-_SCAFFOLDING_MAX_WORDS = 5
-_PROSE_MIN_WORDS = 20
+# A `Book 0:0` record has no chapter for content to attach to, so it cannot become a commentary
+# entry whatever it holds. In this corpus all 66 are markup: 61 empty, 5 carrying only the book's
+# own title (max 2 words). A longer one would mean the source has book-level introductions this
+# loader does not handle, so it is fatal rather than dropped — the point is to notice, not to guess.
+_BOOK_MILESTONE_MAX_WORDS = 5
 
 
 @dataclass
@@ -328,26 +328,22 @@ def load_sword_commentary(
                 if text.lstrip().startswith("<")
                 else _plain_document(text)
             )
-            # Scaffolding is decided by measuring the record, never by its key's shape. That
-            # inference is what made the original loss invisible: `Book N:0` looks like a
-            # milestone and is usually a 1,000-word introduction.
+            # Whether a record can be scaffolding is decided by its COORDINATES, not its length.
+            # A word-count threshold applied to everything silently discards genuinely short
+            # commentary — "Jesus wept." at John 11:35 is two words — which is the exact failure
+            # this loader exists to eliminate, arriving through a different door.
             #
-            # "Empty" alone is too strict: 5 of the 66 `Book 0:0` milestones carry the book's
-            # own title ("Obadiah", "Second John"). The corpus separates the two classes
-            # cleanly — 151 records under 5 words, 5,355 over 20, and *nothing in between* — so
-            # the threshold sits inside a measured gap rather than on a guess. The gap is
-            # asserted below: if a source ever lands a record in it, the justification for the
-            # threshold is gone and the record is fatal instead of silently classified.
+            # So: a record at a real coordinate is content, however short. Only a record with no
+            # coordinate to attach to can be scaffolding, and then only when it is empty.
             words = len(plain.split())
-            is_scaffolding = words < _SCAFFOLDING_MAX_WORDS
-            in_gap = _SCAFFOLDING_MAX_WORDS <= words <= _PROSE_MIN_WORDS
+            has_content = bool(text) and bool(body["blocks"]) and bool(plain.strip())
 
             match = _IMP_COMMENTARY_KEY.match(key)
             osis = _osis_book(match.group("book")) if match else None
             if match is None or osis is None:
-                # Testament headings and anything else unplaceable: scaffolding only if provably
-                # empty, otherwise fatal.
-                if is_scaffolding and not in_gap:
+                # No coordinate at all (testament headings, unknown books). Ignorable only when
+                # provably empty; anything carrying text is fatal, because dropping it loses text.
+                if not has_content:
                     if audit:
                         audit.ignored_scaffolding += 1
                 elif audit:
@@ -356,14 +352,22 @@ def load_sword_commentary(
 
             chapter = int(match.group("chapter"))
             verse = int(match.group("verse"))
-            if is_scaffolding or chapter < 1:
-                # `Book 0:0` milestones, and any record measured as scaffolding. A `chapter < 1`
-                # record that is *not* scaffolding is fatal: it carries prose we cannot place.
-                if is_scaffolding and not in_gap:
+
+            if chapter < 1:
+                # A book milestone. There is no chapter to attach content to, so this can never
+                # become an entry; the only question is whether we are discarding something real.
+                if not has_content or words <= _BOOK_MILESTONE_MAX_WORDS:
                     if audit:
                         audit.ignored_scaffolding += 1
                 elif audit:
                     audit.fatal_unmatched.append(key)
+                continue
+
+            if not has_content:
+                # A real coordinate with nothing in it — an empty introduction slot, of which
+                # this corpus has 83. Nothing to import, and nothing lost by not importing it.
+                if audit:
+                    audit.ignored_scaffolding += 1
                 continue
 
             rows.append(

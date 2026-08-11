@@ -222,19 +222,75 @@ def test_an_empty_unplaceable_record_is_scaffolding_not_fatal(tmp_path):
     assert audit.fatal_unmatched == []
 
 
-def test_a_record_inside_the_measured_gap_is_fatal_not_classified(tmp_path):
-    """The <5-word threshold is justified by a gap with nothing in it.
+def test_short_commentary_at_a_real_coordinate_is_never_scaffolding(tmp_path):
+    """The regression that a global word threshold reintroduced.
 
-    A record of 10 words means the corpus no longer has that gap, so the threshold's
-    justification is void and the record must stop the build rather than be guessed at.
+    "Jesus wept." is two words of genuine commentary at John 11:35. Classifying by length
+    discarded it while the audit still balanced — the exact failure M1 exists to eliminate,
+    arriving through a different door. Coordinates decide what can be scaffolding; length never
+    does.
     """
     from bibleimport.formats.study import CommentaryKeyAudit, load_sword_commentary
 
-    src = tmp_path / "gap.imp"
-    src.write_text("$$$John 0:0\n" + "word " * 10 + "\n", encoding="utf-8")
+    src = tmp_path / "short.imp"
+    src.write_text("$$$John 11:35\nJesus wept.\n", encoding="utf-8")
+    audit = CommentaryKeyAudit()
+    rows = load_sword_commentary([src], audit=audit)
+    assert len(rows) == 1, "short commentary at a valid coordinate must import"
+    assert rows[0].verse_start == 35
+    assert audit.imported == 1
+    assert audit.ignored_scaffolding == 0
+
+
+def test_a_short_chapter_introduction_is_kept_too(tmp_path):
+    from bibleimport.formats.study import load_sword_commentary
+
+    src = tmp_path / "shortintro.imp"
+    src.write_text("$$$John 3:0\nA brief note.\n", encoding="utf-8")
+    rows = load_sword_commentary([src])
+    assert len(rows) == 1 and rows[0].verse_start is None
+
+
+def test_a_book_milestone_carrying_prose_is_fatal(tmp_path):
+    """`Book 0:0` cannot become an entry, so prose there means the source has book
+    introductions this loader does not handle. Notice, do not guess."""
+    from bibleimport.formats.study import CommentaryKeyAudit, load_sword_commentary
+
+    src = tmp_path / "bookintro.imp"
+    src.write_text("$$$John 0:0\n" + "prose " * 40 + "\n", encoding="utf-8")
     audit = CommentaryKeyAudit()
     load_sword_commentary([src], audit=audit)
-    assert audit.fatal_unmatched == ["John 0:0"], "a gap record must not be silently classified"
+    assert audit.fatal_unmatched == ["John 0:0"]
+
+
+def test_per_book_counts_are_pinned_to_the_source_checksum():
+    """Per-book counts mean nothing without the source they were measured from."""
+    import hashlib
+
+    source = Path("data/sources/MHC.imp.gz")
+    if not source.exists():
+        pytest.skip(f"real corpus not present: {source}")
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    assert digest == "3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0", (
+        "MHC source changed; re-measure plan/mhc_translation/08_english_baseline.md before "
+        "updating this checksum"
+    )
+
+    rows, _ = _mhc_audit()
+    per_book: dict[str, int] = {}
+    intros: dict[str, int] = {}
+    for row in rows:
+        per_book[row.osis] = per_book.get(row.osis, 0) + 1
+        if row.verse_start is None:
+            intros[row.osis] = intros.get(row.osis, 0) + 1
+    # Spot-checks across the three groups that were broken or absent before M1.
+    assert per_book["Rev"] == 76, "Revelation was missing entirely before the alias fix"
+    assert per_book["1Sam"] == 132, "Roman-numeral books were missing entirely"
+    assert per_book["3John"] == 4
+    assert intros["Gen"] == 49, "chapter introductions were dropped entirely"
+    assert intros["Rev"] == 21
+    assert sum(per_book.values()) == 5355
+    assert sum(intros.values()) == 1106
 
 
 def test_the_real_corpus_accounting_balances():
@@ -245,27 +301,3 @@ def test_the_real_corpus_accounting_balances():
     assert audit.ignored_scaffolding == 151
     assert len({r.osis for r in rows}) == 66, "all 66 canonical books must be present"
     assert sum(1 for r in rows if r.verse_start is None) == 1106
-
-
-def test_the_real_corpus_has_no_record_inside_the_measured_gap():
-    """Guards the threshold's justification against a future source update."""
-    from bibleimport.formats.study import (
-        _PROSE_MIN_WORDS,
-        _SCAFFOLDING_MAX_WORDS,
-        _imp_entries,
-        _plain_document,
-        _sword_osis_document,
-    )
-
-    source = Path("data/sources/MHC.imp.gz")
-    if not source.exists():
-        pytest.skip(f"real corpus not present: {source}")
-    offenders = []
-    for key, text in _imp_entries(source):
-        _, plain = (
-            _sword_osis_document(text) if text.lstrip().startswith("<") else _plain_document(text)
-        )
-        if _SCAFFOLDING_MAX_WORDS <= len(plain.split()) <= _PROSE_MIN_WORDS:
-            offenders.append(key)
-    assert offenders == [], f"records inside the scaffolding/prose gap: {offenders[:5]}"
-

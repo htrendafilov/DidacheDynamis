@@ -48,6 +48,20 @@ def _ngrams(words: list[str], n: int) -> set[tuple[str, ...]]:
     return {tuple(words[i : i + n]) for i in range(len(words) - n + 1)}
 
 
+def _matched_word_count(words: list[str], reference: set[tuple[str, ...]], n: int) -> int:
+    """Words inside at least one matching n-gram, counted once each.
+
+    Not `unique_ngrams + n - 1`: that assumes every match forms a single contiguous span, so it
+    undercounts a block quoting two separate verses and overcounts nothing — the earlier figure
+    was a lower bound presented as an estimate.
+    """
+    covered: set[int] = set()
+    for i in range(len(words) - n + 1):
+        if tuple(words[i : i + n]) in reference:
+            covered.update(range(i, i + n))
+    return len(covered)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="data/content.sqlite")
@@ -72,11 +86,13 @@ def main() -> int:
             sups = [r.get("t", "").strip() for r in runs if r.get("superscript")]
             words = _norm(block.get("text", ""))
             overlap = len(_ngrams(words, NGRAM) & bible) if len(words) >= NGRAM else 0
+            covered = _matched_word_count(words, bible, NGRAM) if overlap else 0
             rec = {
                 "ref": f"{row.osis} {row.chapter}:{row.verse_start}",
                 "kind": block["kind"],
                 "words": len(words),
                 "scripture_ngrams": overlap,
+                "scripture_words": covered,
                 "superscripts": sups[:5],
                 "text": block.get("text", "")[:300],
             }
@@ -101,10 +117,11 @@ def main() -> int:
     # commentary prose with a quoted clause inside it, not a quotation in disguise — the policy
     # D3 needs is about inline fragments, and their share of the words is the honest scale.
     para_words = sum(r["words"] for r in paragraph)
-    matched_words = sum(min(r["scripture_ngrams"] + NGRAM - 1, r["words"]) for r in fn)
-    print(f"  affected words: at most {matched_words:,} of {para_words:,} paragraph words "
-          f"= {100 * matched_words / para_words:.2f}% (upper bound; overlapping n-grams are")
-    print("   counted once per block but adjacent spans may double-count within a block)")
+    matched_words = sum(r["scripture_words"] for r in fn)
+    print(f"  affected words: {matched_words:,} of {para_words:,} paragraph words "
+          f"= {100 * matched_words / para_words:.2f}%")
+    print("   (a LOWER bound: this counts only verbatim 8-gram matches, so quotations shorter")
+    print("    than 8 words, and Henry's loose or modernised quotations, are not detected)")
 
     # False positives: quotation blocks with no Scripture overlap at all.
     fp = [r for r in quotation if r["scripture_ngrams"] == 0]
@@ -115,11 +132,24 @@ def main() -> int:
     print("   a genuine quotation and still miss an exact n-gram match)")
 
     if args.sample_out:
+        # Four strata, not two. Sampling only the *suspected* errors cannot measure the
+        # heuristic: with zero detected false positives it produced no quotation blocks at all,
+        # so nothing about the label itself was ever reviewable. Every stratum is drawn here,
+        # including the blocks the automated signals call correct — those are exactly where an
+        # undetected error would hide.
         rng = random.Random(SEED)
-        sample = (
-            rng.sample(fp, min(SAMPLE_PER_STRATUM, len(fp)))
-            + rng.sample(fn, min(SAMPLE_PER_STRATUM, len(fn)))
-        )
+        strata = {
+            "quotation_with_overlap": [r for r in quotation if r["scripture_ngrams"] > 0],
+            "quotation_no_overlap": fp,
+            "paragraph_with_overlap": fn,
+            "paragraph_no_overlap": [r for r in paragraph if r["scripture_ngrams"] == 0],
+        }
+        sample = []
+        for name, pool in strata.items():
+            picked = rng.sample(pool, min(SAMPLE_PER_STRATUM, len(pool)))
+            for rec in picked:
+                sample.append({**rec, "stratum": name, "verdict": ""})
+            print(f"  stratum {name:<26} pool={len(pool):>6}  sampled={len(picked)}")
         Path(args.sample_out).write_text(
             "\n".join(json.dumps(r, ensure_ascii=False) for r in sample) + "\n",
             encoding="utf-8",
