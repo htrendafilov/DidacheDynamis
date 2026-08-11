@@ -990,3 +990,90 @@ def test_dictionary_entry_passes_structured_runs_through(raw_client):
         "headword": "Beta",
     }
     assert internal["ref"] is None
+
+
+def test_search_finds_a_chapter_introduction_without_inventing_a_verse(tmp_path, monkeypatch):
+    """A commentary hit inside a chapter introduction must return 200, not 500.
+
+    Introductions import with a NULL verse_start. The provider used to call
+    int(r["verse_start"]) on every hit, so recovering them without this change would have
+    turned any query matching inside one into a TypeError — a 500 in English MHC, before a
+    single Bulgarian word existed.
+    """
+    import sqlite3
+
+    from bibleimport.pipeline import BibleSpec, append_study_content, build_bible
+    from starlette.testclient import TestClient
+
+    from app import settings
+    from app.main import app
+
+    out = tmp_path / "content.sqlite"
+    spec = BibleSpec(
+        work_id="web",
+        title="World English Bible",
+        abbrev="WEB",
+        language="en",
+        versification="kjv",
+        license="Public Domain",
+        attribution="WEB is public domain.",
+        ai_context_policy="allowed",
+    )
+    assert build_bible(IMPORTER_FIXTURES / "mini_usfx.xml", spec, out, fmt="usfx").ok
+    append_study_content(
+        out,
+        [IMPORTER_FIXTURES / "mini_commentary_raw.imp"],
+        IMPORTER_FIXTURES / "mini_easton_raw.imp",
+        IMPORTER_FIXTURES / "mini_xrefs.tsv",
+    )
+
+    with sqlite3.connect(out) as conn:
+        rows = conn.execute(
+            "SELECT osis_code, chapter, verse_start FROM commentary_entries "
+            "WHERE work_id='mhc' AND verse_start IS NULL"
+        ).fetchall()
+    assert rows == [("John", 3, None)], "the chapter introduction did not import"
+
+    monkeypatch.setattr(settings, "CONTENT_DB_PATH", out)
+    with TestClient(app) as c:
+        # "regeneration" appears only in the introduction, never in a verse entry.
+        res = c.get("/api/v1/search", params={"q": "regeneration", "type": "commentary"})
+        assert res.status_code == 200, res.text
+        hits = [h for g in res.json()["groups"] for h in g["hits"] if g["type"] == "commentary"]
+        assert len(hits) == 1
+        hit = hits[0]
+        assert hit["verse_start"] is None
+        assert hit["is_chapter_introduction"] is True
+        assert hit["title"] == "John 3"
+
+
+def test_roman_numeral_books_import(tmp_path):
+    """`I Samuel` and friends key 1,039 Matthew Henry records; unmatched, 18 books vanished."""
+    import sqlite3
+
+    from bibleimport.pipeline import BibleSpec, append_study_content, build_bible
+
+    out = tmp_path / "content.sqlite"
+    spec = BibleSpec(
+        work_id="web",
+        title="World English Bible",
+        abbrev="WEB",
+        language="en",
+        versification="kjv",
+        license="Public Domain",
+        attribution="WEB is public domain.",
+        ai_context_policy="allowed",
+    )
+    assert build_bible(IMPORTER_FIXTURES / "mini_usfx.xml", spec, out, fmt="usfx").ok
+    append_study_content(
+        out,
+        [IMPORTER_FIXTURES / "mini_commentary_raw.imp"],
+        IMPORTER_FIXTURES / "mini_easton_raw.imp",
+        IMPORTER_FIXTURES / "mini_xrefs.tsv",
+    )
+    with sqlite3.connect(out) as conn:
+        books = {r[0] for r in conn.execute(
+            "SELECT DISTINCT osis_code FROM commentary_entries WHERE work_id='mhc'"
+        )}
+    assert "1Sam" in books, "the Roman-numeral book form did not resolve"
+

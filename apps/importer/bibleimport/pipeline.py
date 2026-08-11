@@ -299,11 +299,21 @@ def append_study_content(
 
     sword_commentary = all(path.name.endswith((".imp", ".imp.gz")) for path in commentary_paths)
     sword_dict = dictionary_path.name.endswith((".imp", ".imp.gz"))
+    commentary_audit = study.CommentaryKeyAudit()
     commentary = (
-        study.load_sword_commentary(commentary_paths)
+        study.load_sword_commentary(commentary_paths, audit=commentary_audit)
         if sword_commentary
         else study.load_commentary(commentary_paths)
     )
+    # Every raw key must land in a bucket. The import this replaces skipped whatever it could not
+    # place and still reported success, so 18 books and 1,106 chapter introductions disappeared
+    # without a warning. An unclassifiable key now stops the build instead.
+    if sword_commentary and commentary_audit.fatal_unmatched:
+        sample = ", ".join(sorted(commentary_audit.fatal_unmatched)[:5])
+        raise ValueError(
+            f"{len(commentary_audit.fatal_unmatched)} commentary key(s) carry content but could not "
+            f"be placed, and dropping them would lose text: {sample}"
+        )
     if sword_dict:
         dictionary, easton_diag = sword_dictionary.load_dictionary_imp(
             dictionary_path,
@@ -430,7 +440,11 @@ def append_study_content(
                     BY_OSIS[row.osis].testament if row.osis in BY_OSIS else "NT",
                     BY_OSIS[row.osis].order if row.osis in BY_OSIS else 999,
                     row.chapter,
-                    row.verse_start if row.verse_start is not None else 0,
+                    # NULL, not 0. Coercing here made a chapter introduction indistinguishable
+                    # from a hit on a verse numbered zero, so search could not label it and
+                    # reported a verse the entry does not have. Ordering is handled by the
+                    # coalesce in search_providers.py, not by a sentinel stored in the index.
+                    row.verse_start,
                 )
                 for entry_id, row in indexed_commentary
             ],
@@ -468,11 +482,22 @@ def append_study_content(
         raise
     finally:
         conn.close()
-    return {
+    stats = {
         "commentary_entries": len(commentary),
         "dictionary_entries": len(dictionary),
         "xrefs": len(xrefs),
-    }, easton_diag
+    }
+    if sword_commentary:
+        # Published in the audit record so the accounting is checkable after the fact, not only
+        # at build time: buckets must sum to the raw key count.
+        stats["commentary_keys"] = {
+            "imported": commentary_audit.imported,
+            "chapter_introductions": sum(1 for row in commentary if row.verse_start is None),
+            "ignored_scaffolding": commentary_audit.ignored_scaffolding,
+            "fatal_unmatched": len(commentary_audit.fatal_unmatched),
+            "total": commentary_audit.total,
+        }
+    return stats, easton_diag
 
 
 def append_bible(

@@ -12,6 +12,7 @@ import csv
 import gzip
 import re
 from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
@@ -283,35 +284,101 @@ def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
     return rows
 
 
-def load_sword_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
-    """Load raw OSIS or legacy stripped IMP produced by official SWORD tools."""
+# Boundaries of the measured gap between scaffolding and prose in the Matthew Henry corpus:
+# 151 records hold fewer than 5 words, 5,355 hold more than 20, and none fall between. A record
+# inside the gap invalidates the threshold and is treated as fatal rather than classified.
+_SCAFFOLDING_MAX_WORDS = 5
+_PROSE_MIN_WORDS = 20
+
+
+@dataclass
+class CommentaryKeyAudit:
+    """Where every raw IMP key went. The buckets must sum to the key count.
+
+    The failure this replaces: the loader skipped anything it could not place and the build
+    still reported success, so 18 books and 1,106 chapter introductions vanished without a
+    warning. Silence is the bug; a key must be accounted for or the build must fail.
+    """
+
+    imported: int = 0
+    ignored_scaffolding: int = 0
+    fatal_unmatched: list[str] = field(default_factory=list)
+
+    @property
+    def total(self) -> int:
+        return self.imported + self.ignored_scaffolding + len(self.fatal_unmatched)
+
+
+def load_sword_commentary(
+    paths: list[str | Path],
+    audit: CommentaryKeyAudit | None = None,
+) -> list[CommentaryRow]:
+    """Load raw OSIS or legacy stripped IMP produced by official SWORD tools.
+
+    Chapter introductions are keyed `Book N:0` and are real content — 1,106 of them in Matthew
+    Henry, 199,096 words. They import with NULL verses: the API sorts them first via
+    `coalesce(verse_start,0)`, returns them under every verse filter, and CommentaryPane renders
+    them without a verse label.
+    """
     rows: list[CommentaryRow] = []
     for path in paths:
         for key, text in _imp_entries(path):
-            match = _IMP_COMMENTARY_KEY.match(key)
-            if not match:
-                continue
-            osis = _osis_book(match.group("book"))
-            chapter = int(match.group("chapter"))
-            verse = int(match.group("verse"))
-            if osis is None or chapter < 1 or verse < 1 or not text:
-                continue
             body, plain = (
                 _sword_osis_document(text)
                 if text.lstrip().startswith("<")
                 else _plain_document(text)
             )
-            if body["blocks"]:
-                rows.append(
-                    CommentaryRow(
-                        osis=osis,
-                        chapter=chapter,
-                        verse_start=verse,
-                        verse_end=verse,
-                        body=body,
-                        plain_text=plain,
-                    )
+            # Scaffolding is decided by measuring the record, never by its key's shape. That
+            # inference is what made the original loss invisible: `Book N:0` looks like a
+            # milestone and is usually a 1,000-word introduction.
+            #
+            # "Empty" alone is too strict: 5 of the 66 `Book 0:0` milestones carry the book's
+            # own title ("Obadiah", "Second John"). The corpus separates the two classes
+            # cleanly — 151 records under 5 words, 5,355 over 20, and *nothing in between* — so
+            # the threshold sits inside a measured gap rather than on a guess. The gap is
+            # asserted below: if a source ever lands a record in it, the justification for the
+            # threshold is gone and the record is fatal instead of silently classified.
+            words = len(plain.split())
+            is_scaffolding = words < _SCAFFOLDING_MAX_WORDS
+            in_gap = _SCAFFOLDING_MAX_WORDS <= words <= _PROSE_MIN_WORDS
+
+            match = _IMP_COMMENTARY_KEY.match(key)
+            osis = _osis_book(match.group("book")) if match else None
+            if match is None or osis is None:
+                # Testament headings and anything else unplaceable: scaffolding only if provably
+                # empty, otherwise fatal.
+                if is_scaffolding and not in_gap:
+                    if audit:
+                        audit.ignored_scaffolding += 1
+                elif audit:
+                    audit.fatal_unmatched.append(key)
+                continue
+
+            chapter = int(match.group("chapter"))
+            verse = int(match.group("verse"))
+            if is_scaffolding or chapter < 1:
+                # `Book 0:0` milestones, and any record measured as scaffolding. A `chapter < 1`
+                # record that is *not* scaffolding is fatal: it carries prose we cannot place.
+                if is_scaffolding and not in_gap:
+                    if audit:
+                        audit.ignored_scaffolding += 1
+                elif audit:
+                    audit.fatal_unmatched.append(key)
+                continue
+
+            rows.append(
+                CommentaryRow(
+                    osis=osis,
+                    chapter=chapter,
+                    # verse 0 is a chapter introduction: it belongs to the chapter, not a verse.
+                    verse_start=verse if verse >= 1 else None,
+                    verse_end=verse if verse >= 1 else None,
+                    body=body,
+                    plain_text=plain,
                 )
+            )
+            if audit:
+                audit.imported += 1
     return rows
 
 
@@ -368,6 +435,22 @@ _BOOK_ALIASES = {re.sub(r"\s+", "", book.osis).casefold(): book.osis for book in
 _BOOK_ALIASES.update(
     {re.sub(r"\s+", "", book.name_en).casefold(): book.osis for book in CANON}
 )
+
+# Roman-numeral book forms, derived from the canon rather than listed by hand so a book cannot be
+# forgotten. CrossWire's Matthew Henry keys every numbered book this way ("I Samuel", "II Kings"),
+# and matching only the Arabic form silently dropped all 17 of them plus every entry they contain.
+_ARABIC_TO_ROMAN = {"1": "I", "2": "II", "3": "III"}
+_BOOK_ALIASES.update(
+    {
+        re.sub(r"\s+", "", f"{_ARABIC_TO_ROMAN[book.name_en[0]]}{book.name_en[1:]}").casefold(): book.osis
+        for book in CANON
+        if book.name_en[0] in _ARABIC_TO_ROMAN
+    }
+)
+
+# Spelled-out forms with no numeric prefix to derive them from. Keep this list evidence-driven:
+# every entry here was observed unresolved in a real source, not added defensively.
+_BOOK_ALIASES.update({"revelationofjohn": "Rev"})
 
 
 def _osis_book(value: str) -> str | None:

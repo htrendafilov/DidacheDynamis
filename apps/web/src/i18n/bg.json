@@ -346,5 +346,6 @@
   "chat.model.chipPlaceholder": "Изберете модел",
   "chat.model.open": "Настройки на модела и доставчика",
   "chat.model.searchLabel": "Търсене на модели",
-  "chat.model.listLabel": "Налични модели"
+  "chat.model.listLabel": "Налични модели",
+  "search.chapterIntroduction": "{{ref}} — увод към главата"
 }

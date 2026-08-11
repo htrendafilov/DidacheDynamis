@@ -47,7 +47,21 @@ const commentary: SearchHit = {
   osis: "John",
   chapter: 3,
   verse_start: 16,
+  is_chapter_introduction: false,
   entry_id: 5,
+};
+// A chapter introduction carries no verse. Before M1 the API typed verse_start as int and
+// crashed on these; the UI must render the hit without inventing a verse number.
+const commentaryIntro: SearchHit = {
+  kind: "commentary",
+  work_id: "mhc",
+  title: "John 3",
+  snippet: "The <b>love</b> of God is the subject of this chapter.",
+  osis: "John",
+  chapter: 3,
+  verse_start: null,
+  is_chapter_introduction: true,
+  entry_id: 6,
 };
 const dict: SearchHit = {
   kind: "dictionary",
@@ -679,5 +693,27 @@ describe("SearchPanel", () => {
     });
     await runSearch();
     await waitFor(() => expect(screen.getByText("No results.")).toBeInTheDocument());
+  });
+
+  // M1 recovered 1,106 chapter introductions, which have no verse. A search hit inside one used
+  // to be impossible to render — the API typed verse_start as int and 500'd before the browser
+  // saw anything — so this asserts both that it renders and that it is named for what it is
+  // rather than showing a bare "John 3" that reads like a truncated verse reference.
+  it("labels a commentary hit inside a chapter introduction, with no verse number", async () => {
+    search.mockResolvedValue({
+      query: "love",
+      sort: "relevance",
+      total: 1,
+      groups: [
+        group("bible", []),
+        group("commentary", [commentaryIntro]),
+        group("dictionary", []),
+        group("book", []),
+      ],
+    });
+    await runSearch();
+    const hit = await screen.findByText(/chapter introduction/i);
+    expect(hit).toHaveTextContent("John 3");
+    expect(hit.textContent).not.toMatch(/John 3:/);
   });
 });

@@ -98,7 +98,11 @@ class CommentaryHit(BaseModel):
     snippet: str
     osis: str
     chapter: int
-    verse_start: int
+    # NULL for a chapter introduction, which belongs to the chapter rather than to any verse.
+    # Typed int made `int(r["verse_start"])` in the provider raise TypeError the moment
+    # introductions were imported — a 500 on any query whose match fell inside one.
+    verse_start: int | None = None
+    is_chapter_introduction: bool = False
     entry_id: int
 
 
