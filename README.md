@@ -53,9 +53,11 @@ Full detail, including what is *not* encrypted, is in
 
 ## Contributing and security
 
-- Contributions — see [`docs/developer/contributing.md`](docs/developer/contributing.md). Code is
-  MIT; contributed **content** (translations, text corrections) is CC0, matching the works already
-  here. Text contributions need their provenance.
+- Contributions — see [`CONTRIBUTING.md`](CONTRIBUTING.md). Code is MIT; contributed **content**
+  (translations, text corrections) is CC0. Text contributions need their provenance. The works
+  already here carry their own terms — mostly public domain, TSK under CC BY 4.0 — recorded in
+  [`NOTICE`](NOTICE); CC0 is what this project asks of *new* contributions, not a description of
+  what is already shipped.
 - Conduct — [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 - Security issues — please do **not** open a public issue; follow [`SECURITY.md`](SECURITY.md).
 

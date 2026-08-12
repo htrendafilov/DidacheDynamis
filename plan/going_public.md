@@ -238,7 +238,7 @@ set and fetched only while building (option "remove" in item 3 below).
    See the [official CrossWire module record](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV)
    and [CrossWire's KJV licensing notes](https://wiki.crosswire.org/CrossWire_KJV).
 4. Preserve the WEB trademark wording and TSK CC BY 4.0 attribution in both repository and UI.
-5. ~~Update `docs/developer/contributing.md` with the selected inbound contribution terms.~~
+5. ~~Update the contributing guide with the selected inbound contribution terms.~~
    **Done** (decision 9): MIT for code, CC0 for content, plus a provenance requirement for text. ~~Add root
    `SECURITY.md`~~ **done**: private vulnerability reporting via the GitHub Security tab rather than
    a published email address, so no personal contact detail is committed. It states the supported
@@ -271,7 +271,7 @@ set and fetched only while building (option "remove" in item 3 below).
   privacy summary, and accurate production/chat feature status.~~ **Done.** Licence links and
   `NOTICE`/`LICENSES` pointers landed with the attribution record; this pass adds CI and MIT badges,
   a "Privacy in short" section (local-first, plus the two opt-in third-party paths), a
-  "Contributing and security" section linking `docs/developer/contributing.md` and `SECURITY.md`,
+  "Contributing and security" section linking `CONTRIBUTING.md` and `SECURITY.md`,
   and the two `docs/extra/` guides to the documentation list. The chat status line was already
   accurate at the time — it recorded M9.1–M9.3d as shipped and the feature as gated off in
   production. Updated 2026-08-07 when the assistant was enabled as an alpha; the §4.2 privacy
@@ -311,8 +311,10 @@ set and fetched only while building (option "remove" in item 3 below).
   cannot recur silently.
 - ~~Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be
   enabled.~~ **Done** (decision 9): `.github/ISSUE_TEMPLATE/` carries a bug-report form, a
-  content-correction form, and a `config.yml` routing security reports to private disclosure.
-  Discussions stay off.
+  content-correction form that collects provenance and the CC0 grant `CONTRIBUTING.md` requires,
+  and a `config.yml` routing security reports to private disclosure with a repository-relative
+  URL so it survives the rename. `.github/PULL_REQUEST_TEMPLATE.md` carries the test plan and a
+  content-change checklist. Discussions stay off.
 - ~~Sweep links and references after deletions and the private-runbook move.~~ **Done 2026-08-05 —
   nothing to fix.** All 169 relative markdown links across 63 files resolve, and all 89 repo-path
   references inside source files point at something that exists. Every surviving mention of a
@@ -555,15 +557,11 @@ This section applies only to a release path that publishes rewritten history.
      assumed: if any of it is ever committed, an unchanged command would carry it over silently;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
-   - rewrite author **and committer** addresses in the same pass (decision 8), using a mailmap
-     stored outside the repository:
-
-     ```
-     Hristo Trendafilov <hristo@trendafilovi.eu> <hristo@trendafilovi.eu>
-     Hristo Trendafilov <hristo@trendafilovi.eu> <hristo@trendafilovi.eu>
-     ```
-
-     `git-filter-repo --mailmap <file>` applies to both sides. Leave `noreply@github.com` alone —
+   - rewrite author **and committer** addresses in the same pass (decision 8) with
+     `git-filter-repo --mailmap <file>`, which applies to both sides. The mailmap maps the two old
+     addresses to `hristo@trendafilovi.eu`, one `Name <new> <old>` line each. **The literal old
+     addresses belong in the external replacement map, not in this file** — §1.2 requires that, and
+     writing them here would publish in the plan the values the rewrite exists to remove. Leave `noreply@github.com` alone —
      it is GitHub's merge identity, and rewriting it would attribute merges to a human who did not
      make them. The account verification this depends on was completed 2026-08-12 (decision 8);
      confirm it still holds before running, since an unattributed history has to be rewritten
@@ -769,8 +767,6 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    destination; only the in-app copy-to-clipboard fallback remains, and it belongs to that
    project's M4.
 
-**Still pending:** none — every decision is recorded above.
-
 8. ~~Author/committer email rewrite~~ → **decided 2026-08-12: rewrite to
    `hristo@trendafilovi.eu`**, an alias the owner controls and can rotate. It already appears in 27
    commits, and §1.2 requires the employer address to go regardless.
@@ -780,10 +776,13 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
    | Identity | Author | Committer |
    |---|---|---|
-   | `hristo@trendafilovi.eu` | 180 | 165 |
-   | `hristo@trendafilovi.eu` | 27 | 27 |
-   | `hristo@trendafilovi.eu` | 27 | — |
+   | employer domain — see the external replacement map | 180 | 165 |
+   | `hristo@trendafilovi.eu` — the rewrite target | 27 | 27 |
+   | personal webmail — external map | 27 | — |
    | `noreply@github.com` (GitHub merge commits) | — | 42 |
+
+   The two addresses being replaced are deliberately not written out. Reproduce the counts with
+   `git log --all --format='%ae' | sort | uniq -c`.
 
    The §5 mailmap maps the first and third to `hristo@trendafilovi.eu` on **both** the author and
    committer sides. `noreply@github.com` is left alone: it is GitHub's own merge identity, not a
@@ -802,6 +801,9 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    attributes correctly and never exposes a real address. Rejected because the owner prefers an
    alias they control; the trade is that a real address in public history is scrapable, which an
    alias makes recoverable rather than permanent.
+
+**Still pending:** none — every decision above is recorded and settled.
+
 The §3.3 fetch-at-build implementation is complete, and decision 11 settles the artifact question.
 One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former KJV
 path or its LFS object. Everything else can be completed as a reviewable cleanup commit before the

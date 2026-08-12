@@ -38,3 +38,20 @@ body:
     attributes:
       label: Build id
       description: From the page footer, if visible. Tells us which content version you are seeing.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: If you are proposing replacement text
+      description: >
+        Skip this if you are only reporting a problem. It applies when you supply wording to use,
+        because that wording becomes part of a distributed text and needs terms attached — see
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+      options:
+        - label: >
+            Any wording I have supplied is my own, and I dedicate it to the public domain under
+            CC0 1.0 — the terms this project uses for contributed content.
+          required: false
+        - label: >
+            Or: the wording comes from a source I have named above, and I believe it may be
+            redistributed. I have said where it comes from.
+          required: false

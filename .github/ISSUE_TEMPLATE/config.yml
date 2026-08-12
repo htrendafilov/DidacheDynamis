@@ -1,5 +1,7 @@
 blank_issues_enabled: true
 contact_links:
+  # Repository-relative, so it keeps working after the rename to DidacheDynamis. An absolute URL
+  # here would point at the private archive once the flip happens (going_public.md §0).
   - name: Security vulnerability
-    url: https://github.com/htrendafilov/bible_app_bg/security/advisories/new
+    url: ../../security/advisories/new
     about: Report privately. Never open a public issue for a security problem.
