@@ -89,7 +89,9 @@ export interface CommentaryHit {
   snippet: string;
   osis: string;
   chapter: number;
-  verse_start: number;
+  // null for a chapter introduction, which belongs to the chapter rather than to a verse.
+  verse_start: number | null;
+  is_chapter_introduction: boolean;
   entry_id: number;
 }
 

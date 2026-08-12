@@ -163,9 +163,12 @@ class _BibleProvider(_Provider):
 class _CommentaryProvider(_Provider):
     type = "commentary"
     table = "commentary_fts"
+    # coalesce, not a bare CAST: a chapter introduction has a NULL verse and must sort first
+    # within its chapter. SQLite happens to place NULLs first in ASC anyway, but relying on that
+    # leaves the ordering silently dependent on it — this matches routers/commentary.py.
     canonical = (
         "CAST(book_order AS INTEGER), CAST(chapter AS INTEGER), "
-        "CAST(verse_start AS INTEGER), CAST(entry_id AS INTEGER)"
+        "coalesce(CAST(verse_start AS INTEGER), 0), CAST(entry_id AS INTEGER)"
     )
     _bm25 = "bm25(commentary_fts)"
 
@@ -185,7 +188,11 @@ class _CommentaryProvider(_Provider):
         )
         hits = []
         for r in self._rows(conn, match, work_ids, testament, books, select, sort, limit, offset):
-            chapter, verse_start = int(r["chapter"]), int(r["verse_start"])
+            chapter = int(r["chapter"])
+            raw_verse = r["verse_start"]
+            # A chapter introduction stores NULL here. int(None) is a TypeError, so this must
+            # stay a None check rather than a truthiness one.
+            verse_start = None if raw_verse is None else int(raw_verse)
             ref = f"{r['osis']} {chapter}" + (f":{verse_start}" if verse_start else "")
             hits.append(
                 CommentaryHit(
@@ -195,6 +202,7 @@ class _CommentaryProvider(_Provider):
                     osis=r["osis"],
                     chapter=chapter,
                     verse_start=verse_start,
+                    is_chapter_introduction=verse_start is None,
                     entry_id=int(r["entry_id"]),
                 )
             )

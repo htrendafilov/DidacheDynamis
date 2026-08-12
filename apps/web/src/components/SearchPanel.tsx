@@ -593,9 +593,18 @@ export function SearchPanel({
     if (hit.kind === "bible")
       return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}:${hit.verse}`;
     if (hit.kind === "commentary")
-      return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}${
-        hit.verse_start ? `:${hit.verse_start}` : ""
-      }`;
+      // A chapter introduction has no verse, so the reference stops at the chapter. Say what it
+      // is rather than leaving a bare "John 3" that looks like a truncated verse reference.
+      // Either signal is enough. Keying only on the flag meant a hit with a null verse and a
+      // missing flag fell through to a bare "John 3" — the ambiguity this label exists to remove
+      // — so the UI cannot drift from the locator even if the two ever disagree.
+      return hit.is_chapter_introduction || hit.verse_start == null
+        ? t("search.chapterIntroduction", {
+            ref: `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}`,
+          })
+        : `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}${
+            hit.verse_start ? `:${hit.verse_start}` : ""
+          }`;
     if (hit.kind === "strongs_occurrence")
       return `${bookName(hit.osis, i18n.language, hit.osis)} ${hit.chapter}:${hit.verse}`;
     return hit.title;

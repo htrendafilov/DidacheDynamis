@@ -12,6 +12,8 @@ import csv
 import gzip
 import re
 from collections import Counter
+from dataclasses import dataclass, field
+from html import unescape
 from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
@@ -283,35 +285,129 @@ def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
     return rows
 
 
-def load_sword_commentary(paths: list[str | Path]) -> list[CommentaryRow]:
-    """Load raw OSIS or legacy stripped IMP produced by official SWORD tools."""
+# Spelled-out ordinals used in book titles ("Second John" for 2 John). Needed to recognise a
+# milestone whose entire content is the book's own name.
+_ORDINAL_WORDS = {"first": "1", "second": "2", "third": "3"}
+
+
+def _is_book_title(text: str, osis: str) -> bool:
+    """True when `text` is nothing but this book's own name.
+
+    A `Book 0:0` milestone may be ignored only when it says nothing beyond the title. Allowing
+    any short record through instead let "A brief book introduction." — four words of real
+    content — be discarded while the audit still balanced.
+    """
+    words = re.sub(r"[^a-z0-9\s]", " ", text.lower()).split()
+    words = [_ORDINAL_WORDS.get(w, w) for w in words]
+    return bool(words) and _osis_book("".join(words)) == osis
+
+
+@dataclass
+class CommentaryKeyAudit:
+    """Where every raw IMP key went. The buckets must sum to the key count.
+
+    The failure this replaces: the loader skipped anything it could not place and the build
+    still reported success, so 18 books and 1,106 chapter introductions vanished without a
+    warning. Silence is the bug; a key must be accounted for or the build must fail.
+    """
+
+    imported: int = 0
+    ignored_scaffolding: int = 0
+    fatal_unmatched: list[str] = field(default_factory=list)
+
+    @property
+    def total(self) -> int:
+        return self.imported + self.ignored_scaffolding + len(self.fatal_unmatched)
+
+
+def load_sword_commentary(
+    paths: list[str | Path],
+    audit: CommentaryKeyAudit | None = None,
+) -> list[CommentaryRow]:
+    """Load raw OSIS or legacy stripped IMP produced by official SWORD tools.
+
+    Chapter introductions are keyed `Book N:0` and are real content — 1,106 of them in Matthew
+    Henry, 199,096 words. They import with NULL verses: the API sorts them first via
+    `coalesce(verse_start,0)`, returns them under every verse filter, and CommentaryPane renders
+    them without a verse label.
+    """
     rows: list[CommentaryRow] = []
     for path in paths:
         for key, text in _imp_entries(path):
-            match = _IMP_COMMENTARY_KEY.match(key)
-            if not match:
-                continue
-            osis = _osis_book(match.group("book"))
-            chapter = int(match.group("chapter"))
-            verse = int(match.group("verse"))
-            if osis is None or chapter < 1 or verse < 1 or not text:
-                continue
             body, plain = (
                 _sword_osis_document(text)
                 if text.lstrip().startswith("<")
                 else _plain_document(text)
             )
-            if body["blocks"]:
-                rows.append(
-                    CommentaryRow(
-                        osis=osis,
-                        chapter=chapter,
-                        verse_start=verse,
-                        verse_end=verse,
-                        body=body,
-                        plain_text=plain,
-                    )
+            # Whether a record can be scaffolding is decided by its COORDINATES, not its length.
+            # A word-count threshold applied to everything silently discards genuinely short
+            # commentary — "Jesus wept." at John 11:35 is two words — which is the exact failure
+            # this loader exists to eliminate, arriving through a different door.
+            #
+            # So: a record at a real coordinate is content, however short. Only a record with no
+            # coordinate to attach to can be scaffolding, and then only when it is empty.
+            # Emptiness is judged on the RAW text with markup stripped, not on the CIR parse.
+            # Judging it after parsing meant a record the parser could not represent —
+            # "<p>Real prose disappears here.</p>" — looked empty and was filed as scaffolding,
+            # losing visible text while the accounting still balanced. If there is visible text
+            # but no CIR came out of it, that is a parse failure and must stop the build.
+            visible = _visible_text(text)
+            has_content = bool(visible)
+            parse_failed = has_content and not body["blocks"]
+
+            match = _IMP_COMMENTARY_KEY.match(key)
+            osis = _osis_book(match.group("book")) if match else None
+            if match is None or osis is None:
+                # No coordinate at all (testament headings, unknown books). Ignorable only when
+                # provably empty; anything carrying text is fatal, because dropping it loses text.
+                if not has_content:
+                    if audit:
+                        audit.ignored_scaffolding += 1
+                elif audit:
+                    audit.fatal_unmatched.append(key)
+                continue
+
+            chapter = int(match.group("chapter"))
+            verse = int(match.group("verse"))
+
+            if chapter < 1:
+                # A book milestone: no chapter for content to attach to, so it can never become an
+                # entry. Ignorable only when it is empty or says nothing but the book's own name.
+                # Anything else means the source carries book-level introductions this loader does
+                # not handle, and that must be noticed rather than guessed at.
+                if not has_content or _is_book_title(visible, osis):
+                    if audit:
+                        audit.ignored_scaffolding += 1
+                elif audit:
+                    audit.fatal_unmatched.append(key)
+                continue
+
+            if parse_failed:
+                # Visible text that produced no CIR. Never silently dropped.
+                if audit:
+                    audit.fatal_unmatched.append(key)
+                continue
+
+            if not has_content:
+                # A real coordinate with nothing in it — an empty introduction slot, of which
+                # this corpus has 83. Nothing to import, and nothing lost by not importing it.
+                if audit:
+                    audit.ignored_scaffolding += 1
+                continue
+
+            rows.append(
+                CommentaryRow(
+                    osis=osis,
+                    chapter=chapter,
+                    # verse 0 is a chapter introduction: it belongs to the chapter, not a verse.
+                    verse_start=verse if verse >= 1 else None,
+                    verse_end=verse if verse >= 1 else None,
+                    body=body,
+                    plain_text=plain,
                 )
+            )
+            if audit:
+                audit.imported += 1
     return rows
 
 
@@ -368,6 +464,36 @@ _BOOK_ALIASES = {re.sub(r"\s+", "", book.osis).casefold(): book.osis for book in
 _BOOK_ALIASES.update(
     {re.sub(r"\s+", "", book.name_en).casefold(): book.osis for book in CANON}
 )
+
+# Roman-numeral book forms, derived from the canon rather than listed by hand so a book cannot be
+# forgotten. CrossWire's Matthew Henry keys every numbered book this way ("I Samuel", "II Kings"),
+# and matching only the Arabic form silently dropped all 17 of them plus every entry they contain.
+_ARABIC_TO_ROMAN = {"1": "I", "2": "II", "3": "III"}
+_BOOK_ALIASES.update(
+    {
+        re.sub(r"\s+", "", f"{_ARABIC_TO_ROMAN[book.name_en[0]]}{book.name_en[1:]}").casefold(): book.osis
+        for book in CANON
+        if book.name_en[0] in _ARABIC_TO_ROMAN
+    }
+)
+
+# Spelled-out forms with no numeric prefix to derive them from. Keep this list evidence-driven:
+# every entry here was observed unresolved in a real source, not added defensively.
+_BOOK_ALIASES.update({"revelationofjohn": "Rev"})
+
+
+def _visible_text(raw: str) -> str:
+    """Human-visible text of a raw IMP record, with markup removed.
+
+    Used only to decide whether a record is empty, so it must not mistake content for markup.
+    A bare `<[^>]+>` strip does: `<![CDATA[...]]>` has no `>` until its very end, so the whole
+    block — prose included — matched as a single tag and the record looked empty. It was then
+    filed as scaffolding, losing text while the key accounting still balanced.
+    """
+    text = re.sub(r"<!--.*?-->", " ", raw or "", flags=re.DOTALL)  # comments are not content
+    text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL)  # CDATA is
+    text = re.sub(r"<[^>]*>", " ", text)
+    return unescape(text).strip()
 
 
 def _osis_book(value: str) -> str | None:

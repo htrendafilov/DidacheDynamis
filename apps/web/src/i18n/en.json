@@ -346,5 +346,6 @@
   "chat.model.chipPlaceholder": "Select a model",
   "chat.model.open": "Model and provider settings",
   "chat.model.searchLabel": "Search models",
-  "chat.model.listLabel": "Available models"
+  "chat.model.listLabel": "Available models",
+  "search.chapterIntroduction": "{{ref}} — chapter introduction"
 }

@@ -515,4 +515,46 @@ describe("buildContext book chip", () => {
     expect(sources[0].excerpt).toBe("The Holy Scripture is sufficient.");
     expect(sources[0].canonicalTarget).toEqual({ kind: "book", workId: "baptist1689", sectionId: "chapter-1.1" });
   });
+
+  // M1 recovered 1,106 chapter introductions, which carry NULL verses. selectCommentaryEntries
+  // treats NULL as ±Infinity, so an introduction now enters context for *every* verse of its
+  // chapter — including a 1,000-word one. That is intended (an introduction is about the whole
+  // chapter), but it must not blow the per-source cap and silently drop the commentary entirely.
+  it("includes a chapter introduction for any verse, and still respects the per-source cap", async () => {
+    const introduction = "Introductory exposition. ".repeat(400); // ~1,000 words
+    vi.mocked(api.commentary).mockResolvedValue({
+      work_id: "mhc",
+      osis: "John",
+      chapter: 3,
+      entries: [
+        { verse_start: null, verse_end: null, body: { blocks: [{ kind: "paragraph", text: introduction }] } },
+        { verse_start: 16, verse_end: 16, body: { blocks: [{ kind: "paragraph", text: "On verse sixteen." }] } },
+      ],
+    } as never);
+
+    const chips: ContextChip[] = [
+      { kind: "commentary", workId: "mhc", osis: "John", chapter: 3, verse: 16 },
+    ];
+    const works = [work("mhc", { type: "commentary" })];
+
+    // Cap high enough for both: the introduction must actually be selected for verse 16.
+    const roomy = await buildContext(chips, works, true, new AbortController().signal, {
+      perSourceCap: 100_000,
+      totalBudget: 100_000,
+    });
+    expect(roomy.sources).toHaveLength(1);
+    expect(roomy.sources[0].excerpt).toContain("Introductory exposition");
+    expect(roomy.sources[0].excerpt).toContain("On verse sixteen");
+
+    // Cap below the introduction's size: the source is dropped whole and reported, never
+    // truncated and never silently missing.
+    const tight = await buildContext(chips, works, true, new AbortController().signal, {
+      perSourceCap: 200,
+      totalBudget: 100_000,
+    });
+    expect(tight.sources).toHaveLength(0);
+    expect(tight.dropped).toHaveLength(1);
+    expect(tight.dropped[0].reason).toBe("over-cap");
+    expect(tight.dropped[0].estimatedTokens).toBeGreaterThan(200);
+  });
 });
