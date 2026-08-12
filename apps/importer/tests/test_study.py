@@ -400,11 +400,15 @@ def test_per_book_counts_match_the_checksummed_source_exactly():
     actual = {osis: (n, intros.get(osis, 0)) for osis, n in entries.items()}
     assert actual == EXPECTED_PER_BOOK, "per-book entry/introduction counts drifted"
 
-    # Canonical order, not just membership: the map is written in canon order and the books
-    # present must be exactly the canon's, in that order.
-    canon_order = [b.osis for b in CANON if b.osis in actual]
-    assert list(EXPECTED_PER_BOOK) == canon_order
-    assert len(canon_order) == 66
+    assert len(actual) == 66
+
+    # Order is asserted against the ROWS, not against CANON. Comparing the expected map to a
+    # canon-derived list compared two static lists to each other: `actual` only ever supplied
+    # membership, so reordering the imported books would still have passed.
+    first_appearance = list(dict.fromkeys(row.osis for row in rows))
+    assert first_appearance == [b.osis for b in CANON], (
+        "imported books are not in canonical order"
+    )
 
 
 def test_the_real_corpus_accounting_balances():
@@ -464,3 +468,36 @@ def test_add_study_and_build_all_publish_the_same_mhc_statistics():
     assert _mhc_statistics(stats)["commentary_keys"]["imported"] == 5355
     # Non-SWORD commentary has no buckets; the helper must not invent them.
     assert "commentary_keys" not in _mhc_statistics({"commentary_entries": 3})
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("<![CDATA[Real prose here.]]>", "Real prose here."),
+        ("<!-- a comment -->", ""),
+        ("<title>Obadiah</title>", "Obadiah"),
+        ("&amp; entity", "& entity"),
+        ("<p>tag <![CDATA[and cdata]]></p>", "tag and cdata"),
+    ],
+)
+def test_visible_text_does_not_mistake_cdata_for_markup(raw, expected):
+    """`<![CDATA[...]]>` has no `>` until its end, so a bare `<[^>]+>` strip ate the whole
+    block — prose included — and the record looked empty."""
+    from bibleimport.formats.study import _visible_text
+
+    assert _visible_text(raw) == expected
+
+
+def test_cdata_content_is_never_silently_dropped(tmp_path):
+    from bibleimport.formats.study import CommentaryKeyAudit, load_sword_commentary
+
+    src = tmp_path / "cdata.imp"
+    src.write_text(
+        "$$$John 3:16\n<![CDATA[For God so loved the world.]]>\n", encoding="utf-8"
+    )
+    audit = CommentaryKeyAudit()
+    load_sword_commentary([src], audit=audit)
+    # Visible text that yields no CIR is a parse failure, not scaffolding. Either way it must
+    # never land in ignored_scaffolding with the accounting still balanced.
+    assert audit.ignored_scaffolding == 0
+    assert audit.fatal_unmatched == ["John 3:16"]

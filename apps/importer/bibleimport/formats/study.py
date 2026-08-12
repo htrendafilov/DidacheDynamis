@@ -13,6 +13,7 @@ import gzip
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from html import unescape
 from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
@@ -350,7 +351,7 @@ def load_sword_commentary(
             # "<p>Real prose disappears here.</p>" — looked empty and was filed as scaffolding,
             # losing visible text while the accounting still balanced. If there is visible text
             # but no CIR came out of it, that is a parse failure and must stop the build.
-            visible = re.sub(r"<[^>]+>", " ", text or "").strip()
+            visible = _visible_text(text)
             has_content = bool(visible)
             parse_failed = has_content and not body["blocks"]
 
@@ -479,6 +480,20 @@ _BOOK_ALIASES.update(
 # Spelled-out forms with no numeric prefix to derive them from. Keep this list evidence-driven:
 # every entry here was observed unresolved in a real source, not added defensively.
 _BOOK_ALIASES.update({"revelationofjohn": "Rev"})
+
+
+def _visible_text(raw: str) -> str:
+    """Human-visible text of a raw IMP record, with markup removed.
+
+    Used only to decide whether a record is empty, so it must not mistake content for markup.
+    A bare `<[^>]+>` strip does: `<![CDATA[...]]>` has no `>` until its very end, so the whole
+    block — prose included — matched as a single tag and the record looked empty. It was then
+    filed as scaffolding, losing text while the key accounting still balanced.
+    """
+    text = re.sub(r"<!--.*?-->", " ", raw or "", flags=re.DOTALL)  # comments are not content
+    text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL)  # CDATA is
+    text = re.sub(r"<[^>]*>", " ", text)
+    return unescape(text).strip()
 
 
 def _osis_book(value: str) -> str | None:
