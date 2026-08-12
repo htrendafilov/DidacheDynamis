@@ -59,7 +59,7 @@ inspect its findings before publication.
 | Operator username and home path | live runbook and two generic deployment docs | Remove the runbook; rewrite generic docs to `deploy` and `/opt/bible-app`; replace historical occurrences. |
 | Former employer registry hostname | old `apps/web/package-lock.json` blobs | Replace with the public npm registry throughout published history. |
 | Tunnel id fragment, co-tenant service, local password-store entry names | live runbook | Remove the runbook from published history rather than trying to sanitize it into a public operations guide. |
-| Commit author address at the employer domain | 152 of 193 reachable commits in the 2026-08-01 all-ref audit | Optional identity rewrite; decide before the same rewrite pass. Current commits also use 27 personal-domain and 14 Yahoo-address identities. |
+| Commit author address at the employer domain | 180 of 234 reachable commits (re-measured 2026-08-12; was 152 of 193 on 2026-08-01) | **Decision 8: rewrite** to `hristo@trendafilovi.eu` in the §5 pass. 27 commits already use that address and 27 use a Yahoo one. |
 
 The current repository contains infrastructure metadata, not a proven live credential. If a later
 scan finds a real credential, revoke/rotate it before doing anything else.
@@ -555,7 +555,19 @@ This section applies only to a release path that publishes rewritten history.
      assumed: if any of it is ever committed, an unchanged command would carry it over silently;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
-   - optionally rewrite author/committer addresses in the same pass;
+   - rewrite author **and committer** addresses in the same pass (decision 8), using a mailmap
+     stored outside the repository:
+
+     ```
+     Hristo Trendafilov <hristo@trendafilovi.eu> <hristo@trendafilovi.eu>
+     Hristo Trendafilov <hristo@trendafilovi.eu> <hristo@trendafilovi.eu>
+     ```
+
+     `git-filter-repo --mailmap <file>` applies to both sides. Leave `noreply@github.com` alone —
+     it is GitHub's merge identity, and rewriting it would attribute merges to a human who did not
+     make them. **Verify `hristo@trendafilovi.eu` on the GitHub account first** (decision 8): the
+     address is currently unverified, so a rewrite done before that yields a wholly unattributed
+     public history and has to be redone;
    - record first-changed commits, changed refs, and orphaned LFS objects from the report.
 4. Inspect the rewritten mirror before pushing: all refs, all commits, commit metadata, large blobs,
    LFS pointers, and exact searches for every private value and encoded variant.
@@ -572,7 +584,10 @@ All of these must pass before visibility changes:
 
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
   zero exit code;
-- exact history searches for the external replacement-map values, employer author address if chosen,
+- **no commit on any ref carries the employer or Yahoo address** on either the author or the
+  committer side (decision 8), and a sample commit resolves to the owner's GitHub account rather
+  than to nobody — an unattributed history is a rewrite that has to be done twice;
+- exact history searches for the external replacement-map values,
   private runbook, `data/sources/KJV.imp.gz` and `plan/mhc_translation/` paths, `.env` files,
   key formats, tokens, and
   unusually high-entropy strings;
@@ -754,10 +769,37 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    destination; only the in-app copy-to-clipboard fallback remains, and it belongs to that
    project's M4.
 
-**Still pending:**
+**Still pending:** none — every decision is recorded above.
 
-8. Author/committer email rewrite (due before the §5 pass; with a clean repo the sanitized history
-   is the only public history, so rewriting to the personal address is cheap to do in the same pass).
+8. ~~Author/committer email rewrite~~ → **decided 2026-08-12: rewrite to
+   `hristo@trendafilovi.eu`**, an alias the owner controls and can rotate. It already appears in 27
+   commits, and §1.2 requires the employer address to go regardless.
+
+   Measured 2026-08-12 across all reachable commits (234 author entries), replacing the stale
+   2026-08-01 figures:
+
+   | Identity | Author | Committer |
+   |---|---|---|
+   | `hristo@trendafilovi.eu` | 180 | 165 |
+   | `hristo@trendafilovi.eu` | 27 | 27 |
+   | `hristo@trendafilovi.eu` | 27 | — |
+   | `noreply@github.com` (GitHub merge commits) | — | 42 |
+
+   The §5 mailmap maps the first and third to `hristo@trendafilovi.eu` on **both** the author and
+   committer sides. `noreply@github.com` is left alone: it is GitHub's own merge identity, not a
+   personal address, and rewriting it would misattribute merges to a human who did not make them.
+
+   **Prerequisite, and it must happen before the rewrite.** GitHub currently attributes commits
+   from `hristo@trendafilovi.eu` to *nobody* — checked against commit `83bf69d6`, whose `author`
+   field is null, meaning the address is not verified on the account. Rewriting first would produce
+   a public history with no avatar, no profile link and no contribution graph, and fixing it
+   afterwards means rewriting again. **Add and verify the address in GitHub → Settings → Emails
+   first, then re-check one commit before running §5.**
+
+   The alternative considered and rejected: `6759163+htrendafilov@users.noreply.github.com`, which
+   attributes correctly and never exposes a real address. Rejected because the owner prefers an
+   alias they control; the trade is that a real address in public history is scrapable, which an
+   alias makes recoverable rather than permanent.
 The §3.3 fetch-at-build implementation is complete, and decision 11 settles the artifact question.
 One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former KJV
 path or its LFS object. Everything else can be completed as a reviewable cleanup commit before the
