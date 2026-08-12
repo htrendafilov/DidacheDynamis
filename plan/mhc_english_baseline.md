@@ -6,6 +6,31 @@ Regenerate the heuristic figures with `scripts/mhc_quotation_audit.py`; the tabl
 `load_sword_commentary` directly. **Every budget in the master plan derives from the corpus total
 restated here, not from the pre-repair numbers.**
 
+## M1 status — done, and how that is checked
+
+**M1 is complete.** "Complete" here means each clause of its exit gate is asserted by a test that
+runs in `scripts/check.sh` and CI, not that someone read the code and agreed. A gate that is only
+prose drifts; a gate that is a test fails loudly when it stops holding.
+
+| Exit-gate clause | Asserted by |
+|---|---|
+| the accounting equation balances against the 5,506 raw keys | `test_the_real_corpus_accounting_balances` |
+| per-book counts match the source they were measured from | `test_per_book_counts_match_the_checksummed_source_exactly` (pins the export SHA-256 and the complete 66-book map, in canonical order taken from the imported rows) |
+| every ignored record is provably not content | `test_an_empty_unplaceable_record_is_scaffolding_not_fatal`, `test_a_book_milestone_saying_only_the_title_is_scaffolding`, `test_visible_text_does_not_mistake_cdata_for_markup` |
+| no record carrying content can be ignored | `test_short_commentary_at_a_real_coordinate_is_never_scaffolding`, `test_a_book_milestone_saying_more_than_the_title_is_fatal`, `test_visible_text_that_produces_no_cir_is_fatal`, `test_cdata_content_is_never_silently_dropped`, `test_a_record_carrying_prose_that_cannot_be_placed_is_fatal` |
+| chapter introductions are readable in the app | `test_search_finds_a_chapter_introduction_without_inventing_a_verse` (API), `SearchPanel.test.tsx` "labels a commentary hit inside a chapter introduction", `context.test.ts` "includes a chapter introduction for any verse" |
+| diagnostics cannot report success after dropping real content | `test_append_study_content_refuses_to_build_when_a_key_is_unclassifiable`, `test_add_study_and_build_all_publish_the_same_mhc_statistics` |
+
+**One deliberate deviation from the gate's wording.** It says *"every ignored record is provably
+empty"*. Five of the 66 `Book 0:0` milestones are not empty — they carry the book's own name
+("Obadiah", "Second John"). They are ignored on a stricter test than emptiness: the text must match
+that book's name exactly, ordinals included. A milestone saying anything else is fatal. Treating
+them as empty would have required either failing the build on five known-harmless records or
+loosening the rule by length, and length is what let `"Jesus wept."` disappear.
+
+**What M1 does not establish.** The hand-check of the quotation strata below was done by the
+implementer, not the owner. D3 rests on it and should not be frozen on this alone.
+
 ## What changed
 
 The pre-M1 import shipped **48 of 66 books and 3,479 of 5,506 keys** while reporting `result: ok`
