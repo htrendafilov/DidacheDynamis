@@ -565,9 +565,9 @@ This section applies only to a release path that publishes rewritten history.
 
      `git-filter-repo --mailmap <file>` applies to both sides. Leave `noreply@github.com` alone —
      it is GitHub's merge identity, and rewriting it would attribute merges to a human who did not
-     make them. **Verify `hristo@trendafilovi.eu` on the GitHub account first** (decision 8): the
-     address is currently unverified, so a rewrite done before that yields a wholly unattributed
-     public history and has to be redone;
+     make them. The account verification this depends on was completed 2026-08-12 (decision 8);
+     confirm it still holds before running, since an unattributed history has to be rewritten
+     twice;
    - record first-changed commits, changed refs, and orphaned LFS objects from the report.
 4. Inspect the rewritten mirror before pushing: all refs, all commits, commit metadata, large blobs,
    LFS pointers, and exact searches for every private value and encoded variant.
@@ -789,12 +789,14 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    committer sides. `noreply@github.com` is left alone: it is GitHub's own merge identity, not a
    personal address, and rewriting it would misattribute merges to a human who did not make them.
 
-   **Prerequisite, and it must happen before the rewrite.** GitHub currently attributes commits
-   from `hristo@trendafilovi.eu` to *nobody* — checked against commit `83bf69d6`, whose `author`
-   field is null, meaning the address is not verified on the account. Rewriting first would produce
-   a public history with no avatar, no profile link and no contribution graph, and fixing it
-   afterwards means rewriting again. **Add and verify the address in GitHub → Settings → Emails
-   first, then re-check one commit before running §5.**
+   **Prerequisite — satisfied 2026-08-12.** The address was initially unverified on the GitHub
+   account: commit `83bf69d6` resolved to *nobody*, and rewriting in that state would have produced
+   a public history with no avatar, no profile link and no contribution graph, fixable only by
+   rewriting a second time. The owner added and verified it, and five commits carrying the address
+   (`83bf69d6`, `d1370e6c`, `20302cc0`, `3a768d37`, `098f19df`) now resolve to `htrendafilov`.
+
+   Re-check this if the rewrite is delayed: verification can be removed, and the check costs one
+   API call against any commit already carrying the address.
 
    The alternative considered and rejected: `6759163+htrendafilov@users.noreply.github.com`, which
    attributes correctly and never exposes a real address. Rejected because the owner prefers an
