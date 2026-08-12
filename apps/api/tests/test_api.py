@@ -150,7 +150,7 @@ def test_database_status_rejects_the_pre_ai_context_policy_schema(tmp_path):
     status = database_status(old_db)
     assert status["status"] == "schema-outdated"
     assert status["schema_version"] == 3
-    assert status["expected_schema_version"] == CONTENT_SCHEMA_VERSION == 4
+    assert status["expected_schema_version"] == CONTENT_SCHEMA_VERSION == 5
 
 
 def test_api_refuses_an_incompatible_content_schema(client):
@@ -1080,3 +1080,169 @@ def test_roman_numeral_books_import(tmp_path):
         )}
     assert "1Sam" in books, "the Roman-numeral book form did not resolve"
 
+
+def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
+    """M2 exit gate: second commentary coexists; passage returns entry_id/unit_id; coverage works."""
+    import gzip
+    import hashlib
+    import json
+    import sqlite3
+
+    from bibleimport.canonical import commentary_body_from_json
+    from bibleimport.pipeline import (
+        BibleSpec,
+        CommentarySpec,
+        append_commentary,
+        append_study_content,
+        build_bible,
+    )
+    from starlette.testclient import TestClient
+
+    from app import settings
+    from app.main import app
+
+    out = tmp_path / "content.sqlite"
+    spec = BibleSpec(
+        work_id="web",
+        title="World English Bible",
+        abbrev="WEB",
+        language="en",
+        versification="kjv",
+        license="Public Domain",
+        attribution="WEB is public domain.",
+        ai_context_policy="allowed",
+    )
+    assert build_bible(IMPORTER_FIXTURES / "mini_usfx.xml", spec, out, fmt="usfx").ok
+    append_study_content(
+        out,
+        [IMPORTER_FIXTURES / "mini_commentary_raw.imp"],
+        IMPORTER_FIXTURES / "mini_easton_raw.imp",
+        IMPORTER_FIXTURES / "mini_xrefs.tsv",
+    )
+
+    body = commentary_body_from_json(
+        {"blocks": [{"kind": "paragraph", "text": "Български коментар за Йоан 3."}]},
+        strict_runs=True,
+    )
+    content_hash = hashlib.sha256(
+        json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    meta = {
+        "type": "package_meta",
+        "quality_label": "machine-assisted draft",
+        "provenances": [
+            {
+                "provenance_id": "mt:test",
+                "model_request_id": "google/gemini-2.5-flash",
+                "model_canonical_slug": "google/gemini-2.5-flash",
+                "model_returned": "google/gemini-2.5-flash",
+                "prompt_hash": hashlib.sha256(b"prompt").hexdigest(),
+                "glossary_hash": hashlib.sha256(b"glossary").hexdigest(),
+                "settings_json": '{"temperature":0}',
+                "run_id": "api-test",
+                "translated_at": "2026-08-12T08:00:00Z",
+            },
+            {
+                "provenance_id": "mt:repair",
+                "model_request_id": "openai/gpt-5.6-terra",
+                "model_canonical_slug": "openai/gpt-5.6-terra",
+                "model_returned": "openai/gpt-5.6-terra",
+                "prompt_hash": hashlib.sha256(b"prompt").hexdigest(),
+                "glossary_hash": hashlib.sha256(b"glossary").hexdigest(),
+                "settings_json": '{"temperature":0}',
+                "run_id": "repair-test",
+                "translated_at": "2026-08-12T08:01:00Z",
+            },
+        ],
+        "coverage": {"John": {"source_units": 1, "excluded_units": 0, "state": "mt_complete"}},
+    }
+    record = {
+        "format_version": 1,
+        "unit_id": "mhc/John/3/1-1/01",
+        "osis_code": "John",
+        "chapter": 3,
+        "verse_start": 1,
+        "verse_end": 1,
+        "body": body,
+        "source_hash": hashlib.sha256(b"audited English source unit").hexdigest(),
+        "content_hash": content_hash,
+        "qa_status": "automated_pass",
+        "correction_revision": 0,
+        "provenance_id": "mt:test",
+        "block_provenance": [{"block_index": 0, "provenance_id": "mt:repair"}],
+    }
+    pack = tmp_path / "John.jsonl.gz"
+    with gzip.open(pack, "wb") as handle:
+        handle.write((json.dumps(meta, ensure_ascii=False) + "\n").encode())
+        handle.write((json.dumps(record, ensure_ascii=False) + "\n").encode())
+    checksum = hashlib.sha256(pack.read_bytes()).hexdigest()
+    append_commentary(
+        pack,
+        CommentarySpec(
+            work_id="mhcbg",
+            title="Коментар на Матю Хенри",
+            abbrev="MHC-BG",
+            language="bg",
+            license="CC0-1.0",
+            attribution="Test draft.",
+            ai_context_policy="allowed",
+            release_version="0.1.0",
+            provenance_id="mt:test",
+            model_canonical_slug="google/gemini-2.5-flash",
+            run_id="api-test",
+            quality_label="machine-assisted draft",
+        ),
+        out,
+        expected_checksum=checksum,
+    )
+
+    with sqlite3.connect(out) as conn:
+        # Overlapping entry_id=1 is legal across works.
+        n = conn.execute(
+            "SELECT COUNT(*) FROM commentary_entries WHERE entry_id=1"
+        ).fetchone()[0]
+        assert n >= 2
+
+    monkeypatch.setattr(settings, "CONTENT_DB_PATH", out)
+    with TestClient(app) as client:
+        cov = client.get("/api/v1/commentary/mhcbg/coverage")
+        assert cov.status_code == 200, cov.text
+        data = cov.json()
+        assert data["work_id"] == "mhcbg"
+        assert any(b["osis_code"] == "John" and b["state"] == "mt_complete" for b in data["books"])
+
+        passage = client.get("/api/v1/commentary/mhcbg/John/3")
+        assert passage.status_code == 200, passage.text
+        entries = passage.json()["entries"]
+        assert len(entries) == 1
+        assert entries[0]["entry_id"] == 1
+        assert entries[0]["unit_id"] == "mhc/John/3/1-1/01"
+        assert entries[0]["release_version"] == "0.1.0"
+        assert "Български" in entries[0]["body"]["blocks"][0]["text"]
+
+        en = client.get("/api/v1/commentary/mhc/John/3")
+        assert en.status_code == 200
+        assert en.json()["entries"]
+        assert "entry_id" in en.json()["entries"][0]
+        assert "unit_id" in en.json()["entries"][0]
+        assert entries[0]["provenance"]["model_canonical_slug"] == "google/gemini-2.5-flash"
+        assert entries[0]["block_provenance"][0]["block_index"] == 0
+        assert entries[0]["source_hash"] == record["source_hash"]
+        assert entries[0]["content_hash"] == record["content_hash"]
+        assert entries[0]["release_version"] == "0.1.0"
+        block_provenance = entries[0]["block_provenance"][0]["provenance"]
+        assert block_provenance["provenance_id"] == "mt:repair"
+        assert block_provenance["model_canonical_slug"] == "openai/gpt-5.6-terra"
+        search = client.get(
+            "/api/v1/search",
+            params={"q": "Български", "types": "commentary", "works": "mhcbg"},
+        ).json()
+        search_hit = _group(search, "commentary")["hits"][0]
+        assert search_hit["work_id"] == "mhcbg"
+        assert search_hit["unit_id"] == "mhc/John/3/1-1/01"
+        assert search_hit["provenance"]["provenance_id"] == "mt:test"
+        works = client.get("/api/v1/works").json()
+        bg = next(w for w in works if w["id"] == "mhcbg")
+        assert bg["quality_label"] == "machine-assisted draft"
+        assert any(p["provenance_id"] == "mt:test" for p in bg["provenance_summary"])
+        assert any(p["provenance_id"] == "mt:repair" for p in bg["provenance_summary"])

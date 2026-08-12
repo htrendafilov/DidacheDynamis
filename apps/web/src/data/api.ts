@@ -1,5 +1,17 @@
 // Typed client for the reader API (mirrors apps/api/app/models.py).
 
+export interface TranslationProvenance {
+  provenance_id: string;
+  model_request_id?: string | null;
+  model_canonical_slug?: string | null;
+  model_returned?: string | null;
+  prompt_hash?: string | null;
+  glossary_hash?: string | null;
+  settings_json?: string | null;
+  run_id?: string | null;
+  translated_at?: string | null;
+}
+
 export interface Work {
   id: string;
   type: string;
@@ -13,6 +25,8 @@ export interface Work {
   source_url: string | null;
   source_version: string | null;
   ai_context_policy: "allowed" | "allowed_no_training" | "prohibited" | "unknown";
+  quality_label?: string | null;
+  provenance_summary?: TranslationProvenance[] | null;
 }
 
 export interface Book {
@@ -93,6 +107,10 @@ export interface CommentaryHit {
   verse_start: number | null;
   is_chapter_introduction: boolean;
   entry_id: number;
+  unit_id: string;
+  release_version: string;
+  provenance_id: string;
+  provenance: TranslationProvenance;
 }
 
 export interface DictionaryHit {
@@ -199,10 +217,23 @@ export interface Document {
   blocks: DocumentBlock[];
 }
 
+export interface BlockProvenance {
+  block_index: number;
+  provenance: TranslationProvenance;
+}
+
 export interface CommentaryEntry {
+  entry_id: number;
+  unit_id: string;
   verse_start: number | null;
   verse_end: number | null;
   body: Document;
+  source_hash: string;
+  content_hash: string;
+  provenance_id: string;
+  release_version: string;
+  provenance: TranslationProvenance;
+  block_provenance?: BlockProvenance[];
 }
 
 export interface CommentaryPassage {
@@ -210,6 +241,21 @@ export interface CommentaryPassage {
   osis: string;
   chapter: number;
   entries: CommentaryEntry[];
+}
+
+export interface CommentaryCoverageRow {
+  osis_code: string;
+  state: "queued" | "in_progress" | "mt_complete";
+  source_units: number;
+  translated_units: number;
+  excluded_units: number;
+  reviewed_units: number;
+  release_version: string;
+}
+
+export interface CommentaryCoverageResponse {
+  work_id: string;
+  books: CommentaryCoverageRow[];
 }
 
 export interface DictionaryHeadword {
@@ -317,6 +363,10 @@ export const api = {
       `/commentary/${workId}/${osis}/${chapter}` + (verse ? `?verse=${verse}` : ""),
       { signal },
     ),
+  commentaryCoverage: (workId: string, signal?: AbortSignal) =>
+    get<CommentaryCoverageResponse>(`/commentary/${encodeURIComponent(workId)}/coverage`, {
+      signal,
+    }),
   dictionaryHeadwords: (workId: string, prefix: string) =>
     get<DictionaryHeadword[]>(
       `/dictionary/${workId}/entries?prefix=${encodeURIComponent(prefix)}&limit=80`,

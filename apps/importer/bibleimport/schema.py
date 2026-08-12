@@ -13,7 +13,8 @@ import sqlite3
 # v2: verse_tokens + strong_lexicon (M8.1 Strong's lexical data).
 # v3: diacritic-folded structured search columns on strong_lexicon (M8.4).
 # v4: works.ai_context_policy (M9.1 — may a work's text be sent to an external AI service?).
-SCHEMA_VERSION = 4
+# v5: multi-work commentary — composite (work_id, entry_id), unit_id, provenance, coverage (M2).
+SCHEMA_VERSION = 5
 
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
@@ -40,7 +41,9 @@ CREATE TABLE works (
     --   unknown             — never; treated as prohibited at the point of use
     ai_context_policy TEXT NOT NULL DEFAULT 'unknown'
         CHECK (ai_context_policy IN
-            ('allowed','allowed_no_training','prohibited','unknown'))
+            ('allowed','allowed_no_training','prohibited','unknown')),
+    -- Optional product quality badge for translated/machine works (M2). NULL for pure sources.
+    quality_label TEXT
 );
 
 CREATE TABLE books (
@@ -73,18 +76,96 @@ CREATE TABLE headings (
 );
 CREATE INDEX idx_headings_chapter ON headings(work_id, osis_code, chapter);
 
--- Populated in M3 (kept here so the schema is stable). entry_id is a stable per-entry key so the
--- search API can order/paginate commentary deterministically even when entries share a reference.
+-- How a piece of commentary text was produced (model/prompt/run). Created before
+-- commentary_entries so the foreign key can resolve (M2 §4.3). Separated from release so a
+-- rebuild can advance release_version without retranslating.
+CREATE TABLE translation_provenance (
+    provenance_id        TEXT PRIMARY KEY,
+    model_request_id     TEXT,             -- OpenRouter / provider request id when applicable
+    model_canonical_slug TEXT,             -- e.g. google/gemini-2.5-flash; NULL for source imports
+    model_returned       TEXT,             -- model string actually returned by the provider
+    prompt_hash          TEXT,
+    glossary_hash        TEXT,
+    settings_json        TEXT,             -- temperature, max_tokens, etc.
+    run_id               TEXT,
+    translated_at        TEXT              -- ISO-8601; NULL for pure source imports
+);
+
+-- Commentary entries (M3, multi-work identity + provenance in M2). entry_id is per-work so two
+-- commentaries can both number from 1 without colliding. unit_id is the durable coordinate that
+-- survives a rebuild; corrections and reader reports address it, not entry_id.
 CREATE TABLE commentary_entries (
-    entry_id    INTEGER PRIMARY KEY,
-    work_id     TEXT NOT NULL REFERENCES works(id),
-    osis_code   TEXT NOT NULL,
-    chapter     INTEGER NOT NULL,
-    verse_start INTEGER,
-    verse_end   INTEGER,
-    body_json   TEXT NOT NULL
+    work_id         TEXT NOT NULL REFERENCES works(id),
+    entry_id        INTEGER NOT NULL,
+    unit_id         TEXT NOT NULL,
+    osis_code       TEXT NOT NULL,
+    chapter         INTEGER NOT NULL,
+    verse_start     INTEGER,
+    verse_end       INTEGER,
+    body_json       TEXT NOT NULL,
+    source_hash     TEXT NOT NULL,          -- sha256 of the English (or source) unit
+    content_hash    TEXT NOT NULL,          -- sha256 of the body_json as stored
+    provenance_id   TEXT NOT NULL REFERENCES translation_provenance(provenance_id),
+    release_version TEXT NOT NULL,          -- which published release deployed this text
+    PRIMARY KEY (work_id, entry_id),
+    UNIQUE (work_id, unit_id)
 );
 CREATE INDEX idx_commentary_ref ON commentary_entries(work_id, osis_code, chapter);
+
+CREATE TABLE commentary_releases (
+    work_id            TEXT NOT NULL REFERENCES works(id),
+    release_version    TEXT NOT NULL,
+    manifest_checksum  TEXT NOT NULL,
+    built_at           TEXT NOT NULL,
+    PRIMARY KEY (work_id, release_version)
+);
+
+CREATE TABLE commentary_release_packages (
+    work_id          TEXT NOT NULL,
+    release_version  TEXT NOT NULL,
+    osis_code        TEXT NOT NULL,
+    package_checksum TEXT NOT NULL,
+    PRIMARY KEY (work_id, release_version, osis_code),
+    FOREIGN KEY (work_id, release_version)
+        REFERENCES commentary_releases(work_id, release_version)
+);
+
+-- Sparse overrides: only blocks that differ from the entry's default provenance_id.
+CREATE TABLE commentary_block_provenance (
+    work_id       TEXT NOT NULL,
+    unit_id       TEXT NOT NULL,
+    block_index   INTEGER NOT NULL,
+    provenance_id TEXT NOT NULL REFERENCES translation_provenance(provenance_id),
+    PRIMARY KEY (work_id, unit_id, block_index),
+    FOREIGN KEY (work_id, unit_id) REFERENCES commentary_entries(work_id, unit_id)
+);
+
+-- Per-book translation state (queued | in_progress | mt_complete). owner_reviewed is NOT a book
+-- state — it is derived per unit from commentary_reviews (M2 §4.3).
+CREATE TABLE commentary_coverage (
+    work_id           TEXT NOT NULL REFERENCES works(id),
+    osis_code         TEXT NOT NULL,
+    state             TEXT NOT NULL
+        CHECK (state IN ('queued', 'in_progress', 'mt_complete')),
+    source_units      INTEGER NOT NULL,
+    translated_units  INTEGER NOT NULL,
+    excluded_units    INTEGER NOT NULL,
+    reviewed_units    INTEGER NOT NULL DEFAULT 0,
+    release_version   TEXT NOT NULL,
+    PRIMARY KEY (work_id, osis_code)
+);
+
+-- A review is a claim about a specific content_hash, not just a unit_id. Retranslation that
+-- changes content_hash reduces reviewed_units until the new text is read again.
+CREATE TABLE commentary_reviews (
+    work_id      TEXT NOT NULL,
+    unit_id      TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    reviewed_at  TEXT NOT NULL,
+    kind         TEXT NOT NULL
+        CHECK (kind IN ('spot_read', 'correction_authored')),
+    PRIMARY KEY (work_id, unit_id, content_hash, kind)
+);
 
 CREATE TABLE dictionary_entries (
     work_id   TEXT NOT NULL REFERENCES works(id),

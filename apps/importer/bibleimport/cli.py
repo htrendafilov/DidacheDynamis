@@ -18,9 +18,11 @@ from .pipeline import (
     AlignmentExpectation,
     BibleSpec,
     BookSpec,
+    CommentarySpec,
     LexicalSentinel,
     append_bible,
     append_book,
+    append_commentary,
     append_strongs,
     append_study_content,
     build_bible,
@@ -422,6 +424,56 @@ def _cmd_add_book(args) -> int:
     return 0
 
 
+def _cmd_add_commentary(args) -> int:
+    """Append a single commentary work from a versioned JSONL.gz package (M2)."""
+    spec = CommentarySpec(
+        work_id=args.work_id,
+        title=args.title,
+        abbrev=args.abbrev,
+        language=args.language,
+        license=args.license,
+        attribution=args.attribution,
+        ai_context_policy=args.ai_context_policy,
+        release_version=args.release_version,
+        provenance_id=args.provenance_id,
+        source_work_id=args.source_work_id,
+        source_url=args.source_url,
+        source_version=args.source_version,
+        direction=args.direction,
+        versification=args.versification,
+        model_request_id=args.model_request_id,
+        model_canonical_slug=args.model,
+        model_returned=args.model_returned,
+        prompt_hash=args.prompt_hash,
+        glossary_hash=args.glossary_hash,
+        settings_json=args.settings_json,
+        run_id=args.run_id,
+        translated_at=args.translated_at,
+        quality_label=args.quality_label,
+    )
+    stats = append_commentary(
+        args.source,
+        spec,
+        args.out,
+        expected_checksum=args.expected_checksum,
+        osis_code=args.osis,
+        quality_label=args.quality_label,
+    )
+    print(" ".join(f"{key}={value}" for key, value in stats.items()))
+    audit = _audit_record(
+        spec.work_id,
+        args.source,
+        result="ok",
+        ai_context_policy=spec.ai_context_policy,
+        statistics=stats,
+        source_version=spec.source_version,
+    )
+    _print_audit(audit)
+    _write_report(args, [audit], result="ok")
+    print("OK")
+    return 0
+
+
 def _strongs_audits(
     greek_source: str | Path, hebrew_source: str | Path, stats: dict, diags: dict
 ) -> list[dict]:
@@ -630,6 +682,53 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--direction", default="ltr")
     g.add_argument("--report", help="diagnostics JSON (default: <out>.diagnostics.json)")
     g.set_defaults(func=_cmd_add_book)
+
+    c = sub.add_parser(
+        "add-commentary",
+        help="Append a commentary work from a versioned JSONL.gz CIR package (M2).",
+    )
+    c.add_argument("--source", required=True, help="commentary package (.jsonl.gz)")
+    c.add_argument("--out", required=True, help="existing content.sqlite path")
+    c.add_argument("--work-id", required=True)
+    c.add_argument("--title", required=True)
+    c.add_argument("--abbrev", required=True)
+    c.add_argument("--language", required=True)
+    c.add_argument("--license", required=True)
+    c.add_argument("--attribution", required=True)
+    c.add_argument(
+        "--ai-context-policy",
+        required=True,
+        choices=["allowed", "allowed_no_training", "prohibited", "unknown"],
+        help="may this work's text be sent to an external AI service?",
+    )
+    c.add_argument("--release-version", required=True, help="published release id for this package")
+    c.add_argument(
+        "--provenance-id",
+        required=True,
+        help="id for translation_provenance (how this text was produced)",
+    )
+    c.add_argument("--source-work-id", default="mhc", help="English source work id for unit_id")
+    c.add_argument("--source-url", default=None)
+    c.add_argument("--source-version", default=None)
+    c.add_argument("--direction", default="ltr")
+    c.add_argument("--versification", default="kjv")
+    c.add_argument("--model", default=None, help="canonical model slug that produced the text")
+    c.add_argument("--model-request-id", default=None)
+    c.add_argument("--model-returned", default=None)
+    c.add_argument("--prompt-hash", default=None)
+    c.add_argument("--glossary-hash", default=None)
+    c.add_argument("--settings-json", default=None)
+    c.add_argument("--run-id", default=None)
+    c.add_argument("--translated-at", default=None)
+    c.add_argument("--expected-checksum", default=None, help="sha256 of the package file")
+    c.add_argument("--osis", default=None, help="optional: import only this book from the package")
+    c.add_argument(
+        "--quality-label",
+        default=None,
+        help="optional product badge (e.g. machine-assisted draft / работен превод)",
+    )
+    c.add_argument("--report", help="diagnostics JSON (default: <out>.diagnostics.json)")
+    c.set_defaults(func=_cmd_add_commentary)
 
     a = sub.add_parser(
         "build-all",

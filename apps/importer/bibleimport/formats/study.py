@@ -19,7 +19,13 @@ from pathlib import Path
 from defusedxml import ElementTree as DefusedET
 
 from ..books import BY_OSIS, CANON, normalize_osis_ref
-from ..canonical import CommentaryRow, DictionaryRow, XrefRow, norm_ws
+from ..canonical import (
+    CommentaryRow,
+    DictionaryRow,
+    XrefRow,
+    commentary_body_from_json,
+    norm_ws,
+)
 
 _MAX_XML_BYTES = 64 * 1024 * 1024
 _MAX_TSV_BYTES = 32 * 1024 * 1024
@@ -76,7 +82,10 @@ def _document(element, *, skip_passage: bool = False) -> tuple[dict, str]:
         kind = "heading" if tag.startswith("h") else "paragraph"
         blocks.append({"kind": kind, "text": text})
     plain = "\n\n".join(block["text"] for block in blocks)
-    return {"blocks": blocks}, plain
+    if not blocks:
+        return {"blocks": []}, plain
+    body = commentary_body_from_json({"blocks": blocks}, strict_runs=False)
+    return body, plain
 
 
 def _imp_entries(path: str | Path):
@@ -109,7 +118,10 @@ def _plain_document(text: str, *, skip_first_line: bool = False) -> tuple[dict, 
     paragraphs = [norm_ws(part).strip() for part in re.split(r"\n\s*\n", text)]
     paragraphs = [part for part in paragraphs if part]
     blocks = [{"kind": "paragraph", "text": part} for part in paragraphs]
-    return {"blocks": blocks}, "\n\n".join(paragraphs)
+    if not blocks:
+        return {"blocks": []}, ""
+    body = commentary_body_from_json({"blocks": blocks}, strict_runs=False)
+    return body, "\n\n".join(paragraphs)
 
 
 def _append_document_run(
@@ -250,7 +262,10 @@ def _sword_osis_document(text: str) -> tuple[dict, str]:
             _append_document_run(current, child.tail)
     flush()
     plain = "\n\n".join(block["text"] for block in blocks)
-    return {"blocks": blocks}, plain
+    if not blocks:
+        return {"blocks": []}, plain
+    body = commentary_body_from_json({"blocks": blocks}, strict_runs=False)
+    return body, plain
 
 
 def load_commentary(paths: list[str | Path]) -> list[CommentaryRow]:

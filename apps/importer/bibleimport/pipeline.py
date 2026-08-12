@@ -16,9 +16,19 @@ from .canonical import (
     TokenRow,
     VerseRow,
     WorkMeta,
+    make_commentary_unit_id,
     normalize_lexical_search,
 )
-from .formats import genbook, strongs_lexicon, study, sword_bible, sword_dictionary, usfx
+from .formats import (
+    commentary_pack,
+    genbook,
+    strongs_lexicon,
+    study,
+    sword_bible,
+    sword_dictionary,
+    usfx,
+)
+from .provenance import validate_provenance_metadata
 from .schema import create_schema
 from .validation import Diagnostics, align_versification, validate
 
@@ -85,6 +95,36 @@ class BookSpec:
     direction: str = "ltr"
 
 
+@dataclass
+class CommentarySpec:
+    """Metadata for a single generic commentary work (`add-commentary`)."""
+
+    work_id: str
+    title: str
+    abbrev: str
+    language: str
+    license: str
+    attribution: str
+    ai_context_policy: str  # allowed | allowed_no_training | prohibited | unknown
+    release_version: str
+    provenance_id: str
+    source_work_id: str = "mhc"
+    source_url: str | None = None
+    source_version: str | None = None
+    direction: str = "ltr"
+    versification: str = "kjv"
+    # Production provenance details (optional for source re-imports).
+    model_canonical_slug: str | None = None
+    model_returned: str | None = None
+    prompt_hash: str | None = None
+    glossary_hash: str | None = None
+    settings_json: str | None = None
+    run_id: str | None = None
+    translated_at: str | None = None
+    model_request_id: str | None = None
+    quality_label: str | None = None
+
+
 def source_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -110,11 +150,11 @@ def _combined_sha256(paths: list[Path]) -> str:
     return h.hexdigest()
 
 
-def _insert_work(conn: sqlite3.Connection, meta: WorkMeta) -> None:
+def _insert_work(conn: sqlite3.Connection, meta: WorkMeta, *, quality_label: str | None = None) -> None:
     conn.execute(
         "INSERT INTO works(id,type,language,title,abbrev,direction,versification,"
-        "license,attribution,source_url,source_version,checksum,ai_context_policy) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "license,attribution,source_url,source_version,checksum,ai_context_policy,quality_label) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             meta.id,
             meta.type,
@@ -129,8 +169,315 @@ def _insert_work(conn: sqlite3.Connection, meta: WorkMeta) -> None:
             meta.source_version,
             meta.checksum,
             meta.ai_context_policy,
+            quality_label,
         ),
     )
+
+
+def _ensure_provenance(
+    conn: sqlite3.Connection,
+    provenance_id: str,
+    *,
+    model_canonical_slug: str | None = None,
+    model_returned: str | None = None,
+    prompt_hash: str | None = None,
+    glossary_hash: str | None = None,
+    settings_json: str | None = None,
+    run_id: str | None = None,
+    translated_at: str | None = None,
+    model_request_id: str | None = None,
+) -> None:
+    """Insert provenance, or refuse if the id already exists with different metadata.
+
+    Never creates empty stub rows for unknown ids, and never silently ignores a conflicting
+    re-declaration (INSERT OR IGNORE would falsify mixed-model attribution).
+    """
+    row = conn.execute(
+        "SELECT model_request_id, model_canonical_slug, model_returned, prompt_hash, "
+        "glossary_hash, settings_json, run_id, translated_at "
+        "FROM translation_provenance WHERE provenance_id=?",
+        (provenance_id,),
+    ).fetchone()
+    wanted = (
+        model_request_id,
+        model_canonical_slug,
+        model_returned,
+        prompt_hash,
+        glossary_hash,
+        settings_json,
+        run_id,
+        translated_at,
+    )
+    validate_provenance_metadata(
+        provenance_id,
+        {
+            "model_request_id": model_request_id,
+            "model_canonical_slug": model_canonical_slug,
+            "model_returned": model_returned,
+            "prompt_hash": prompt_hash,
+            "glossary_hash": glossary_hash,
+            "settings_json": settings_json,
+            "run_id": run_id,
+            "translated_at": translated_at,
+        },
+        where="translation_provenance",
+    )
+    if row is not None:
+        existing = tuple(row)
+        if existing != wanted:
+            raise ValueError(
+                f"provenance_id {provenance_id!r} already exists with different metadata"
+            )
+        return
+    conn.execute(
+        "INSERT INTO translation_provenance("
+        "provenance_id, model_request_id, model_canonical_slug, model_returned, "
+        "prompt_hash, glossary_hash, settings_json, run_id, translated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?)",
+        (provenance_id, *wanted),
+    )
+
+
+def _release_manifest_checksum(conn: sqlite3.Connection, work_id: str, release_version: str) -> str:
+    """Hash over ordered (osis_code, package_checksum) rows for a release (M2 §4.3)."""
+    rows = conn.execute(
+        "SELECT osis_code, package_checksum FROM commentary_release_packages "
+        "WHERE work_id=? AND release_version=? ORDER BY osis_code",
+        (work_id, release_version),
+    ).fetchall()
+    h = hashlib.sha256()
+    for osis, checksum in rows:
+        h.update(osis.encode())
+        h.update(b"\0")
+        h.update(checksum.encode())
+        h.update(b"\n")
+    return h.hexdigest()
+
+
+def _work_release_checksum(release_version: str, manifest_checksum: str) -> str:
+    """Hash the current release identity used by API content-version calculation."""
+    h = hashlib.sha256()
+    h.update(release_version.encode())
+    h.update(b"\0")
+    h.update(manifest_checksum.encode())
+    return h.hexdigest()
+
+
+def _recompute_coverage_for_books(
+    conn: sqlite3.Connection,
+    *,
+    work_id: str,
+    source_work_id: str,
+    release_version: str,
+    osis_codes: set[str],
+    coverage_hints: dict | None = None,
+) -> None:
+    """Derive honest coverage from DB rows and an audited source-unit baseline."""
+    from .books import BY_OSIS
+    from .formats.commentary_pack import BookCoverageHint
+
+    hints: dict[str, BookCoverageHint] = coverage_hints or {}
+    for osis in sorted(osis_codes, key=lambda o: BY_OSIS[o].order if o in BY_OSIS else 999):
+        translated = conn.execute(
+            "SELECT COUNT(*) FROM commentary_entries WHERE work_id=? AND osis_code=?",
+            (work_id, osis),
+        ).fetchone()[0]
+        reviewed = conn.execute(
+            "SELECT COUNT(DISTINCT r.unit_id) FROM commentary_reviews r "
+            "JOIN commentary_entries e ON e.work_id=r.work_id AND e.unit_id=r.unit_id "
+            "WHERE r.work_id=? AND e.osis_code=? AND r.kind='spot_read' "
+            "AND r.content_hash=e.content_hash",
+            (work_id, osis),
+        ).fetchone()[0]
+        prev = conn.execute(
+            "SELECT source_units, excluded_units, state FROM commentary_coverage "
+            "WHERE work_id=? AND osis_code=?",
+            (work_id, osis),
+        ).fetchone()
+        hint = hints.get(osis)
+        if hint is not None:
+            source_units = hint.source_units
+            excluded_units = hint.excluded_units
+            state = hint.state
+            if prev is not None and source_units != prev[0]:
+                raise ValueError(
+                    f"coverage source_units changed for {work_id}/{osis}: "
+                    f"{prev[0]} -> {source_units}; source revisions require an explicit migration"
+                )
+        else:
+            if prev is None:
+                raise ValueError(
+                    f"coverage metadata is required for first import of {work_id}/{osis}"
+                )
+            source_units = prev[0]
+            excluded_units = prev[1]
+            state = prev[2]
+
+        accounted = translated + excluded_units
+        if accounted > source_units:
+            raise ValueError(
+                f"coverage over-count for {work_id}/{osis}: "
+                f"translated {translated} + excluded {excluded_units} > source {source_units}"
+            )
+        if state == "mt_complete" and accounted != source_units:
+            raise ValueError(
+                f"coverage cannot mark {work_id}/{osis} mt_complete: "
+                f"{accounted} of {source_units} source units are accounted for"
+            )
+        if state == "queued" and translated:
+            raise ValueError(
+                f"coverage cannot mark {work_id}/{osis} queued with {translated} translated units"
+            )
+
+        if state is None:
+            if source_units > 0 and accounted == source_units:
+                state = "mt_complete"
+            elif translated > 0:
+                state = "in_progress"
+            else:
+                state = "queued"
+
+        if osis in BY_OSIS:
+            existing_book = conn.execute(
+                "SELECT 1 FROM books WHERE work_id=? AND osis_code=?",
+                (work_id, osis),
+            ).fetchone()
+            if existing_book is None:
+                source_book = conn.execute(
+                    "SELECT name, sort_order, chapter_count FROM books "
+                    "WHERE osis_code=? "
+                    "ORDER BY CASE WHEN work_id=? THEN 0 ELSE 1 END, sort_order LIMIT 1",
+                    (osis, source_work_id),
+                ).fetchone()
+                if source_book is not None:
+                    name, sort_order, chapters = source_book
+                else:
+                    name = BY_OSIS[osis].name_en
+                    sort_order = BY_OSIS[osis].order
+                    chapters = conn.execute(
+                        "SELECT COALESCE(MAX(chapter), 0) FROM commentary_entries "
+                        "WHERE work_id=? AND osis_code=?",
+                        (work_id, osis),
+                    ).fetchone()[0]
+                conn.execute(
+                    "INSERT INTO books(work_id,osis_code,name,sort_order,chapter_count) "
+                    "VALUES(?,?,?,?,?)",
+                    (work_id, osis, name, sort_order, chapters),
+                )
+
+        conn.execute(
+            "INSERT INTO commentary_coverage("
+            "work_id,osis_code,state,source_units,translated_units,excluded_units,"
+            "reviewed_units,release_version) VALUES(?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(work_id, osis_code) DO UPDATE SET "
+            "state=excluded.state, "
+            "source_units=excluded.source_units, "
+            "translated_units=excluded.translated_units, "
+            "excluded_units=excluded.excluded_units, "
+            "reviewed_units=excluded.reviewed_units, "
+            "release_version=excluded.release_version",
+            (
+                work_id,
+                osis,
+                state,
+                source_units,
+                translated,
+                excluded_units,
+                reviewed,
+                release_version,
+            ),
+        )
+
+
+def _insert_commentary_rows(
+    conn: sqlite3.Connection,
+    *,
+    work_id: str,
+    source_work_id: str,
+    rows: list,
+    provenance_id: str,
+    release_version: str,
+    block_provenance: list[tuple[str, int, str]] | None = None,
+) -> None:
+    """Insert commentary rows with per-work entry_id, unit_id, hashes, and FTS."""
+    from collections import Counter
+
+    from .books import BY_OSIS
+
+    ordinals: Counter[tuple[str, int, int | None]] = Counter()
+    indexed: list[tuple[int, object]] = []
+    for entry_id, row in enumerate(rows, start=1):
+        key = (row.osis, row.chapter, row.verse_start)
+        ordinals[key] += 1
+        ordinal = ordinals[key]
+        unit_id = row.unit_id or make_commentary_unit_id(
+            source_work_id, row.osis, row.chapter, row.verse_start, ordinal
+        )
+        body_json = json.dumps(row.body, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        content_hash = row.content_hash or hashlib.sha256(body_json.encode()).hexdigest()
+        source_hash = row.source_hash or content_hash
+        # Attach synthesised ids back onto a shallow copy via namespace-style attributes used below.
+        indexed.append(
+            (
+                entry_id,
+                unit_id,
+                source_hash,
+                content_hash,
+                body_json,
+                row,
+            )
+        )
+
+    conn.executemany(
+        "INSERT INTO commentary_entries("
+        "work_id,entry_id,unit_id,osis_code,chapter,verse_start,verse_end,"
+        "body_json,source_hash,content_hash,provenance_id,release_version) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            (
+                work_id,
+                entry_id,
+                unit_id,
+                row.osis,
+                row.chapter,
+                row.verse_start,
+                row.verse_end,
+                body_json,
+                source_hash,
+                content_hash,
+                provenance_id,
+                release_version,
+            )
+            for entry_id, unit_id, source_hash, content_hash, body_json, row in indexed
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO commentary_fts"
+        "(text,work_id,entry_id,osis,testament,book_order,chapter,verse_start) "
+        "VALUES(?,?,?,?,?,?,?,?)",
+        [
+            (
+                row.plain_text,
+                work_id,
+                entry_id,
+                row.osis,
+                BY_OSIS[row.osis].testament if row.osis in BY_OSIS else "NT",
+                BY_OSIS[row.osis].order if row.osis in BY_OSIS else 999,
+                row.chapter,
+                row.verse_start,
+            )
+            for entry_id, unit_id, source_hash, content_hash, body_json, row in indexed
+        ],
+    )
+    if block_provenance:
+        conn.executemany(
+            "INSERT INTO commentary_block_provenance("
+            "work_id,unit_id,block_index,provenance_id) VALUES(?,?,?,?)",
+            [
+                (work_id, unit_id, block_index, pid)
+                for unit_id, block_index, pid in block_provenance
+            ],
+        )
 
 
 def _write_work(
@@ -395,59 +742,45 @@ def append_study_content(
         for meta in (mhc, easton, tsk):
             _insert_work(conn, meta)
 
-        chapter_counts: dict[str, int] = {}
-        for row in commentary:
-            chapter_counts[row.osis] = max(chapter_counts.get(row.osis, 0), row.chapter)
-        conn.executemany(
-            "INSERT INTO books(work_id,osis_code,name,sort_order,chapter_count) VALUES(?,?,?,?,?)",
-            [
-                (mhc.id, osis, BY_OSIS[osis].name_en, BY_OSIS[osis].order, chapters)
-                for osis, chapters in sorted(
-                    chapter_counts.items(), key=lambda item: BY_OSIS[item[0]].order
-                )
-            ],
+        # Source-import provenance: CrossWire MHC is not machine-translated.
+        mhc_provenance = "src:crosswire-mhc-2.2"
+        mhc_release = "source"
+        _ensure_provenance(
+            conn,
+            mhc_provenance,
+            model_canonical_slug=None,
+            run_id="add-study",
+            translated_at=None,
         )
-        # Stable, deterministic entry_id assigned in load order (source order), reused as the FTS
-        # locator so commentary can be ordered/paginated without ambiguity.
-        indexed_commentary = list(enumerate(commentary, start=1))
-        conn.executemany(
-            "INSERT INTO commentary_entries"
-            "(entry_id,work_id,osis_code,chapter,verse_start,verse_end,body_json) "
-            "VALUES(?,?,?,?,?,?,?)",
-            [
-                (
-                    entry_id,
-                    mhc.id,
-                    row.osis,
-                    row.chapter,
-                    row.verse_start,
-                    row.verse_end,
-                    json.dumps(row.body, ensure_ascii=False),
-                )
-                for entry_id, row in indexed_commentary
-            ],
+        conn.execute(
+            "INSERT INTO commentary_releases(work_id,release_version,manifest_checksum,built_at) "
+            "VALUES(?,?,?,?)",
+            (mhc.id, mhc_release, mhc.checksum, "1970-01-01T00:00:00Z"),
         )
-        conn.executemany(
-            "INSERT INTO commentary_fts"
-            "(text,work_id,entry_id,osis,testament,book_order,chapter,verse_start) "
-            "VALUES(?,?,?,?,?,?,?,?)",
-            [
-                (
-                    row.plain_text,
-                    mhc.id,
-                    entry_id,
-                    row.osis,
-                    BY_OSIS[row.osis].testament if row.osis in BY_OSIS else "NT",
-                    BY_OSIS[row.osis].order if row.osis in BY_OSIS else 999,
-                    row.chapter,
-                    # NULL, not 0. Coercing here made a chapter introduction indistinguishable
-                    # from a hit on a verse numbered zero, so search could not label it and
-                    # reported a verse the entry does not have. Ordering is handled by the
-                    # coalesce in search_providers.py, not by a sentinel stored in the index.
-                    row.verse_start,
-                )
-                for entry_id, row in indexed_commentary
-            ],
+        _insert_commentary_rows(
+            conn,
+            work_id=mhc.id,
+            source_work_id="mhc",
+            rows=commentary,
+            provenance_id=mhc_provenance,
+            release_version=mhc_release,
+        )
+        # Full English MHC: source_units == translated_units, complete.
+        from collections import Counter as _Counter
+
+        from .formats.commentary_pack import BookCoverageHint
+
+        mhc_hints = {
+            osis: BookCoverageHint(source_units=count, excluded_units=0, state="mt_complete")
+            for osis, count in _Counter(r.osis for r in commentary).items()
+        }
+        _recompute_coverage_for_books(
+            conn,
+            work_id=mhc.id,
+            source_work_id="mhc",
+            release_version=mhc_release,
+            osis_codes=set(mhc_hints),
+            coverage_hints=mhc_hints,
         )
         conn.executemany(
             "INSERT INTO dictionary_entries(work_id,headword,sort_key,language,body_json) "
@@ -844,3 +1177,407 @@ def append_book(
     finally:
         conn.close()
     return len(sections)
+
+
+def append_commentary(
+    source: str | Path,
+    spec: CommentarySpec,
+    out_db: str | Path,
+    *,
+    expected_checksum: str | None = None,
+    osis_code: str | None = None,
+    quality_label: str | None = None,
+) -> dict:
+    """Import or re-release a commentary package into an existing content DB.
+
+    - New unit_ids are inserted with fresh per-work entry_ids.
+    - Existing unit_ids are **updated** in place (body, hashes, provenance, release_version)
+      so a rebuild can advance release_version without retranslating, and corrections can
+      replace a unit. FTS is rewritten for those rows.
+    - Coverage is derived from DB counts + optional package_meta hints, never forced complete.
+    - Provenance rows require full metadata and refuse silent conflicts.
+    """
+    from datetime import UTC, datetime
+
+    from .books import BY_OSIS
+
+    source = Path(source)
+    out_db = Path(out_db)
+    if not out_db.exists():
+        raise ValueError(f"content database does not exist: {out_db}")
+
+    loaded = commentary_pack.load_commentary_package(source, expected_checksum=expected_checksum)
+    if osis_code is not None:
+        loaded.rows = [row for row in loaded.rows if row.osis == osis_code]
+        if not loaded.rows:
+            raise ValueError(f"package has no rows for osis_code={osis_code!r}")
+        selected_units = {row.unit_id for row in loaded.rows}
+        loaded.block_provenance = [
+            item for item in loaded.block_provenance if item[0] in selected_units
+        ]
+        loaded.coverage = {
+            osis: hint for osis, hint in loaded.coverage.items() if osis == osis_code
+        }
+        loaded.reviews = [review for review in loaded.reviews if review.unit_id in selected_units]
+
+    imported_books = {row.osis for row in loaded.rows}
+    missing_coverage = imported_books - set(loaded.coverage)
+
+    meta = WorkMeta(
+        id=spec.work_id,
+        type="commentary",
+        language=spec.language,
+        title=spec.title,
+        abbrev=spec.abbrev,
+        direction=spec.direction,
+        versification=spec.versification,
+        license=spec.license,
+        attribution=spec.attribution,
+        source_url=spec.source_url,
+        source_version=spec.source_version,
+        ai_context_policy=spec.ai_context_policy,
+        checksum=loaded.package_checksum,
+    )
+    built_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    label = (
+        quality_label
+        if quality_label is not None
+        else (spec.quality_label if spec.quality_label is not None else loaded.quality_label)
+    )
+    inserted = 0
+    updated = 0
+    manifest = ""
+
+    conn = sqlite3.connect(out_db)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("BEGIN")
+        existing = conn.execute(
+            "SELECT type, language, title, abbrev, direction, versification, license, "
+            "attribution, source_url, source_version, ai_context_policy "
+            "FROM works WHERE id=?",
+            (spec.work_id,),
+        ).fetchone()
+        if existing is None:
+            if missing_coverage:
+                raise ValueError(
+                    "coverage metadata is required for first import of: "
+                    + ", ".join(sorted(missing_coverage))
+                )
+            _insert_work(conn, meta, quality_label=label)
+        else:
+            if existing[0] != "commentary":
+                raise ValueError(f"work {spec.work_id!r} exists but is not a commentary")
+            expected_meta = (
+                spec.language,
+                spec.title,
+                spec.abbrev,
+                spec.direction,
+                spec.versification,
+                spec.license,
+                spec.attribution,
+                spec.source_url,
+                spec.source_version,
+                spec.ai_context_policy,
+            )
+            if tuple(existing[1:]) != expected_meta:
+                raise ValueError(
+                    f"work {spec.work_id!r} metadata differs from its first package; "
+                    "rebuild the generated database to change work metadata"
+                )
+            if label is not None:
+                conn.execute(
+                    "UPDATE works SET quality_label=? WHERE id=?",
+                    (label, spec.work_id),
+                )
+
+        # Package-declared provenances are authoritative (full metadata). CLI fills the default
+        # only when the package did not declare that id — never overwrite with different fields.
+        declared: dict[str, commentary_pack.ProvenanceRecord] = dict(loaded.provenances)
+        for _uid, _bi, rec in loaded.block_provenance:
+            declared.setdefault(rec.provenance_id, rec)
+        for rec in declared.values():
+            _ensure_provenance(
+                conn,
+                rec.provenance_id,
+                model_request_id=rec.model_request_id,
+                model_canonical_slug=rec.model_canonical_slug,
+                model_returned=rec.model_returned,
+                prompt_hash=rec.prompt_hash,
+                glossary_hash=rec.glossary_hash,
+                settings_json=rec.settings_json,
+                run_id=rec.run_id,
+                translated_at=rec.translated_at,
+            )
+        entry_provenance_ids = {row.provenance_id for row in loaded.rows}
+        if None in entry_provenance_ids:
+            raise ValueError("every package entry must carry provenance_id")
+        undeclared = {
+            pid
+            for pid in entry_provenance_ids
+            if pid is not None and pid != spec.provenance_id and pid not in declared
+        }
+        if undeclared:
+            raise ValueError(
+                "entry provenance is not declared in package_meta: " + ", ".join(sorted(undeclared))
+            )
+        if spec.provenance_id in entry_provenance_ids and spec.provenance_id not in declared:
+            _ensure_provenance(
+                conn,
+                spec.provenance_id,
+                model_request_id=spec.model_request_id,
+                model_canonical_slug=spec.model_canonical_slug,
+                model_returned=spec.model_returned,
+                prompt_hash=spec.prompt_hash,
+                glossary_hash=spec.glossary_hash,
+                settings_json=spec.settings_json,
+                run_id=spec.run_id,
+                translated_at=spec.translated_at,
+            )
+
+        # Release parent row first (FK parent of packages), then packages, then
+        # rewrite manifest_checksum as the hash over ordered package rows.
+        conn.execute(
+            "INSERT INTO commentary_releases(work_id,release_version,manifest_checksum,built_at) "
+            "VALUES(?,?,?,?) "
+            "ON CONFLICT(work_id, release_version) DO UPDATE SET built_at=excluded.built_at",
+            (spec.work_id, spec.release_version, "pending", built_at),
+        )
+        for osis in sorted({row.osis for row in loaded.rows}):
+            prior_package = conn.execute(
+                "SELECT package_checksum FROM commentary_release_packages "
+                "WHERE work_id=? AND release_version=? AND osis_code=?",
+                (spec.work_id, spec.release_version, osis),
+            ).fetchone()
+            if prior_package is not None and prior_package[0] != loaded.package_checksum:
+                raise ValueError(
+                    f"release {spec.work_id}/{spec.release_version} already has a different "
+                    f"package for {osis}; release artifacts are immutable"
+                )
+            conn.execute(
+                "INSERT INTO commentary_release_packages("
+                "work_id,release_version,osis_code,package_checksum) VALUES(?,?,?,?) "
+                "ON CONFLICT(work_id, release_version, osis_code) DO UPDATE SET "
+                "package_checksum=excluded.package_checksum",
+                (spec.work_id, spec.release_version, osis, loaded.package_checksum),
+            )
+        manifest = _release_manifest_checksum(conn, spec.work_id, spec.release_version)
+        conn.execute(
+            "UPDATE commentary_releases SET manifest_checksum=?, built_at=? "
+            "WHERE work_id=? AND release_version=?",
+            (manifest, built_at, spec.work_id, spec.release_version),
+        )
+        # content_version hashes works.checksum. Include both the manifest and its release id:
+        # a metadata-only re-release changes API responses even when package bytes are identical.
+        work_checksum = _work_release_checksum(spec.release_version, manifest)
+        conn.execute(
+            "UPDATE works SET checksum=? WHERE id=?",
+            (work_checksum, spec.work_id),
+        )
+
+        max_id = conn.execute(
+            "SELECT COALESCE(MAX(entry_id), 0) FROM commentary_entries WHERE work_id=?",
+            (spec.work_id,),
+        ).fetchone()[0]
+        next_id = max_id + 1
+        inserted = 0
+        updated = 0
+
+        for row in loaded.rows:
+            if row.unit_id is None:
+                raise ValueError("package row missing unit_id after load")
+            body_json = json.dumps(
+                row.body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+            content_hash = row.content_hash or hashlib.sha256(body_json.encode()).hexdigest()
+            source_hash = row.source_hash
+            if not source_hash:
+                raise ValueError(f"unit {row.unit_id}: source_hash is required")
+            if row.unit_id.split("/", 1)[0] != spec.source_work_id:
+                raise ValueError(
+                    f"unit {row.unit_id!r} does not belong to source work {spec.source_work_id!r}"
+                )
+            provenance_id = row.provenance_id
+            if provenance_id is None:
+                raise ValueError(f"unit {row.unit_id}: provenance_id is required")
+
+            existing_entry = conn.execute(
+                "SELECT entry_id, source_hash FROM commentary_entries "
+                "WHERE work_id=? AND unit_id=?",
+                (spec.work_id, row.unit_id),
+            ).fetchone()
+
+            if existing_entry is None:
+                entry_id = next_id
+                next_id += 1
+                conn.execute(
+                    "INSERT INTO commentary_entries("
+                    "work_id,entry_id,unit_id,osis_code,chapter,verse_start,verse_end,"
+                    "body_json,source_hash,content_hash,provenance_id,release_version) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        spec.work_id,
+                        entry_id,
+                        row.unit_id,
+                        row.osis,
+                        row.chapter,
+                        row.verse_start,
+                        row.verse_end,
+                        body_json,
+                        source_hash,
+                        content_hash,
+                        provenance_id,
+                        spec.release_version,
+                    ),
+                )
+                conn.execute(
+                    "INSERT INTO commentary_fts"
+                    "(text,work_id,entry_id,osis,testament,book_order,chapter,verse_start) "
+                    "VALUES(?,?,?,?,?,?,?,?)",
+                    (
+                        row.plain_text,
+                        spec.work_id,
+                        entry_id,
+                        row.osis,
+                        BY_OSIS[row.osis].testament if row.osis in BY_OSIS else "NT",
+                        BY_OSIS[row.osis].order if row.osis in BY_OSIS else 999,
+                        row.chapter,
+                        row.verse_start,
+                    ),
+                )
+                inserted += 1
+            else:
+                entry_id = existing_entry[0]
+                if existing_entry[1] != source_hash:
+                    raise ValueError(
+                        f"source_hash changed for {spec.work_id}/{row.unit_id}; "
+                        "source revisions require an explicit unit-id migration"
+                    )
+                conn.execute(
+                    "UPDATE commentary_entries SET "
+                    "osis_code=?, chapter=?, verse_start=?, verse_end=?, body_json=?, "
+                    "source_hash=?, content_hash=?, provenance_id=?, release_version=? "
+                    "WHERE work_id=? AND unit_id=?",
+                    (
+                        row.osis,
+                        row.chapter,
+                        row.verse_start,
+                        row.verse_end,
+                        body_json,
+                        source_hash,
+                        content_hash,
+                        provenance_id,
+                        spec.release_version,
+                        spec.work_id,
+                        row.unit_id,
+                    ),
+                )
+                # FTS5 content tables: delete + reinsert (no reliable UPDATE of content columns).
+                conn.execute(
+                    "DELETE FROM commentary_fts WHERE work_id=? AND entry_id=?",
+                    (spec.work_id, entry_id),
+                )
+                conn.execute(
+                    "INSERT INTO commentary_fts"
+                    "(text,work_id,entry_id,osis,testament,book_order,chapter,verse_start) "
+                    "VALUES(?,?,?,?,?,?,?,?)",
+                    (
+                        row.plain_text,
+                        spec.work_id,
+                        entry_id,
+                        row.osis,
+                        BY_OSIS[row.osis].testament if row.osis in BY_OSIS else "NT",
+                        BY_OSIS[row.osis].order if row.osis in BY_OSIS else 999,
+                        row.chapter,
+                        row.verse_start,
+                    ),
+                )
+                # Drop stale block overrides; re-applied below.
+                conn.execute(
+                    "DELETE FROM commentary_block_provenance WHERE work_id=? AND unit_id=?",
+                    (spec.work_id, row.unit_id),
+                )
+                updated += 1
+
+        # Block overrides: every block with an override must have a registered provenance row.
+        if loaded.block_provenance:
+            for unit_id, block_index, rec in loaded.block_provenance:
+                exists = conn.execute(
+                    "SELECT 1 FROM commentary_entries WHERE work_id=? AND unit_id=?",
+                    (spec.work_id, unit_id),
+                ).fetchone()
+                if not exists:
+                    raise ValueError(f"block provenance for unknown unit_id {unit_id!r}")
+                n_blocks = conn.execute(
+                    "SELECT body_json FROM commentary_entries WHERE work_id=? AND unit_id=?",
+                    (spec.work_id, unit_id),
+                ).fetchone()
+                body = json.loads(n_blocks[0])
+                if block_index < 0 or block_index >= len(body.get("blocks", [])):
+                    raise ValueError(f"block_index out of range for {unit_id}")
+            conn.executemany(
+                "INSERT INTO commentary_block_provenance("
+                "work_id,unit_id,block_index,provenance_id) VALUES(?,?,?,?) "
+                "ON CONFLICT(work_id, unit_id, block_index) DO UPDATE SET "
+                "provenance_id=excluded.provenance_id",
+                [
+                    (spec.work_id, unit_id, bi, rec.provenance_id)
+                    for unit_id, bi, rec in loaded.block_provenance
+                ],
+            )
+
+        review_books: set[str] = set()
+        for review in loaded.reviews:
+            review_entry = conn.execute(
+                "SELECT osis_code, content_hash FROM commentary_entries "
+                "WHERE work_id=? AND unit_id=?",
+                (spec.work_id, review.unit_id),
+            ).fetchone()
+            if review_entry is None:
+                raise ValueError(f"review refers to unknown unit_id {review.unit_id!r}")
+            if review_entry[1] != review.content_hash:
+                raise ValueError(
+                    f"review content_hash does not match current text for {review.unit_id}"
+                )
+            conn.execute(
+                "INSERT INTO commentary_reviews("
+                "work_id,unit_id,content_hash,reviewed_at,kind) VALUES(?,?,?,?,?) "
+                "ON CONFLICT(work_id,unit_id,content_hash,kind) DO UPDATE SET "
+                "reviewed_at=excluded.reviewed_at",
+                (
+                    spec.work_id,
+                    review.unit_id,
+                    review.content_hash,
+                    review.reviewed_at,
+                    review.kind,
+                ),
+            )
+            review_books.add(review_entry[0])
+
+        _recompute_coverage_for_books(
+            conn,
+            work_id=spec.work_id,
+            source_work_id=spec.source_work_id,
+            release_version=spec.release_version,
+            osis_codes={row.osis for row in loaded.rows} | set(loaded.coverage) | review_books,
+            coverage_hints=loaded.coverage,
+        )
+        conn.commit()
+        conn.execute("PRAGMA optimize")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return {
+        "commentary_entries": len(loaded.rows),
+        "inserted": inserted,
+        "updated": updated,
+        "package_checksum": loaded.package_checksum,
+        "record_count": loaded.record_count,
+        "work_id": spec.work_id,
+        "release_version": spec.release_version,
+        "manifest_checksum": manifest,
+        "work_checksum": work_checksum,
+    }

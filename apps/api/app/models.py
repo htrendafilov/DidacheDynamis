@@ -55,6 +55,20 @@ class Passage(BaseModel):
     headings: list[Heading]
 
 
+class TranslationProvenance(BaseModel):
+    """How a commentary unit (or block) was produced — full row, not just an id."""
+
+    provenance_id: str
+    model_request_id: str | None = None
+    model_canonical_slug: str | None = None
+    model_returned: str | None = None
+    prompt_hash: str | None = None
+    glossary_hash: str | None = None
+    settings_json: str | None = None
+    run_id: str | None = None
+    translated_at: str | None = None
+
+
 class Work(BaseModel):
     id: str
     type: str
@@ -68,6 +82,9 @@ class Work(BaseModel):
     source_url: str | None = None
     source_version: str | None = None
     ai_context_policy: str = "unknown"
+    # M2: product quality badge + distinct producers present in this work (commentary only).
+    quality_label: str | None = None
+    provenance_summary: list[TranslationProvenance] | None = None
 
 
 class Book(BaseModel):
@@ -109,6 +126,10 @@ class CommentaryHit(BaseModel):
     verse_start: int | None
     is_chapter_introduction: bool
     entry_id: int
+    unit_id: str
+    release_version: str
+    provenance_id: str
+    provenance: TranslationProvenance
 
 
 class DictionaryHit(BaseModel):
@@ -214,10 +235,38 @@ class Document(BaseModel):
     blocks: list[DocumentBlock]
 
 
+class BlockProvenance(BaseModel):
+    block_index: int
+    provenance: TranslationProvenance
+
+
 class CommentaryEntry(BaseModel):
+    entry_id: int
+    unit_id: str
     verse_start: int | None
     verse_end: int | None
     body: Document
+    source_hash: str
+    content_hash: str
+    provenance_id: str
+    release_version: str
+    provenance: TranslationProvenance
+    block_provenance: list[BlockProvenance] = Field(default_factory=list)
+
+
+class CommentaryCoverageRow(BaseModel):
+    osis_code: str
+    state: str  # queued | in_progress | mt_complete
+    source_units: int
+    translated_units: int
+    excluded_units: int
+    reviewed_units: int
+    release_version: str
+
+
+class CommentaryCoverageResponse(BaseModel):
+    work_id: str
+    books: list[CommentaryCoverageRow]
 
 
 class CommentaryPassage(BaseModel):

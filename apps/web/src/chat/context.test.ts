@@ -217,7 +217,7 @@ describe("buildContext budget (§4)", () => {
       work_id: "mhc",
       osis: "Isa",
       chapter: 10,
-      entries: [{ verse_start: 1, verse_end: 4, body: { blocks: [{ kind: "paragraph", text: chapterSized }] } }],
+      entries: [{ entry_id: 1, unit_id: "mhc/John/3/1-1/01", verse_start: 1, verse_end: 4, body: { blocks: [{ kind: "paragraph", text: chapterSized }] } }],
     } as CommentaryPassage);
     const chips: ContextChip[] = [{ kind: "commentary", workId: "mhc", osis: "Isa", chapter: 10 }];
     const works = [work("mhc", { type: "commentary" })];
@@ -527,8 +527,8 @@ describe("buildContext book chip", () => {
       osis: "John",
       chapter: 3,
       entries: [
-        { verse_start: null, verse_end: null, body: { blocks: [{ kind: "paragraph", text: introduction }] } },
-        { verse_start: 16, verse_end: 16, body: { blocks: [{ kind: "paragraph", text: "On verse sixteen." }] } },
+        { entry_id: 1, unit_id: "mhc/John/3/intro/01", verse_start: null, verse_end: null, body: { blocks: [{ kind: "paragraph", text: introduction }] } },
+        { entry_id: 2, unit_id: "mhc/John/3/16-16/01", verse_start: 16, verse_end: 16, body: { blocks: [{ kind: "paragraph", text: "On verse sixteen." }] } },
       ],
     } as never);
 

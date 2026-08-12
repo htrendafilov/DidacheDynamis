@@ -20,6 +20,7 @@ from .models import (
     StrongMorphology,
     StrongsEntryHit,
     StrongsOccurrenceHit,
+    TranslationProvenance,
 )
 from .strongs import (
     WORK_BY_LETTER,
@@ -166,9 +167,10 @@ class _CommentaryProvider(_Provider):
     # coalesce, not a bare CAST: a chapter introduction has a NULL verse and must sort first
     # within its chapter. SQLite happens to place NULLs first in ASC anyway, but relying on that
     # leaves the ordering silently dependent on it — this matches routers/commentary.py.
+    # Tie-break with work_id so cross-work pages are deterministic when entry_id overlaps.
     canonical = (
         "CAST(book_order AS INTEGER), CAST(chapter AS INTEGER), "
-        "coalesce(CAST(verse_start AS INTEGER), 0), CAST(entry_id AS INTEGER)"
+        "coalesce(CAST(verse_start AS INTEGER), 0), work_id, CAST(entry_id AS INTEGER)"
     )
     _bm25 = "bm25(commentary_fts)"
 
@@ -182,8 +184,11 @@ class _CommentaryProvider(_Provider):
         return where, params
 
     def page(self, conn, match, work_ids, testament, books, sort, limit, offset):
+        # Join entries for unit_id / release / provenance (M2 durable identity).
         select = (
-            "entry_id, work_id, osis, chapter, verse_start, "
+            "commentary_fts.entry_id AS entry_id, commentary_fts.work_id AS work_id, "
+            "commentary_fts.osis AS osis, commentary_fts.chapter AS chapter, "
+            "commentary_fts.verse_start AS verse_start, "
             "snippet(commentary_fts, 0, '<b>', '</b>', '…', 12) AS snip"
         )
         hits = []
@@ -194,16 +199,44 @@ class _CommentaryProvider(_Provider):
             # stay a None check rather than a truthiness one.
             verse_start = None if raw_verse is None else int(raw_verse)
             ref = f"{r['osis']} {chapter}" + (f":{verse_start}" if verse_start else "")
+            entry_id = int(r["entry_id"])
+            work_id = r["work_id"]
+            meta = conn.execute(
+                "SELECT e.unit_id, e.release_version, e.provenance_id, "
+                "p.model_request_id, p.model_canonical_slug, p.model_returned, "
+                "p.prompt_hash, p.glossary_hash, p.settings_json, p.run_id, p.translated_at "
+                "FROM commentary_entries e "
+                "LEFT JOIN translation_provenance p ON p.provenance_id = e.provenance_id "
+                "WHERE e.work_id=? AND e.entry_id=?",
+                (work_id, entry_id),
+            ).fetchone()
+            if meta is None or not meta["provenance_id"]:
+                raise RuntimeError(f"commentary FTS row has no entry metadata: {work_id}/{entry_id}")
+            prov = TranslationProvenance(
+                provenance_id=meta["provenance_id"],
+                model_request_id=meta["model_request_id"],
+                model_canonical_slug=meta["model_canonical_slug"],
+                model_returned=meta["model_returned"],
+                prompt_hash=meta["prompt_hash"],
+                glossary_hash=meta["glossary_hash"],
+                settings_json=meta["settings_json"],
+                run_id=meta["run_id"],
+                translated_at=meta["translated_at"],
+            )
             hits.append(
                 CommentaryHit(
-                    work_id=r["work_id"],
+                    work_id=work_id,
                     title=ref,
                     snippet=r["snip"],
                     osis=r["osis"],
                     chapter=chapter,
                     verse_start=verse_start,
                     is_chapter_introduction=verse_start is None,
-                    entry_id=int(r["entry_id"]),
+                    entry_id=entry_id,
+                    unit_id=meta["unit_id"],
+                    release_version=meta["release_version"],
+                    provenance_id=meta["provenance_id"],
+                    provenance=prov,
                 )
             )
         return hits
