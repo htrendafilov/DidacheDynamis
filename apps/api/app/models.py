@@ -126,10 +126,10 @@ class CommentaryHit(BaseModel):
     verse_start: int | None
     is_chapter_introduction: bool
     entry_id: int
-    unit_id: str | None = None
-    release_version: str | None = None
-    provenance_id: str | None = None
-    provenance: TranslationProvenance | None = None
+    unit_id: str
+    release_version: str
+    provenance_id: str
+    provenance: TranslationProvenance
 
 
 class DictionaryHit(BaseModel):
@@ -246,11 +246,11 @@ class CommentaryEntry(BaseModel):
     verse_start: int | None
     verse_end: int | None
     body: Document
-    source_hash: str | None = None
-    content_hash: str | None = None
-    provenance_id: str | None = None
-    release_version: str | None = None
-    provenance: TranslationProvenance | None = None
+    source_hash: str
+    content_hash: str
+    provenance_id: str
+    release_version: str
+    provenance: TranslationProvenance
     block_provenance: list[BlockProvenance] = Field(default_factory=list)
 
 

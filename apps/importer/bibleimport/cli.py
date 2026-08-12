@@ -441,10 +441,12 @@ def _cmd_add_commentary(args) -> int:
         source_version=args.source_version,
         direction=args.direction,
         versification=args.versification,
+        model_request_id=args.model_request_id,
         model_canonical_slug=args.model,
         model_returned=args.model_returned,
         prompt_hash=args.prompt_hash,
         glossary_hash=args.glossary_hash,
+        settings_json=args.settings_json,
         run_id=args.run_id,
         translated_at=args.translated_at,
         quality_label=args.quality_label,
@@ -711,9 +713,11 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--direction", default="ltr")
     c.add_argument("--versification", default="kjv")
     c.add_argument("--model", default=None, help="canonical model slug that produced the text")
+    c.add_argument("--model-request-id", default=None)
     c.add_argument("--model-returned", default=None)
     c.add_argument("--prompt-hash", default=None)
     c.add_argument("--glossary-hash", default=None)
+    c.add_argument("--settings-json", default=None)
     c.add_argument("--run-id", default=None)
     c.add_argument("--translated-at", default=None)
     c.add_argument("--expected-checksum", default=None, help="sha256 of the package file")

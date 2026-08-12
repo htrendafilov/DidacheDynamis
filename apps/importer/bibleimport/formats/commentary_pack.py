@@ -16,11 +16,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..books import BY_OSIS
 from ..canonical import (
     CommentaryRow,
     commentary_body_from_json,
     commentary_plain_text,
 )
+from ..provenance import PROVENANCE_FIELDS, validate_provenance_metadata
 
 # Named constants next to the existing study/usfx ceilings (AGENTS.md + master plan §4.1).
 _MAX_PACKAGE_COMPRESSED_BYTES = 64 * 1024 * 1024
@@ -38,6 +40,7 @@ _UNIT_ID = re.compile(
     r"^(?P<source>[A-Za-z0-9_-]+)/(?P<osis>[1-3]?[A-Za-z]+)/(?P<chapter>\d+)/"
     r"(?:intro|(?P<vs>\d+)-(?P<ve>\d+))/(?P<ord>\d{2,})$"
 )
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 PACKAGE_FORMAT_VERSION = 1
 _COVERAGE_STATES = frozenset({"queued", "in_progress", "mt_complete"})
@@ -93,6 +96,16 @@ class BookCoverageHint:
     state: str | None = None  # if set, must be a valid coverage state
 
 
+@dataclass(frozen=True)
+class ReviewRecord:
+    """An owner action bound to the exact commentary text that was read or corrected."""
+
+    unit_id: str
+    content_hash: str
+    reviewed_at: str
+    kind: str
+
+
 @dataclass
 class LoadedPackage:
     rows: list[CommentaryRow]
@@ -105,6 +118,7 @@ class LoadedPackage:
     provenances: dict[str, ProvenanceRecord] = field(default_factory=dict)
     # Per-book coverage hints from package_meta
     coverage: dict[str, BookCoverageHint] = field(default_factory=dict)
+    reviews: list[ReviewRecord] = field(default_factory=list)
     quality_label: str | None = None
 
 
@@ -140,28 +154,18 @@ def _parse_provenance(raw: Any, *, where: str) -> ProvenanceRecord:
     pid = raw.get("provenance_id")
     if not isinstance(pid, str) or not pid:
         raise ValueError(f"{where}: provenance_id is required")
-    # Reject bare-id-only overrides used as a way to invent empty rows: for non-source
-    # production, model_canonical_slug should be present when any model field is claimed.
-    slug = raw.get("model_canonical_slug")
-    if slug is not None and not isinstance(slug, str):
-        raise TypeError(f"{where}: model_canonical_slug must be a string")
-    returned = raw.get("model_returned")
-    if returned is not None and not isinstance(returned, str):
-        raise TypeError(f"{where}: model_returned must be a string")
-    for key in ("model_request_id", "prompt_hash", "glossary_hash", "settings_json", "run_id", "translated_at"):
-        val = raw.get(key)
-        if val is not None and not isinstance(val, str):
-            raise TypeError(f"{where}: {key} must be a string")
+    fields = {field: raw.get(field) for field in PROVENANCE_FIELDS}
+    validate_provenance_metadata(pid, fields, where=where)
     return ProvenanceRecord(
         provenance_id=pid,
-        model_canonical_slug=slug,
-        model_returned=returned if isinstance(returned, str) else None,
-        model_request_id=raw.get("model_request_id"),
-        prompt_hash=raw.get("prompt_hash"),
-        glossary_hash=raw.get("glossary_hash"),
-        settings_json=raw.get("settings_json"),
-        run_id=raw.get("run_id"),
-        translated_at=raw.get("translated_at"),
+        model_canonical_slug=fields["model_canonical_slug"],
+        model_returned=fields["model_returned"],
+        model_request_id=fields["model_request_id"],
+        prompt_hash=fields["prompt_hash"],
+        glossary_hash=fields["glossary_hash"],
+        settings_json=fields["settings_json"],
+        run_id=fields["run_id"],
+        translated_at=fields["translated_at"],
     )
 
 
@@ -228,9 +232,7 @@ def _iter_jsonl_gz(path: Path, limits: PackageLimits) -> Iterator[tuple[int, dic
                         f"{limits.max_json_depth}: {path}"
                     )
                 if not isinstance(obj, dict):
-                    raise TypeError(
-                        f"commentary package record {records} is not an object: {path}"
-                    )
+                    raise TypeError(f"commentary package record {records} is not an object: {path}")
                 yield records, obj, expanded
         trailing = buf.strip()
         if trailing:
@@ -267,6 +269,8 @@ def _validate_coordinates(unit_id: str, osis: str, chapter: int, verse_start: in
         raise ValueError(f"unit_id osis {match.group('osis')!r} != record osis {osis!r}")
     if int(match.group("chapter")) != chapter:
         raise ValueError(f"unit_id chapter != record chapter for {unit_id}")
+    if int(match.group("ord")) < 1:
+        raise ValueError(f"unit_id ordinal must be positive: {unit_id}")
     if verse_start is None:
         if match.group("vs") is not None:
             raise ValueError(f"intro unit_id expected for NULL verse: {unit_id}")
@@ -277,9 +281,19 @@ def _validate_coordinates(unit_id: str, osis: str, chapter: int, verse_start: in
             raise ValueError(f"unit_id verse range must be key verse only: {unit_id}")
 
 
-def _parse_package_meta(obj: dict) -> tuple[dict[str, ProvenanceRecord], dict[str, BookCoverageHint], str | None]:
+def _parse_package_meta(
+    obj: dict,
+) -> tuple[
+    dict[str, ProvenanceRecord],
+    dict[str, BookCoverageHint],
+    list[ReviewRecord],
+    str | None,
+]:
     provenances: dict[str, ProvenanceRecord] = {}
-    for item in obj.get("provenances") or []:
+    raw_provenances = obj.get("provenances") or []
+    if not isinstance(raw_provenances, list):
+        raise TypeError("package_meta.provenances must be a list")
+    for item in raw_provenances:
         rec = _parse_provenance(item, where="package_meta.provenances")
         if rec.provenance_id in provenances:
             raise ValueError(f"duplicate provenance_id in package_meta: {rec.provenance_id}")
@@ -291,20 +305,60 @@ def _parse_package_meta(obj: dict) -> tuple[dict[str, ProvenanceRecord], dict[st
     for osis, hint in raw_cov.items():
         if not isinstance(osis, str) or not isinstance(hint, dict):
             raise TypeError("package_meta.coverage entries must map osis -> object")
+        if osis not in BY_OSIS:
+            raise ValueError(f"package_meta.coverage has non-canonical book: {osis!r}")
         su = hint.get("source_units")
         eu = hint.get("excluded_units", 0)
         state = hint.get("state")
-        if not isinstance(su, int) or su < 0:
-            raise ValueError(f"package_meta.coverage[{osis}].source_units must be a non-negative int")
-        if not isinstance(eu, int) or eu < 0:
-            raise ValueError(f"package_meta.coverage[{osis}].excluded_units must be a non-negative int")
+        if type(su) is not int or su < 0:
+            raise ValueError(
+                f"package_meta.coverage[{osis}].source_units must be a non-negative int"
+            )
+        if type(eu) is not int or eu < 0:
+            raise ValueError(
+                f"package_meta.coverage[{osis}].excluded_units must be a non-negative int"
+            )
+        if eu > su:
+            raise ValueError(f"package_meta.coverage[{osis}].excluded_units exceeds source_units")
         if state is not None and state not in _COVERAGE_STATES:
             raise ValueError(f"package_meta.coverage[{osis}].state invalid: {state!r}")
         coverage[osis] = BookCoverageHint(source_units=su, excluded_units=eu, state=state)
+    reviews: list[ReviewRecord] = []
+    seen_reviews: set[tuple[str, str, str]] = set()
+    raw_reviews = obj.get("reviews") or []
+    if not isinstance(raw_reviews, list):
+        raise TypeError("package_meta.reviews must be a list")
+    for item in raw_reviews:
+        if not isinstance(item, dict):
+            raise TypeError("package_meta.reviews items must be objects")
+        unit_id = item.get("unit_id")
+        content_hash = item.get("content_hash")
+        reviewed_at = item.get("reviewed_at")
+        kind = item.get("kind")
+        if not isinstance(unit_id, str) or not unit_id:
+            raise ValueError("package_meta review unit_id is required")
+        if not isinstance(content_hash, str) or not _SHA256.fullmatch(content_hash):
+            raise ValueError("package_meta review content_hash must be a lowercase sha256")
+        if not isinstance(reviewed_at, str) or not reviewed_at:
+            raise ValueError("package_meta review reviewed_at is required")
+        if kind not in {"spot_read", "correction_authored"}:
+            raise ValueError(f"package_meta review kind is invalid: {kind!r}")
+        key = (unit_id, content_hash, kind)
+        if key in seen_reviews:
+            raise ValueError(f"duplicate package_meta review: {unit_id} {kind}")
+        seen_reviews.add(key)
+        reviews.append(
+            ReviewRecord(
+                unit_id=unit_id,
+                content_hash=content_hash,
+                reviewed_at=reviewed_at,
+                kind=kind,
+            )
+        )
     quality = obj.get("quality_label")
-    if quality is not None and not isinstance(quality, str):
-        raise TypeError("package_meta.quality_label must be a string")
-    return provenances, coverage, quality
+    if quality is not None and (not isinstance(quality, str) or not quality):
+        raise TypeError("package_meta.quality_label must be a non-empty string")
+    return provenances, coverage, reviews, quality
 
 
 def load_commentary_package(
@@ -331,21 +385,27 @@ def load_commentary_package(
     expanded_bytes = 0
     provenances: dict[str, ProvenanceRecord] = {}
     coverage: dict[str, BookCoverageHint] = {}
+    reviews: list[ReviewRecord] = []
     quality_label: str | None = None
     entry_records = 0
+    saw_meta = False
+    seen_block_overrides: set[tuple[str, int]] = set()
 
     for _index, obj, expanded_bytes in _iter_jsonl_gz(path, limits):
         if obj.get("type") == "package_meta":
+            if saw_meta:
+                raise ValueError("commentary package has more than one package_meta record")
             if entry_records:
                 raise ValueError("package_meta must appear before entry records")
-            provenances, coverage, quality_label = _parse_package_meta(obj)
+            provenances, coverage, reviews, quality_label = _parse_package_meta(obj)
+            saw_meta = True
             continue
 
         entry_records += 1
         if "format_version" not in obj:
             raise ValueError("package entry record missing required format_version")
         fmt = obj["format_version"]
-        if fmt != PACKAGE_FORMAT_VERSION:
+        if type(fmt) is not int or fmt != PACKAGE_FORMAT_VERSION:
             raise ValueError(f"unsupported package format_version: {fmt!r}")
 
         unit_id = obj.get("unit_id")
@@ -357,13 +417,17 @@ def load_commentary_package(
 
         osis = obj.get("osis_code") or obj.get("osis")
         chapter = obj.get("chapter")
-        if not isinstance(osis, str) or not isinstance(chapter, int):
+        if not isinstance(osis, str) or type(chapter) is not int:
             raise TypeError(f"package record {unit_id} missing osis/chapter")
+        if osis not in BY_OSIS:
+            raise ValueError(f"package record {unit_id} has non-canonical osis {osis!r}")
+        if chapter < 1:
+            raise ValueError(f"package record {unit_id} chapter must be positive")
         verse_start = obj.get("verse_start")
         verse_end = obj.get("verse_end")
-        if verse_start is not None and not isinstance(verse_start, int):
+        if verse_start is not None and type(verse_start) is not int:
             raise TypeError(f"package record {unit_id} has non-int verse_start")
-        if verse_end is not None and not isinstance(verse_end, int):
+        if verse_end is not None and type(verse_end) is not int:
             raise TypeError(f"package record {unit_id} has non-int verse_end")
         if (verse_start is None) != (verse_end is None):
             raise ValueError(
@@ -373,6 +437,8 @@ def load_commentary_package(
             raise ValueError(
                 f"package record {unit_id}: verse_end must equal verse_start (key verse only)"
             )
+        if verse_start is not None and verse_start < 1:
+            raise ValueError(f"package record {unit_id}: key verse must be positive")
 
         _validate_coordinates(unit_id, osis, chapter, verse_start)
 
@@ -394,23 +460,31 @@ def load_commentary_package(
 
         source_hash = obj.get("source_hash")
         content_hash = obj.get("content_hash")
-        if not isinstance(source_hash, str) or not source_hash:
-            raise ValueError(f"package record {unit_id}: source_hash is required")
-        if not isinstance(content_hash, str) or not content_hash:
-            raise ValueError(f"package record {unit_id}: content_hash is required")
+        if not isinstance(source_hash, str) or not _SHA256.fullmatch(source_hash):
+            raise ValueError(f"package record {unit_id}: source_hash must be a lowercase sha256")
+        if not isinstance(content_hash, str) or not _SHA256.fullmatch(content_hash):
+            raise ValueError(f"package record {unit_id}: content_hash must be a lowercase sha256")
         computed = _body_hash(body)
         if content_hash != computed:
             raise ValueError(f"package record {unit_id}: content_hash does not match body")
 
+        qa_status = obj.get("qa_status")
+        if not isinstance(qa_status, str) or not qa_status:
+            raise ValueError(f"package record {unit_id}: qa_status is required")
+        correction_revision = obj.get("correction_revision")
+        if type(correction_revision) is not int or correction_revision < 0:
+            raise ValueError(
+                f"package record {unit_id}: correction_revision must be a non-negative int"
+            )
+
         default_pid = obj.get("provenance_id")
-        if default_pid is not None:
-            if not isinstance(default_pid, str):
-                raise TypeError(f"package record {unit_id}: provenance_id must be a string")
-            if provenances and default_pid not in provenances:
-                raise ValueError(
-                    f"package record {unit_id}: provenance_id {default_pid!r} "
-                    f"not declared in package_meta.provenances"
-                )
+        if not isinstance(default_pid, str) or not default_pid:
+            raise ValueError(f"package record {unit_id}: provenance_id is required")
+        if provenances and default_pid not in provenances:
+            raise ValueError(
+                f"package record {unit_id}: provenance_id {default_pid!r} "
+                f"not declared in package_meta.provenances"
+            )
 
         overrides = obj.get("block_provenance") or []
         if overrides and not isinstance(overrides, list):
@@ -423,6 +497,10 @@ def load_commentary_package(
                 raise TypeError(f"package record {unit_id}: block_index must be int")
             if bi < 0 or bi >= len(blocks):
                 raise ValueError(f"package record {unit_id}: block_index out of range")
+            override_key = (unit_id, bi)
+            if override_key in seen_block_overrides:
+                raise ValueError(f"package record {unit_id}: duplicate provenance for block {bi}")
+            seen_block_overrides.add(override_key)
             # Full provenance object required — bare id is refused.
             if "provenance" in item:
                 rec = _parse_provenance(item["provenance"], where=f"{unit_id}.block_provenance")
@@ -461,11 +539,18 @@ def load_commentary_package(
                 unit_id=unit_id,
                 source_hash=source_hash,
                 content_hash=content_hash,
+                provenance_id=default_pid,
             )
         )
 
     if not rows:
         raise ValueError(f"commentary package has no entry records: {path}")
+    package_books = {row.osis for row in rows}
+    if len(package_books) != 1:
+        raise ValueError(
+            "commentary package v1 is one per-book artifact; found entries for "
+            + ", ".join(sorted(package_books))
+        )
 
     return LoadedPackage(
         rows=rows,
@@ -475,5 +560,6 @@ def load_commentary_package(
         block_provenance=block_provenance,
         provenances=provenances,
         coverage=coverage,
+        reviews=reviews,
         quality_label=quality_label,
     )

@@ -210,19 +210,19 @@ class _CommentaryProvider(_Provider):
                 "WHERE e.work_id=? AND e.entry_id=?",
                 (work_id, entry_id),
             ).fetchone()
-            prov = None
-            if meta and meta["provenance_id"]:
-                prov = TranslationProvenance(
-                    provenance_id=meta["provenance_id"],
-                    model_request_id=meta["model_request_id"],
-                    model_canonical_slug=meta["model_canonical_slug"],
-                    model_returned=meta["model_returned"],
-                    prompt_hash=meta["prompt_hash"],
-                    glossary_hash=meta["glossary_hash"],
-                    settings_json=meta["settings_json"],
-                    run_id=meta["run_id"],
-                    translated_at=meta["translated_at"],
-                )
+            if meta is None or not meta["provenance_id"]:
+                raise RuntimeError(f"commentary FTS row has no entry metadata: {work_id}/{entry_id}")
+            prov = TranslationProvenance(
+                provenance_id=meta["provenance_id"],
+                model_request_id=meta["model_request_id"],
+                model_canonical_slug=meta["model_canonical_slug"],
+                model_returned=meta["model_returned"],
+                prompt_hash=meta["prompt_hash"],
+                glossary_hash=meta["glossary_hash"],
+                settings_json=meta["settings_json"],
+                run_id=meta["run_id"],
+                translated_at=meta["translated_at"],
+            )
             hits.append(
                 CommentaryHit(
                     work_id=work_id,
@@ -233,9 +233,9 @@ class _CommentaryProvider(_Provider):
                     verse_start=verse_start,
                     is_chapter_introduction=verse_start is None,
                     entry_id=entry_id,
-                    unit_id=meta["unit_id"] if meta else None,
-                    release_version=meta["release_version"] if meta else None,
-                    provenance_id=meta["provenance_id"] if meta else None,
+                    unit_id=meta["unit_id"],
+                    release_version=meta["release_version"],
+                    provenance_id=meta["provenance_id"],
                     provenance=prov,
                 )
             )

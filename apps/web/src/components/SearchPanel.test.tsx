@@ -49,6 +49,10 @@ const commentary: SearchHit = {
   verse_start: 16,
   is_chapter_introduction: false,
   entry_id: 5,
+  unit_id: "mhc/John/3/16-16/01",
+  release_version: "source-1",
+  provenance_id: "src:mhc",
+  provenance: { provenance_id: "src:mhc" },
 };
 // A chapter introduction carries no verse. Before M1 the API typed verse_start as int and
 // crashed on these; the UI must render the hit without inventing a verse number.
@@ -62,6 +66,10 @@ const commentaryIntro: SearchHit = {
   verse_start: null,
   is_chapter_introduction: true,
   entry_id: 6,
+  unit_id: "mhc/John/3/intro/01",
+  release_version: "source-1",
+  provenance_id: "src:mhc",
+  provenance: { provenance_id: "src:mhc" },
 };
 const dict: SearchHit = {
   kind: "dictionary",

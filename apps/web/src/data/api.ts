@@ -107,10 +107,10 @@ export interface CommentaryHit {
   verse_start: number | null;
   is_chapter_introduction: boolean;
   entry_id: number;
-  unit_id?: string | null;
-  release_version?: string | null;
-  provenance_id?: string | null;
-  provenance?: TranslationProvenance | null;
+  unit_id: string;
+  release_version: string;
+  provenance_id: string;
+  provenance: TranslationProvenance;
 }
 
 export interface DictionaryHit {
@@ -228,11 +228,11 @@ export interface CommentaryEntry {
   verse_start: number | null;
   verse_end: number | null;
   body: Document;
-  source_hash?: string | null;
-  content_hash?: string | null;
-  provenance_id?: string | null;
-  release_version?: string | null;
-  provenance?: TranslationProvenance | null;
+  source_hash: string;
+  content_hash: string;
+  provenance_id: string;
+  release_version: string;
+  provenance: TranslationProvenance;
   block_provenance?: BlockProvenance[];
 }
 
@@ -241,6 +241,21 @@ export interface CommentaryPassage {
   osis: string;
   chapter: number;
   entries: CommentaryEntry[];
+}
+
+export interface CommentaryCoverageRow {
+  osis_code: string;
+  state: "queued" | "in_progress" | "mt_complete";
+  source_units: number;
+  translated_units: number;
+  excluded_units: number;
+  reviewed_units: number;
+  release_version: string;
+}
+
+export interface CommentaryCoverageResponse {
+  work_id: string;
+  books: CommentaryCoverageRow[];
 }
 
 export interface DictionaryHeadword {
@@ -348,6 +363,10 @@ export const api = {
       `/commentary/${workId}/${osis}/${chapter}` + (verse ? `?verse=${verse}` : ""),
       { signal },
     ),
+  commentaryCoverage: (workId: string, signal?: AbortSignal) =>
+    get<CommentaryCoverageResponse>(`/commentary/${encodeURIComponent(workId)}/coverage`, {
+      signal,
+    }),
   dictionaryHeadwords: (workId: string, prefix: string) =>
     get<DictionaryHeadword[]>(
       `/dictionary/${workId}/entries?prefix=${encodeURIComponent(prefix)}&limit=80`,

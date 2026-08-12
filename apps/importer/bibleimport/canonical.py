@@ -189,6 +189,34 @@ COMMENTARY_BLOCK_KINDS = frozenset({"heading", "paragraph", "quotation"})
 
 
 @dataclass(frozen=True)
+class CommentaryDictionaryRef:
+    """One internal dictionary target carried by a commentary run."""
+
+    work_id: str
+    entry_key: str
+    headword: str
+
+    def to_json(self) -> dict:
+        return {
+            "work_id": self.work_id,
+            "entry_key": self.entry_key,
+            "headword": self.headword,
+        }
+
+    @classmethod
+    def from_json(cls, raw: dict) -> CommentaryDictionaryRef:
+        if not isinstance(raw, dict):
+            raise TypeError("commentary dictionary_ref must be an object")
+        values: dict[str, str] = {}
+        for key in ("work_id", "entry_key", "headword"):
+            value = raw.get(key)
+            if not isinstance(value, str) or not value:
+                raise TypeError(f"commentary dictionary_ref.{key} must be a non-empty string")
+            values[key] = value
+        return cls(**values)
+
+
+@dataclass(frozen=True)
 class CommentaryRun:
     """One inline span inside a commentary block (emphasis, ref, verse-number superscript)."""
 
@@ -197,6 +225,7 @@ class CommentaryRun:
     strong: bool = False
     superscript: bool = False
     ref: str | None = None
+    dictionary_ref: CommentaryDictionaryRef | None = None
 
     def to_json(self) -> dict:
         out: dict = {"t": self.t}
@@ -208,18 +237,45 @@ class CommentaryRun:
             out["superscript"] = True
         if self.ref:
             out["ref"] = self.ref
+        if self.dictionary_ref is not None:
+            out["dictionary_ref"] = self.dictionary_ref.to_json()
         return out
 
     @classmethod
     def from_json(cls, raw: dict) -> CommentaryRun:
         if not isinstance(raw, dict) or "t" not in raw:
             raise TypeError("commentary run must be an object with 't'")
+        text = raw["t"]
+        if not isinstance(text, str):
+            raise TypeError("commentary run t must be a string")
+        flags: dict[str, bool] = {}
+        for key in ("emphasis", "strong", "superscript"):
+            value = raw.get(key, False)
+            if not isinstance(value, bool):
+                raise TypeError(f"commentary run {key} must be a boolean")
+            flags[key] = value
+        ref = raw.get("ref")
+        if ref is not None:
+            if not isinstance(ref, str):
+                raise TypeError("commentary run ref must be a string")
+            from .books import normalize_osis_ref
+
+            if normalize_osis_ref(ref) != ref:
+                raise ValueError(f"commentary run ref is not canonical: {ref!r}")
+        dictionary_ref_raw = raw.get("dictionary_ref")
+        if ref is not None and dictionary_ref_raw is not None:
+            raise ValueError("commentary run cannot carry both ref and dictionary_ref")
         return cls(
-            t=str(raw["t"]),
-            emphasis=bool(raw.get("emphasis", False)),
-            strong=bool(raw.get("strong", False)),
-            superscript=bool(raw.get("superscript", False)),
-            ref=str(raw["ref"]) if raw.get("ref") is not None else None,
+            t=text,
+            emphasis=flags["emphasis"],
+            strong=flags["strong"],
+            superscript=flags["superscript"],
+            ref=ref,
+            dictionary_ref=(
+                CommentaryDictionaryRef.from_json(dictionary_ref_raw)
+                if dictionary_ref_raw is not None
+                else None
+            ),
         )
 
 
@@ -307,6 +363,7 @@ class CommentaryRow:
     unit_id: str | None = None
     source_hash: str | None = None
     content_hash: str | None = None
+    provenance_id: str | None = None
 
 
 @dataclass

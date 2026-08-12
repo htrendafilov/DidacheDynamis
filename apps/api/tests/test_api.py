@@ -1133,9 +1133,26 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
         "provenances": [
             {
                 "provenance_id": "mt:test",
+                "model_request_id": "google/gemini-2.5-flash",
                 "model_canonical_slug": "google/gemini-2.5-flash",
+                "model_returned": "google/gemini-2.5-flash",
+                "prompt_hash": hashlib.sha256(b"prompt").hexdigest(),
+                "glossary_hash": hashlib.sha256(b"glossary").hexdigest(),
+                "settings_json": '{"temperature":0}',
                 "run_id": "api-test",
-            }
+                "translated_at": "2026-08-12T08:00:00Z",
+            },
+            {
+                "provenance_id": "mt:repair",
+                "model_request_id": "openai/gpt-5.6-terra",
+                "model_canonical_slug": "openai/gpt-5.6-terra",
+                "model_returned": "openai/gpt-5.6-terra",
+                "prompt_hash": hashlib.sha256(b"prompt").hexdigest(),
+                "glossary_hash": hashlib.sha256(b"glossary").hexdigest(),
+                "settings_json": '{"temperature":0}',
+                "run_id": "repair-test",
+                "translated_at": "2026-08-12T08:01:00Z",
+            },
         ],
         "coverage": {"John": {"source_units": 1, "excluded_units": 0, "state": "mt_complete"}},
     }
@@ -1147,9 +1164,12 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
         "verse_start": 1,
         "verse_end": 1,
         "body": body,
-        "source_hash": "en-src-" + content_hash[:12],
+        "source_hash": hashlib.sha256(b"audited English source unit").hexdigest(),
         "content_hash": content_hash,
+        "qa_status": "automated_pass",
+        "correction_revision": 0,
         "provenance_id": "mt:test",
+        "block_provenance": [{"block_index": 0, "provenance_id": "mt:repair"}],
     }
     pack = tmp_path / "John.jsonl.gz"
     with gzip.open(pack, "wb") as handle:
@@ -1206,8 +1226,23 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
         assert "entry_id" in en.json()["entries"][0]
         assert "unit_id" in en.json()["entries"][0]
         assert entries[0]["provenance"]["model_canonical_slug"] == "google/gemini-2.5-flash"
+        assert entries[0]["block_provenance"][0]["block_index"] == 0
+        assert entries[0]["source_hash"] == record["source_hash"]
+        assert entries[0]["content_hash"] == record["content_hash"]
+        assert entries[0]["release_version"] == "0.1.0"
+        block_provenance = entries[0]["block_provenance"][0]["provenance"]
+        assert block_provenance["provenance_id"] == "mt:repair"
+        assert block_provenance["model_canonical_slug"] == "openai/gpt-5.6-terra"
+        search = client.get(
+            "/api/v1/search",
+            params={"q": "Български", "types": "commentary", "works": "mhcbg"},
+        ).json()
+        search_hit = _group(search, "commentary")["hits"][0]
+        assert search_hit["work_id"] == "mhcbg"
+        assert search_hit["unit_id"] == "mhc/John/3/1-1/01"
+        assert search_hit["provenance"]["provenance_id"] == "mt:test"
         works = client.get("/api/v1/works").json()
         bg = next(w for w in works if w["id"] == "mhcbg")
         assert bg["quality_label"] == "machine-assisted draft"
         assert any(p["provenance_id"] == "mt:test" for p in bg["provenance_summary"])
-
+        assert any(p["provenance_id"] == "mt:repair" for p in bg["provenance_summary"])

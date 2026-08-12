@@ -18,7 +18,7 @@ from ..models import (
 router = APIRouter(prefix=settings.API_V1, tags=["commentary"])
 
 
-def _provenance(conn: sqlite3.Connection, provenance_id: str) -> TranslationProvenance | None:
+def _provenance(conn: sqlite3.Connection, provenance_id: str) -> TranslationProvenance:
     row = conn.execute(
         "SELECT provenance_id, model_request_id, model_canonical_slug, model_returned, "
         "prompt_hash, glossary_hash, settings_json, run_id, translated_at "
@@ -26,7 +26,7 @@ def _provenance(conn: sqlite3.Connection, provenance_id: str) -> TranslationProv
         (provenance_id,),
     ).fetchone()
     if row is None:
-        return None
+        raise RuntimeError(f"missing translation provenance row: {provenance_id}")
     return TranslationProvenance(**dict(row))
 
 
