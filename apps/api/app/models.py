@@ -109,6 +109,9 @@ class CommentaryHit(BaseModel):
     verse_start: int | None
     is_chapter_introduction: bool
     entry_id: int
+    unit_id: str | None = None  # durable identity (M2); optional until all indexes carry it
+    release_version: str | None = None
+    provenance_id: str | None = None
 
 
 class DictionaryHit(BaseModel):
@@ -215,9 +218,30 @@ class Document(BaseModel):
 
 
 class CommentaryEntry(BaseModel):
+    entry_id: int
+    unit_id: str
     verse_start: int | None
     verse_end: int | None
     body: Document
+    source_hash: str | None = None
+    content_hash: str | None = None
+    provenance_id: str | None = None
+    release_version: str | None = None
+
+
+class CommentaryCoverageRow(BaseModel):
+    osis_code: str
+    state: str  # queued | in_progress | mt_complete
+    source_units: int
+    translated_units: int
+    excluded_units: int
+    reviewed_units: int
+    release_version: str
+
+
+class CommentaryCoverageResponse(BaseModel):
+    work_id: str
+    books: list[CommentaryCoverageRow]
 
 
 class CommentaryPassage(BaseModel):

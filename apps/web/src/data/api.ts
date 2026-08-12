@@ -93,6 +93,9 @@ export interface CommentaryHit {
   verse_start: number | null;
   is_chapter_introduction: boolean;
   entry_id: number;
+  unit_id?: string | null;
+  release_version?: string | null;
+  provenance_id?: string | null;
 }
 
 export interface DictionaryHit {
@@ -200,9 +203,15 @@ export interface Document {
 }
 
 export interface CommentaryEntry {
+  entry_id: number;
+  unit_id: string;
   verse_start: number | null;
   verse_end: number | null;
   body: Document;
+  source_hash?: string | null;
+  content_hash?: string | null;
+  provenance_id?: string | null;
+  release_version?: string | null;
 }
 
 export interface CommentaryPassage {

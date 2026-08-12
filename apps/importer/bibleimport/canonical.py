@@ -183,6 +183,109 @@ class HeadingRow:
     text: str
 
 
+# Commentary CIR (body_json): {"blocks": [{"kind": "heading"|"paragraph"|"quotation",
+# "text": str, "runs": [{"t": str, "emphasis"?, "strong"?, "superscript"?, "ref"?}, ...]?}]}
+COMMENTARY_BLOCK_KINDS = frozenset({"heading", "paragraph", "quotation"})
+
+
+@dataclass(frozen=True)
+class CommentaryRun:
+    """One inline span inside a commentary block (emphasis, ref, verse-number superscript)."""
+
+    t: str
+    emphasis: bool = False
+    strong: bool = False
+    superscript: bool = False
+    ref: str | None = None
+
+    def to_json(self) -> dict:
+        out: dict = {"t": self.t}
+        if self.emphasis:
+            out["emphasis"] = True
+        if self.strong:
+            out["strong"] = True
+        if self.superscript:
+            out["superscript"] = True
+        if self.ref:
+            out["ref"] = self.ref
+        return out
+
+    @classmethod
+    def from_json(cls, raw: dict) -> CommentaryRun:
+        if not isinstance(raw, dict) or "t" not in raw:
+            raise TypeError("commentary run must be an object with 't'")
+        return cls(
+            t=str(raw["t"]),
+            emphasis=bool(raw.get("emphasis", False)),
+            strong=bool(raw.get("strong", False)),
+            superscript=bool(raw.get("superscript", False)),
+            ref=str(raw["ref"]) if raw.get("ref") is not None else None,
+        )
+
+
+@dataclass(frozen=True)
+class CommentaryBlock:
+    kind: str  # heading | paragraph | quotation
+    text: str
+    runs: tuple[CommentaryRun, ...] | None = None
+
+    def to_json(self) -> dict:
+        out: dict = {"kind": self.kind, "text": self.text}
+        if self.runs is not None:
+            out["runs"] = [run.to_json() for run in self.runs]
+        return out
+
+    @classmethod
+    def from_json(cls, raw: dict) -> CommentaryBlock:
+        if not isinstance(raw, dict):
+            raise TypeError("commentary block must be an object")
+        kind = raw.get("kind")
+        if kind not in COMMENTARY_BLOCK_KINDS:
+            raise ValueError(f"invalid commentary block kind: {kind!r}")
+        text = raw.get("text")
+        if not isinstance(text, str):
+            raise TypeError("commentary block text must be a string")
+        runs_raw = raw.get("runs")
+        runs: tuple[CommentaryRun, ...] | None = None
+        if runs_raw is not None:
+            if not isinstance(runs_raw, list):
+                raise TypeError("commentary block runs must be a list")
+            runs = tuple(CommentaryRun.from_json(item) for item in runs_raw)
+            joined = "".join(run.t for run in runs)
+            if norm_ws(joined) != norm_ws(text):
+                raise ValueError("commentary block text must equal concatenated run text")
+        return cls(kind=kind, text=text, runs=runs)
+
+
+def commentary_body_from_json(raw: dict) -> dict:
+    """Validate a commentary body and return a normalised dict suitable for body_json."""
+    if not isinstance(raw, dict) or "blocks" not in raw:
+        raise TypeError("commentary body must be an object with 'blocks'")
+    blocks_raw = raw["blocks"]
+    if not isinstance(blocks_raw, list) or not blocks_raw:
+        raise TypeError("commentary body must have a non-empty blocks list")
+    blocks = [CommentaryBlock.from_json(item) for item in blocks_raw]
+    return {"blocks": [block.to_json() for block in blocks]}
+
+
+def commentary_plain_text(body: dict) -> str:
+    blocks = body.get("blocks") or []
+    return "\n\n".join(str(block.get("text", "")) for block in blocks if block.get("text")).strip()
+
+
+def make_commentary_unit_id(
+    source_work: str,
+    osis: str,
+    chapter: int,
+    verse_start: int | None,
+    ordinal: int,
+) -> str:
+    """Stable unit identity (M2 §4.2). Ordinal is 1-based within the same key verse."""
+    if verse_start is None:
+        return f"{source_work}/{osis}/{chapter}/intro/{ordinal:02d}"
+    return f"{source_work}/{osis}/{chapter}/{verse_start}-{verse_start}/{ordinal:02d}"
+
+
 @dataclass
 class CommentaryRow:
     osis: str
@@ -191,6 +294,10 @@ class CommentaryRow:
     verse_end: int | None
     body: dict
     plain_text: str
+    # Optional multi-work identity fields (filled by package import or source-unit synthesis).
+    unit_id: str | None = None
+    source_hash: str | None = None
+    content_hash: str | None = None
 
 
 @dataclass
