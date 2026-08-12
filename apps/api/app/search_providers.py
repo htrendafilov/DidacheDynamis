@@ -20,6 +20,7 @@ from .models import (
     StrongMorphology,
     StrongsEntryHit,
     StrongsOccurrenceHit,
+    TranslationProvenance,
 )
 from .strongs import (
     WORK_BY_LETTER,
@@ -201,10 +202,27 @@ class _CommentaryProvider(_Provider):
             entry_id = int(r["entry_id"])
             work_id = r["work_id"]
             meta = conn.execute(
-                "SELECT unit_id, release_version, provenance_id FROM commentary_entries "
-                "WHERE work_id=? AND entry_id=?",
+                "SELECT e.unit_id, e.release_version, e.provenance_id, "
+                "p.model_request_id, p.model_canonical_slug, p.model_returned, "
+                "p.prompt_hash, p.glossary_hash, p.settings_json, p.run_id, p.translated_at "
+                "FROM commentary_entries e "
+                "LEFT JOIN translation_provenance p ON p.provenance_id = e.provenance_id "
+                "WHERE e.work_id=? AND e.entry_id=?",
                 (work_id, entry_id),
             ).fetchone()
+            prov = None
+            if meta and meta["provenance_id"]:
+                prov = TranslationProvenance(
+                    provenance_id=meta["provenance_id"],
+                    model_request_id=meta["model_request_id"],
+                    model_canonical_slug=meta["model_canonical_slug"],
+                    model_returned=meta["model_returned"],
+                    prompt_hash=meta["prompt_hash"],
+                    glossary_hash=meta["glossary_hash"],
+                    settings_json=meta["settings_json"],
+                    run_id=meta["run_id"],
+                    translated_at=meta["translated_at"],
+                )
             hits.append(
                 CommentaryHit(
                     work_id=work_id,
@@ -218,6 +236,7 @@ class _CommentaryProvider(_Provider):
                     unit_id=meta["unit_id"] if meta else None,
                     release_version=meta["release_version"] if meta else None,
                     provenance_id=meta["provenance_id"] if meta else None,
+                    provenance=prov,
                 )
             )
         return hits

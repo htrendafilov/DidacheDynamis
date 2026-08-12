@@ -447,6 +447,7 @@ def _cmd_add_commentary(args) -> int:
         glossary_hash=args.glossary_hash,
         run_id=args.run_id,
         translated_at=args.translated_at,
+        quality_label=args.quality_label,
     )
     stats = append_commentary(
         args.source,
@@ -454,6 +455,7 @@ def _cmd_add_commentary(args) -> int:
         args.out,
         expected_checksum=args.expected_checksum,
         osis_code=args.osis,
+        quality_label=args.quality_label,
     )
     print(" ".join(f"{key}={value}" for key, value in stats.items()))
     audit = _audit_record(
@@ -716,6 +718,11 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--translated-at", default=None)
     c.add_argument("--expected-checksum", default=None, help="sha256 of the package file")
     c.add_argument("--osis", default=None, help="optional: import only this book from the package")
+    c.add_argument(
+        "--quality-label",
+        default=None,
+        help="optional product badge (e.g. machine-assisted draft / работен превод)",
+    )
     c.add_argument("--report", help="diagnostics JSON (default: <out>.diagnostics.json)")
     c.set_defaults(func=_cmd_add_commentary)
 

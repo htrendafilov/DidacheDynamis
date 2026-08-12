@@ -55,6 +55,20 @@ class Passage(BaseModel):
     headings: list[Heading]
 
 
+class TranslationProvenance(BaseModel):
+    """How a commentary unit (or block) was produced — full row, not just an id."""
+
+    provenance_id: str
+    model_request_id: str | None = None
+    model_canonical_slug: str | None = None
+    model_returned: str | None = None
+    prompt_hash: str | None = None
+    glossary_hash: str | None = None
+    settings_json: str | None = None
+    run_id: str | None = None
+    translated_at: str | None = None
+
+
 class Work(BaseModel):
     id: str
     type: str
@@ -68,6 +82,9 @@ class Work(BaseModel):
     source_url: str | None = None
     source_version: str | None = None
     ai_context_policy: str = "unknown"
+    # M2: product quality badge + distinct producers present in this work (commentary only).
+    quality_label: str | None = None
+    provenance_summary: list[TranslationProvenance] | None = None
 
 
 class Book(BaseModel):
@@ -109,9 +126,10 @@ class CommentaryHit(BaseModel):
     verse_start: int | None
     is_chapter_introduction: bool
     entry_id: int
-    unit_id: str | None = None  # durable identity (M2); optional until all indexes carry it
+    unit_id: str | None = None
     release_version: str | None = None
     provenance_id: str | None = None
+    provenance: TranslationProvenance | None = None
 
 
 class DictionaryHit(BaseModel):
@@ -217,6 +235,11 @@ class Document(BaseModel):
     blocks: list[DocumentBlock]
 
 
+class BlockProvenance(BaseModel):
+    block_index: int
+    provenance: TranslationProvenance
+
+
 class CommentaryEntry(BaseModel):
     entry_id: int
     unit_id: str
@@ -227,6 +250,8 @@ class CommentaryEntry(BaseModel):
     content_hash: str | None = None
     provenance_id: str | None = None
     release_version: str | None = None
+    provenance: TranslationProvenance | None = None
+    block_provenance: list[BlockProvenance] = Field(default_factory=list)
 
 
 class CommentaryCoverageRow(BaseModel):

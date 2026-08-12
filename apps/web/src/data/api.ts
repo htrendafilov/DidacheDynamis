@@ -1,5 +1,17 @@
 // Typed client for the reader API (mirrors apps/api/app/models.py).
 
+export interface TranslationProvenance {
+  provenance_id: string;
+  model_request_id?: string | null;
+  model_canonical_slug?: string | null;
+  model_returned?: string | null;
+  prompt_hash?: string | null;
+  glossary_hash?: string | null;
+  settings_json?: string | null;
+  run_id?: string | null;
+  translated_at?: string | null;
+}
+
 export interface Work {
   id: string;
   type: string;
@@ -13,6 +25,8 @@ export interface Work {
   source_url: string | null;
   source_version: string | null;
   ai_context_policy: "allowed" | "allowed_no_training" | "prohibited" | "unknown";
+  quality_label?: string | null;
+  provenance_summary?: TranslationProvenance[] | null;
 }
 
 export interface Book {
@@ -96,6 +110,7 @@ export interface CommentaryHit {
   unit_id?: string | null;
   release_version?: string | null;
   provenance_id?: string | null;
+  provenance?: TranslationProvenance | null;
 }
 
 export interface DictionaryHit {
@@ -202,6 +217,11 @@ export interface Document {
   blocks: DocumentBlock[];
 }
 
+export interface BlockProvenance {
+  block_index: number;
+  provenance: TranslationProvenance;
+}
+
 export interface CommentaryEntry {
   entry_id: number;
   unit_id: string;
@@ -212,6 +232,8 @@ export interface CommentaryEntry {
   content_hash?: string | null;
   provenance_id?: string | null;
   release_version?: string | null;
+  provenance?: TranslationProvenance | null;
+  block_provenance?: BlockProvenance[];
 }
 
 export interface CommentaryPassage {

@@ -6,14 +6,62 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from .. import settings
 from ..db import get_conn
 from ..models import (
+    BlockProvenance,
     CommentaryCoverageResponse,
     CommentaryCoverageRow,
     CommentaryEntry,
     CommentaryPassage,
     Document,
+    TranslationProvenance,
 )
 
 router = APIRouter(prefix=settings.API_V1, tags=["commentary"])
+
+
+def _provenance(conn: sqlite3.Connection, provenance_id: str) -> TranslationProvenance | None:
+    row = conn.execute(
+        "SELECT provenance_id, model_request_id, model_canonical_slug, model_returned, "
+        "prompt_hash, glossary_hash, settings_json, run_id, translated_at "
+        "FROM translation_provenance WHERE provenance_id=?",
+        (provenance_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return TranslationProvenance(**dict(row))
+
+
+def _block_provenance(
+    conn: sqlite3.Connection, work_id: str, unit_id: str
+) -> list[BlockProvenance]:
+    rows = conn.execute(
+        "SELECT bp.block_index, p.provenance_id, p.model_request_id, p.model_canonical_slug, "
+        "p.model_returned, p.prompt_hash, p.glossary_hash, p.settings_json, p.run_id, "
+        "p.translated_at "
+        "FROM commentary_block_provenance bp "
+        "JOIN translation_provenance p ON p.provenance_id = bp.provenance_id "
+        "WHERE bp.work_id=? AND bp.unit_id=? "
+        "ORDER BY bp.block_index",
+        (work_id, unit_id),
+    ).fetchall()
+    out: list[BlockProvenance] = []
+    for r in rows:
+        out.append(
+            BlockProvenance(
+                block_index=r["block_index"],
+                provenance=TranslationProvenance(
+                    provenance_id=r["provenance_id"],
+                    model_request_id=r["model_request_id"],
+                    model_canonical_slug=r["model_canonical_slug"],
+                    model_returned=r["model_returned"],
+                    prompt_hash=r["prompt_hash"],
+                    glossary_hash=r["glossary_hash"],
+                    settings_json=r["settings_json"],
+                    run_id=r["run_id"],
+                    translated_at=r["translated_at"],
+                ),
+            )
+        )
+    return out
 
 
 @router.get(
@@ -84,9 +132,7 @@ def commentary(
         )
         params += [verse, verse]
     # Deterministic multi-work order: key verse, then per-work entry_id — never table rowid.
-    sql += (
-        " ORDER BY coalesce(verse_start,0), coalesce(verse_end,0), entry_id"
-    )
+    sql += " ORDER BY coalesce(verse_start,0), coalesce(verse_end,0), entry_id"
     rows = conn.execute(sql, params).fetchall()
     entries = [
         CommentaryEntry(
@@ -99,6 +145,8 @@ def commentary(
             content_hash=row["content_hash"],
             provenance_id=row["provenance_id"],
             release_version=row["release_version"],
+            provenance=_provenance(conn, row["provenance_id"]),
+            block_provenance=_block_provenance(conn, work_id, row["unit_id"]),
         )
         for row in rows
     ]

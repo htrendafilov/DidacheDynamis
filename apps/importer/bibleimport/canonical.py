@@ -236,7 +236,7 @@ class CommentaryBlock:
         return out
 
     @classmethod
-    def from_json(cls, raw: dict) -> CommentaryBlock:
+    def from_json(cls, raw: dict, *, strict_runs: bool = False) -> CommentaryBlock:
         if not isinstance(raw, dict):
             raise TypeError("commentary block must be an object")
         kind = raw.get("kind")
@@ -252,19 +252,28 @@ class CommentaryBlock:
                 raise TypeError("commentary block runs must be a list")
             runs = tuple(CommentaryRun.from_json(item) for item in runs_raw)
             joined = "".join(run.t for run in runs)
-            if norm_ws(joined) != norm_ws(text):
+            if strict_runs:
+                if joined != text:
+                    raise ValueError(
+                        "commentary block text must equal concatenated run text exactly"
+                    )
+            elif norm_ws(joined) != norm_ws(text):
                 raise ValueError("commentary block text must equal concatenated run text")
         return cls(kind=kind, text=text, runs=runs)
 
 
-def commentary_body_from_json(raw: dict) -> dict:
-    """Validate a commentary body and return a normalised dict suitable for body_json."""
+def commentary_body_from_json(raw: dict, *, strict_runs: bool = False) -> dict:
+    """Validate a commentary body and return a normalised dict suitable for body_json.
+
+    ``strict_runs=True`` (package import) requires exact text == concat(runs.t).
+    Sword/ThML study imports use the looser whitespace-normalised check.
+    """
     if not isinstance(raw, dict) or "blocks" not in raw:
         raise TypeError("commentary body must be an object with 'blocks'")
     blocks_raw = raw["blocks"]
     if not isinstance(blocks_raw, list) or not blocks_raw:
         raise TypeError("commentary body must have a non-empty blocks list")
-    blocks = [CommentaryBlock.from_json(item) for item in blocks_raw]
+    blocks = [CommentaryBlock.from_json(item, strict_runs=strict_runs) for item in blocks_raw]
     return {"blocks": [block.to_json() for block in blocks]}
 
 

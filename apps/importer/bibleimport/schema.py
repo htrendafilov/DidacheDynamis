@@ -41,7 +41,9 @@ CREATE TABLE works (
     --   unknown             — never; treated as prohibited at the point of use
     ai_context_policy TEXT NOT NULL DEFAULT 'unknown'
         CHECK (ai_context_policy IN
-            ('allowed','allowed_no_training','prohibited','unknown'))
+            ('allowed','allowed_no_training','prohibited','unknown')),
+    -- Optional product quality badge for translated/machine works (M2). NULL for pure sources.
+    quality_label TEXT
 );
 
 CREATE TABLE books (

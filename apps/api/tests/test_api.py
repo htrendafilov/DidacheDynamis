@@ -1121,11 +1121,24 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
     )
 
     body = commentary_body_from_json(
-        {"blocks": [{"kind": "paragraph", "text": "Български коментар за Йоан 3."}]}
+        {"blocks": [{"kind": "paragraph", "text": "Български коментар за Йоан 3."}]},
+        strict_runs=True,
     )
     content_hash = hashlib.sha256(
         json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+    meta = {
+        "type": "package_meta",
+        "quality_label": "machine-assisted draft",
+        "provenances": [
+            {
+                "provenance_id": "mt:test",
+                "model_canonical_slug": "google/gemini-2.5-flash",
+                "run_id": "api-test",
+            }
+        ],
+        "coverage": {"John": {"source_units": 1, "excluded_units": 0, "state": "mt_complete"}},
+    }
     record = {
         "format_version": 1,
         "unit_id": "mhc/John/3/1-1/01",
@@ -1134,11 +1147,13 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
         "verse_start": 1,
         "verse_end": 1,
         "body": body,
-        "source_hash": content_hash,
+        "source_hash": "en-src-" + content_hash[:12],
         "content_hash": content_hash,
+        "provenance_id": "mt:test",
     }
     pack = tmp_path / "John.jsonl.gz"
     with gzip.open(pack, "wb") as handle:
+        handle.write((json.dumps(meta, ensure_ascii=False) + "\n").encode())
         handle.write((json.dumps(record, ensure_ascii=False) + "\n").encode())
     checksum = hashlib.sha256(pack.read_bytes()).hexdigest()
     append_commentary(
@@ -1149,11 +1164,13 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
             abbrev="MHC-BG",
             language="bg",
             license="CC0-1.0",
-            attribution="Pilot draft.",
+            attribution="Test draft.",
             ai_context_policy="allowed",
             release_version="0.1.0",
             provenance_id="mt:test",
             model_canonical_slug="google/gemini-2.5-flash",
+            run_id="api-test",
+            quality_label="machine-assisted draft",
         ),
         out,
         expected_checksum=checksum,
@@ -1188,4 +1205,9 @@ def test_two_commentary_works_and_coverage_endpoint(tmp_path, monkeypatch):
         assert en.json()["entries"]
         assert "entry_id" in en.json()["entries"][0]
         assert "unit_id" in en.json()["entries"][0]
+        assert entries[0]["provenance"]["model_canonical_slug"] == "google/gemini-2.5-flash"
+        works = client.get("/api/v1/works").json()
+        bg = next(w for w in works if w["id"] == "mhcbg")
+        assert bg["quality_label"] == "machine-assisted draft"
+        assert any(p["provenance_id"] == "mt:test" for p in bg["provenance_summary"])
 
