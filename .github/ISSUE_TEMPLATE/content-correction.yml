@@ -1,0 +1,40 @@
+name: Content correction
+description: A verse, commentary entry, dictionary entry or confession text is wrong or missing
+labels: ["content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. Corrections to the texts are among the most valuable
+        contributions this project receives, because a silent error in a source is very hard for
+        a maintainer to find alone.
+
+        **Please do not paste large amounts of copyrighted text.** A reference and a short quote
+        are enough to locate the problem.
+  - type: input
+    id: reference
+    attributes:
+      label: Where
+      description: The work and the exact place — for example "Matthew Henry, John 3:16" or "1689 Confession, chapter 7".
+      placeholder: work, book, chapter, verse
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: What the app shows, and what it should show. If text is missing entirely, say so.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: How do you know
+      description: >
+        The edition, printing or published source you are checking against, if you have one. This
+        is not required, but a correction with a source can be applied far faster than one without.
+  - type: input
+    id: build
+    attributes:
+      label: Build id
+      description: From the page footer, if visible. Tells us which content version you are seeing.

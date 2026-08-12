@@ -238,8 +238,8 @@ set and fetched only while building (option "remove" in item 3 below).
    See the [official CrossWire module record](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=KJV)
    and [CrossWire's KJV licensing notes](https://wiki.crosswire.org/CrossWire_KJV).
 4. Preserve the WEB trademark wording and TSK CC BY 4.0 attribution in both repository and UI.
-5. Update `docs/developer/contributing.md` with the selected inbound contribution terms — **still
-   blocked on decision 9**; the terms have to be chosen before they can be written down. ~~Add root
+5. ~~Update `docs/developer/contributing.md` with the selected inbound contribution terms.~~
+   **Done** (decision 9): MIT for code, CC0 for content, plus a provenance requirement for text. ~~Add root
    `SECURITY.md`~~ **done**: private vulnerability reporting via the GitHub Security tab rather than
    a published email address, so no personal contact detail is committed. It states the supported
    versions and, in scope, that provider-side issues belong to the provider because the assistant
@@ -309,7 +309,10 @@ set and fetched only while building (option "remove" in item 3 below).
   why "equal, work for work" was the wrong claim. `test_every_shipped_work_is_declared_in_notice_
   and_the_rights_matrix` asserts it against `SOURCE_FILES`, so the omission that started this
   cannot recur silently.
-- Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be enabled.
+- ~~Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be
+  enabled.~~ **Done** (decision 9): `.github/ISSUE_TEMPLATE/` carries a bug-report form, a
+  content-correction form, and a `config.yml` routing security reports to private disclosure.
+  Discussions stay off.
 - ~~Sweep links and references after deletions and the private-runbook move.~~ **Done 2026-08-05 —
   nothing to fix.** All 169 relative markdown links across 63 files resolve, and all 89 repo-path
   references inside source files point at something that exists. Every surviving mention of a
@@ -602,7 +605,10 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    private-to-public visibility change.
 4. Configure public-fork Actions approval, read-only default `GITHUB_TOKEN`, Dependabot, secret
    scanning/push protection, and code scanning as appropriate.
-5. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
+5. Set repository features to match decision 9: **Issues on**, **Discussions off**, Wiki and
+   Projects off. The issue forms ship in the tree and appear automatically once Issues are on;
+   `CODE_OF_CONDUCT.md` and `contributing.md` are picked up by GitHub's community profile.
+6. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
    reporters to the Security tab's "Report a vulnerability" button, and that button does not exist
    until this is switched on — GitHub offers the feature for **public repositories only**, so it
    cannot be enabled on `bible_app_bg` in advance and must be done here, right after the flip.
@@ -611,19 +617,19 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    trigger a workflow, and reading unpublished advisories over the API needs a token with
    `repository_advisories:read`, which is not worth storing as a secret in a public repository.
    GitHub already notifies maintainers on submission and confirms receipt to the reporter.
-6. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
+7. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
    Also settle the **old** `ghcr.io/htrendafilov/bible_app_bg` package: an image holding a full
    `content.sqlite` was pushed to it on 2026-07-25 and may still be there (§1.4 — current state
    unverified, needs `read:packages`). Check, then delete it or confirm it is private. It is not
    covered by the repository staying private.
-7. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
+8. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
    and `publish-image.yml` builds the SPA with it, so without it a published image would ship a
    build whose Dropbox sync cannot authenticate.
-8. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
+9. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
    not receive secrets or write tokens.
-9. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
+10. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
    the live site from an anonymous browser.
-10. Watch Actions/LFS usage and security alerts during the first week.
+11. Watch Actions/LFS usage and security alerts during the first week.
 
 ## 8. Decisions
 
@@ -721,11 +727,37 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
     Note the module records `GPL` with no version. SWORD itself is GPL-2.0, so `LICENSES/` carries
     GPL-2.0; the any-purpose grant above is the operative permission regardless of version.
 
+9. ~~Issues, Discussions, contribution terms, and code-of-conduct policy~~ → **decided
+   2026-08-12.**
+
+   - **Inbound terms: inbound = outbound, split by kind.** Code and documentation under MIT;
+     **content** — translations, corrections to historical texts, editorial notes — under **CC0
+     1.0**. Not one clause but two, because not every contribution here is software: MIT sits
+     badly on a translated confession, and CC0 is already the precedent (the Bulgarian 1689). No
+     CLA and no DCO sign-off: both add friction a single-maintainer project cannot spend, and a
+     CLA only earns its weight if relicensing is possible, which it is not. `contributing.md` also
+     now requires provenance with any text contribution, since one without it cannot be accepted
+     however good it is.
+   - **Issues: enabled, with forms.** A bug report and a content correction. The content form is
+     the one that matters here — a silent error in a source is very hard for a maintainer to find
+     alone — and `config.yml` routes security reports away from public issues.
+   - **Discussions: off.** Two channels are worse than one for a solo maintainer and Issues covers
+     the same ground. Enabling later is free; disabling later strands whatever is in them.
+   - **Code of conduct: Contributor Covenant 2.1**, adopted verbatim apart from the reporting
+     contact, which points at the Security tab and the maintainer's profile rather than committing
+     a personal address. Adopted because this project touches theology, where a stated standard
+     makes closing a thread a policy rather than an argument — and on the plan's own condition,
+     that it is only worth having if it is acted on.
+
+   **This also answers the MHC translation project's D4** ("first reader-report destination:
+   GitHub issue form with a copy-to-clipboard fallback"). The content-correction form is that
+   destination; only the in-app copy-to-clipboard fallback remains, and it belongs to that
+   project's M4.
+
 **Still pending:**
 
 8. Author/committer email rewrite (due before the §5 pass; with a clean repo the sanitized history
    is the only public history, so rewriting to the personal address is cheap to do in the same pass).
-9. Issues, Discussions, contribution terms, and code-of-conduct policy (due at §7).
 The §3.3 fetch-at-build implementation is complete, and decision 11 settles the artifact question.
 One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former KJV
 path or its LFS object. Everything else can be completed as a reviewable cleanup commit before the

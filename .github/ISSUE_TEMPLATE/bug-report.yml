@@ -1,0 +1,31 @@
+name: Bug report
+description: Something in the application does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not report security problems here.** See [SECURITY.md](../blob/main/SECURITY.md) for
+        the private channel — a public issue is the wrong place for a vulnerability.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page or pane, and the reference you were reading if relevant.
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      placeholder: e.g. Firefox 130 on Android, Safari on iPhone
+  - type: input
+    id: build
+    attributes:
+      label: Build id
+      description: From the page footer, if visible.

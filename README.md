@@ -53,7 +53,10 @@ Full detail, including what is *not* encrypted, is in
 
 ## Contributing and security
 
-- Contributions — see [`docs/developer/contributing.md`](docs/developer/contributing.md).
+- Contributions — see [`docs/developer/contributing.md`](docs/developer/contributing.md). Code is
+  MIT; contributed **content** (translations, text corrections) is CC0, matching the works already
+  here. Text contributions need their provenance.
+- Conduct — [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 - Security issues — please do **not** open a public issue; follow [`SECURITY.md`](SECURITY.md).
 
 ## Monorepo layout
