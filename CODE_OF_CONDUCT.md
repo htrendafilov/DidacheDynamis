@@ -41,10 +41,10 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately to
-the maintainer through [their GitHub profile](https://github.com/htrendafilov). Please do not raise
-conduct concerns in a public issue, where they tend to escalate rather than resolve. All complaints
-will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately by
+email to **conduct@didachedynamis.com**, an alias that reaches the maintainer and can be rotated if
+it is abused. Please do not raise conduct concerns in a public issue, where they tend to escalate
+rather than resolve. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

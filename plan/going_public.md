@@ -314,9 +314,12 @@ set and fetched only while building (option "remove" in item 3 below).
   content-correction form that **asks** for provenance and offers the CC0 grant when a reporter
   proposes wording — optional, because a plain "this verse is wrong" report must not be blocked by
   a licensing checkbox, and terms only bind text that is actually accepted,
-  and a `config.yml` routing security reports to private disclosure with a repository-relative
-  URL so it survives the rename. `.github/PULL_REQUEST_TEMPLATE.md` carries the test plan and a
-  content-change checklist. Discussions stay off.
+  and a `config.yml` routing security reports to private disclosure. That URL is **absolute and
+  must stay absolute** — GitHub drops a `contact_links` entry it cannot resolve, so a relative path
+  removes the security option from the chooser with no error at all. It is therefore repointed at
+  the rename instead, alongside the badges (§4.4). `.github/PULL_REQUEST_TEMPLATE.md` carries the
+  test plan and a content-change checklist, and links to `CONTRIBUTING.md` absolutely for the same
+  reason. Discussions stay off.
 - ~~Sweep links and references after deletions and the private-runbook move.~~ **Done 2026-08-05 —
   nothing to fix.** All 169 relative markdown links across 63 files resolve, and all 89 repo-path
   references inside source files point at something that exists. Every surviving mention of a
@@ -419,12 +422,17 @@ The public app is named **DidacheDynamis** (decided 2026-08-01). The rename land
 tree before the first push, not in the private repo's day-to-day history:
 
 - README/docs product name, repository description/topics, and the `NOTICE`/attribution lines.
-- **Hard-coded repository URLs.** Three of them, all silent when stale:
-  the CI badge (`github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`, renders as "no
-  status"), the MIT badge, and `.github/ISSUE_TEMPLATE/config.yml`'s security `contact_links.url`,
-  which would send public reporters at the private archive. The last one cannot be made relative —
-  GitHub drops a contact_link it cannot resolve, so the entry vanishes with no error. Repoint all
-  three in the rename pass.
+- **Hard-coded repository URLs.** Six of them, all silent when stale, and all pointing at the
+  private archive once the tree moves. Two are badges: CI
+  (`github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`, renders as "no status") and MIT.
+  Four are in `.github/`, and every one of them is **absolute deliberately and must stay absolute**:
+  `ISSUE_TEMPLATE/config.yml`'s security `contact_links.url`, because GitHub drops a `contact_links`
+  entry it cannot resolve and the option then vanishes from the chooser with no error at all; and the
+  `CONTRIBUTING.md`/`SECURITY.md` links in `PULL_REQUEST_TEMPLATE.md`,
+  `ISSUE_TEMPLATE/content-correction.yml` and `ISSUE_TEMPLATE/bug-report.yml`, because templates are
+  rendered into issue and pull-request bodies, where a relative link resolves against that item's
+  URL rather than the repository root. The `bug-report.yml` one is the sharpest: it is what steers a
+  reporter away from filing a vulnerability publicly. Repoint all six in the rename pass.
 - GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `publish-image.yml` and Compose (the
   package itself is created by the first push from the new repo).
 - **Not renamed by default:** the public domain `bible.trendafilovi.net`, the Cloudflare tunnel, and
@@ -625,8 +633,17 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    scanning/push protection, and code scanning as appropriate.
 5. Set repository features to match decision 9: **Issues on**, **Discussions off**, Wiki and
    Projects off. The issue forms ship in the tree and appear automatically once Issues are on;
-   `CODE_OF_CONDUCT.md` and `contributing.md` are picked up by GitHub's community profile.
-6. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
+   `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md` are picked up by GitHub's community profile.
+   Create the **`content`** label and point `content-correction.yml` at it — labels do not travel
+   with the tree, and GitHub drops a label a form names but the repository does not have, silently.
+   The form ships pointing at `documentation`, which exists, so it degrades rather than breaks.
+6. **Create the `conduct@didachedynamis.com` alias before Issues are enabled.**
+   `CODE_OF_CONDUCT.md` tells reporters not to raise conduct concerns publicly and names that
+   address as the private route. A GitHub profile is not a channel — profiles carry no private
+   messaging, and this one publishes no contact — so without the alias the document forbids the
+   only route it leaves open. Same failure as SECURITY.md pointing at a Security tab that did not
+   exist (§7.6): the document is only true once the channel does.
+7. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
    reporters to the Security tab's "Report a vulnerability" button, and that button does not exist
    until this is switched on — GitHub offers the feature for **public repositories only**, so it
    cannot be enabled on `bible_app_bg` in advance and must be done here, right after the flip.
@@ -635,19 +652,19 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    trigger a workflow, and reading unpublished advisories over the API needs a token with
    `repository_advisories:read`, which is not worth storing as a secret in a public repository.
    GitHub already notifies maintainers on submission and confirms receipt to the reporter.
-7. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
+8. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
    Also settle the **old** `ghcr.io/htrendafilov/bible_app_bg` package: an image holding a full
    `content.sqlite` was pushed to it on 2026-07-25 and may still be there (§1.4 — current state
    unverified, needs `read:packages`). Check, then delete it or confirm it is private. It is not
    covered by the repository staying private.
-8. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
+9. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
    and `publish-image.yml` builds the SPA with it, so without it a published image would ship a
    build whose Dropbox sync cannot authenticate.
-9. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
-   not receive secrets or write tokens.
-10. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
-   the live site from an anonymous browser.
-11. Watch Actions/LFS usage and security alerts during the first week.
+10. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
+    not receive secrets or write tokens.
+11. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
+    the live site from an anonymous browser.
+12. Watch Actions/LFS usage and security alerts during the first week.
 
 ## 8. Decisions
 

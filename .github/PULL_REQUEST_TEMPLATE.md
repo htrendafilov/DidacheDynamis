@@ -14,6 +14,6 @@
 <!-- Delete this section if you changed no text under data/sources/ and added no work. -->
 
 - [ ] Provenance recorded: where the text came from, who holds the rights, why it may be
-      redistributed (see [CONTRIBUTING.md](../CONTRIBUTING.md))
+      redistributed (see [CONTRIBUTING.md](https://github.com/htrendafilov/bible_app_bg/blob/main/CONTRIBUTING.md))
 - [ ] `NOTICE` and `docs/extra/content-and-licensing.md` updated — every served work must appear
       in both, and a test enforces it

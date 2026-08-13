@@ -1,6 +1,8 @@
 name: Content correction
 description: A verse, commentary entry, dictionary entry or confession text is wrong or missing
-labels: ["content"]
+# "documentation" exists in both repositories today; "content" does not, and GitHub silently
+# drops a label it cannot find. §7 creates "content" at the flip and this becomes ["content"].
+labels: ["documentation"]
 body:
   - type: markdown
     attributes:
@@ -31,8 +33,25 @@ body:
     attributes:
       label: How do you know
       description: >
-        The edition, printing or published source you are checking against, if you have one. This
-        is not required, but a correction with a source can be applied far faster than one without.
+        Not required for a plain problem report. **If you are proposing replacement wording that
+        you did not write yourself**, CONTRIBUTING.md needs three things before it can be accepted,
+        because the project cannot record terms it does not know:
+
+
+        1. **Source** — the edition, printing or published text it comes from.
+
+        2. **Rights holder** — who owns it, or that it is public domain and why (age, an explicit
+        dedication, a licence).
+
+        3. **Redistribution basis** — why it may be republished here: public domain, a licence that
+        permits it, or written permission.
+
+
+        A correction you worked out yourself needs none of this — tick the CC0 box below instead.
+      placeholder: |
+        Source:
+        Rights holder:
+        Why it may be redistributed:
   - type: input
     id: build
     attributes:
@@ -45,7 +64,7 @@ body:
       description: >
         Skip this if you are only reporting a problem. It applies when you supply wording to use,
         because that wording becomes part of a distributed text and needs terms attached — see
-        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+        [CONTRIBUTING.md](https://github.com/htrendafilov/bible_app_bg/blob/main/CONTRIBUTING.md).
       options:
         - label: >
             Any wording I have supplied is my own, and I dedicate it to the public domain under

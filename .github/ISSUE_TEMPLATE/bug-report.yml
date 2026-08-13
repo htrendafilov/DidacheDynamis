@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Do not report security problems here.** See [SECURITY.md](../blob/main/SECURITY.md) for
+        **Do not report security problems here.** See [SECURITY.md](https://github.com/htrendafilov/bible_app_bg/blob/main/SECURITY.md) for
         the private channel — a public issue is the wrong place for a vulnerability.
   - type: textarea
     id: what
