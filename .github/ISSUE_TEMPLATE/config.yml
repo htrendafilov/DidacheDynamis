@@ -1,0 +1,9 @@
+blank_issues_enabled: true
+contact_links:
+  # Absolute by necessity: GitHub's chooser drops a contact_link it cannot resolve, so a relative
+  # URL silently removes the entry — worse than a wrong one, because nothing shows the loss. This
+  # URL therefore has to be repointed at the rename; §4.4's checklist carries it alongside the
+  # README badges for exactly that reason.
+  - name: Security vulnerability
+    url: https://github.com/htrendafilov/bible_app_bg/security/advisories/new
+    about: Report privately. Never open a public issue for a security problem.

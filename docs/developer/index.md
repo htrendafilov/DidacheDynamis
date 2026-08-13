@@ -96,4 +96,4 @@ Open `http://localhost:5173/` in your browser.
 - [API Service](api-service.md) — FastAPI endpoints, read-only SQLite & FTS5 queries
 - [Importer CLI](importer-cli.md) — `bibleimport` format adapters & database compiler
 - [Building & Testing](building-and-testing.md) — Check script, Pytest, Vitest & Playwright E2E
-- [Contributing](contributing.md) — Code style standards, PR workflow & contribution rules
+- [Contributing](../../CONTRIBUTING.md) — contribution terms, code style standards, PR workflow

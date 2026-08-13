@@ -1,0 +1,76 @@
+name: Content correction
+description: A verse, commentary entry, dictionary entry or confession text is wrong or missing
+# "documentation" exists in both repositories today; "content" does not, and GitHub silently
+# drops a label it cannot find. §7 creates "content" at the flip and this becomes ["content"].
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. Corrections to the texts are among the most valuable
+        contributions this project receives, because a silent error in a source is very hard for
+        a maintainer to find alone.
+
+        **Please do not paste large amounts of copyrighted text.** A reference and a short quote
+        are enough to locate the problem.
+  - type: input
+    id: reference
+    attributes:
+      label: Where
+      description: The work and the exact place — for example "Matthew Henry, John 3:16" or "1689 Confession, chapter 7".
+      placeholder: work, book, chapter, verse
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: What the app shows, and what it should show. If text is missing entirely, say so.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: How do you know
+      description: >
+        Not required for a plain problem report. **If you are proposing replacement wording that
+        you did not write yourself**, CONTRIBUTING.md needs three things before it can be accepted,
+        because the project cannot record terms it does not know:
+
+
+        1. **Source** — the edition, printing or published text it comes from.
+
+        2. **Rights holder** — who owns it, or that it is public domain and why (age, an explicit
+        dedication, a licence).
+
+        3. **Redistribution basis** — why it may be republished here: public domain, a licence that
+        permits it, or written permission.
+
+
+        A correction you worked out yourself needs none of this — tick the CC0 box below instead.
+      placeholder: |
+        Source:
+        Rights holder:
+        Why it may be redistributed:
+  - type: input
+    id: build
+    attributes:
+      label: Build id
+      description: From the page footer, if visible. Tells us which content version you are seeing.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: If you are proposing replacement text
+      description: >
+        Skip this if you are only reporting a problem. It applies when you supply wording to use,
+        because that wording becomes part of a distributed text and needs terms attached — see
+        [CONTRIBUTING.md](https://github.com/htrendafilov/bible_app_bg/blob/main/CONTRIBUTING.md).
+      options:
+        - label: >
+            Any wording I have supplied is my own, and I dedicate it to the public domain under
+            CC0 1.0 — the terms this project uses for contributed content.
+          required: false
+        - label: >
+            Or: the wording comes from a source I have named above, and I believe it may be
+            redistributed. I have said where it comes from.
+          required: false
