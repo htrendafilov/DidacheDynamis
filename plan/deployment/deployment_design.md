@@ -46,7 +46,7 @@ the second does not run unless asked for:
 
 *`publish` — always:*
 1. Build the image (`deploy/Dockerfile`); tag with commit SHA + `latest`.
-2. Push to **GHCR** (`ghcr.io/htrendafilov/bible_app_bg`).
+2. Push to **GHCR** (`ghcr.io/htrendafilov/didachedynamis`).
 
 *`deploy-to-vm` — only when the `deploy_to_vm` dispatch input is ticked (default off):*
 3. **Deploy over SSH** (`SSH_DEPLOY_KEY` + `VM_HOST` repo secrets): connect as a limited deploy user,

@@ -79,7 +79,7 @@ def post(key: str, model: str, content: str, retries: int = 3) -> dict:
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://bible.trendafilovi.net",
-            "X-Title": "bible_app_bg M9.0b-1 calibration",
+            "X-Title": "DidacheDynamis M9.0b-1 calibration",
         },
     )
     last = ""

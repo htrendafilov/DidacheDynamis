@@ -2,7 +2,7 @@
 
 `bible.trendafilovi.net` — a bilingual, multi-pane Bible reading web app.
 
-> This folder is the **monorepo root** (GitHub: `htrendafilov/bible_app_bg`). See also
+> This folder is the **monorepo root** (GitHub: `htrendafilov/DidacheDynamis`). See also
 > [`frontend/frontend_design.md`](frontend/frontend_design.md),
 > [`backend/backend_design.md`](backend/backend_design.md),
 > [`deployment/deployment_design.md`](deployment/deployment_design.md).
@@ -85,7 +85,7 @@ content.sqlite  (built offline by the bibleimport CLI)
 ## 6. Monorepo layout
 
 ```
-bible_app_bg/                    # git repo root (GitHub: htrendafilov/bible_app_bg)
+DidacheDynamis/                  # git repo root (GitHub: htrendafilov/DidacheDynamis)
 ├── .github/workflows/{ci.yml,publish-image.yml}
 ├── apps/
 │   ├── web/                     # React + Vite SPA

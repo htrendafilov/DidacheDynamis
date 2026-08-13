@@ -5,5 +5,5 @@ contact_links:
   # URL therefore has to be repointed at the rename; §4.4's checklist carries it alongside the
   # README badges for exactly that reason.
   - name: Security vulnerability
-    url: https://github.com/htrendafilov/bible_app_bg/security/advisories/new
+    url: https://github.com/htrendafilov/DidacheDynamis/security/advisories/new
     about: Report privately. Never open a public issue for a security problem.

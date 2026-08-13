@@ -1,6 +1,6 @@
 # Architecture Overview & CIR Model
 
-This document describes the architectural boundaries and the **Canonical Intermediate Representation (CIR)** data model used across `bible_app_bg`.
+This document describes the architectural boundaries and the **Canonical Intermediate Representation (CIR)** data model used across `DidacheDynamis`.
 
 ## System Boundaries & Component Map
 

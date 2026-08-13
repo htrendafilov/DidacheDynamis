@@ -1,6 +1,6 @@
 # User Guide: Overview & Quick Start
 
-Welcome to **bible_app_bg**, a high-performance, bilingual, multi-pane Bible study reader.
+Welcome to **DidacheDynamis**, a high-performance, bilingual, multi-pane Bible study reader.
 
 ![Bilingual Bible Reader Interface](assets/user_interface_overview.jpg)
 

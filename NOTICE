@@ -14,6 +14,13 @@ the non-public-domain licenses are in `LICENSES/`.
 Provenance detail — upstream module versions, export commands, checksums, and
 per-source import validation — is in `data/sources/README.md`.
 
+Some version and attribution strings below name **bible_app_bg**. That was this
+project's former name, and those strings are left exactly as they were recorded.
+They identify a specific dated edition — for example the reviewed English 1689
+edition of 2026-07-29 — and the identifier a work was published under is part of
+its provenance. Renaming it retroactively would make the record say an edition was
+issued under a name that did not exist at the time.
+
 The importer writes a license and attribution for each work into the `works` table
 of `content.sqlite`, and the application shows them in its attribution UI. The
 **attribution** strings quoted here are the exact strings that ship; where this file

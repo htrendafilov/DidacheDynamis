@@ -1,9 +1,10 @@
-# bible_app_bg
+# DidacheDynamis
 
-[![CI](https://github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml/badge.svg)](https://github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml)
+[![CI](https://github.com/htrendafilov/DidacheDynamis/actions/workflows/ci.yml/badge.svg)](https://github.com/htrendafilov/DidacheDynamis/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Bilingual, multi-pane Bible reading web app served at **bible.trendafilovi.net**.
+Bilingual, multi-pane Bible reading web app served at **didachedynamis.com**.
+(Formerly `bible_app_bg`; `bible.trendafilovi.net` now redirects here.)
 
 - 1–3 resizable panes; each pane can be a Bible, commentary, dictionary, General Book, or notes.
 - English (public-domain) Bible, a commentary, a dictionary, and cross-references. A Bulgarian Bible is

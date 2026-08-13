@@ -1,6 +1,6 @@
 # Deployment & Operations Guide: Overview
 
-This guide covers deployment topology, zero-downtime release procedures, Cloudflare Tunnel configuration, backups, and monitoring for **bible_app_bg**.
+This guide covers deployment topology, zero-downtime release procedures, Cloudflare Tunnel configuration, backups, and monitoring for **DidacheDynamis**.
 
 ## Production Topology
 
