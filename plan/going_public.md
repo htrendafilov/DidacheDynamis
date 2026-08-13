@@ -275,8 +275,8 @@ set and fetched only while building (option "remove" in item 3 below).
   and the two `docs/extra/` guides to the documentation list. The chat status line was already
   accurate at the time — it recorded M9.1–M9.3d as shipped and the feature as gated off in
   production. Updated 2026-08-07 when the assistant was enabled as an alpha; the §4.2 privacy
-  documentation that had to land first was this PR's own work. The contribution *terms* behind that link remain blocked on
-  decision 9; the link itself is not.
+  documentation that had to land first was this PR's own work. The contribution *terms* behind that
+  link were settled by decision 9 and now live in `CONTRIBUTING.md` at the repository root.
 - ~~Document the optional browser-direct OpenRouter assistant in user/developer privacy docs before
   it is enabled in any public build: what leaves the browser, key storage, context selection,
   provider terms, local history, and the content `ai_context_policy` gate.~~ **Done** in
