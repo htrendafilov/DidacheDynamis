@@ -311,7 +311,9 @@ set and fetched only while building (option "remove" in item 3 below).
   cannot recur silently.
 - ~~Add issue/PR templates if Issues remain enabled. Decide whether Discussions will be
   enabled.~~ **Done** (decision 9): `.github/ISSUE_TEMPLATE/` carries a bug-report form, a
-  content-correction form that collects provenance and the CC0 grant `CONTRIBUTING.md` requires,
+  content-correction form that **asks** for provenance and offers the CC0 grant when a reporter
+  proposes wording — optional, because a plain "this verse is wrong" report must not be blocked by
+  a licensing checkbox, and terms only bind text that is actually accepted,
   and a `config.yml` routing security reports to private disclosure with a repository-relative
   URL so it survives the rename. `.github/PULL_REQUEST_TEMPLATE.md` carries the test plan and a
   content-change checklist. Discussions stay off.
@@ -417,9 +419,12 @@ The public app is named **DidacheDynamis** (decided 2026-08-01). The rename land
 tree before the first push, not in the private repo's day-to-day history:
 
 - README/docs product name, repository description/topics, and the `NOTICE`/attribution lines.
-- **README badges.** The CI badge added 2026-08-05 hard-codes
-  `github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`; it renders as "no status" from
-  the new repository until repointed. Include both badge URLs in the rename pass.
+- **Hard-coded repository URLs.** Three of them, all silent when stale:
+  the CI badge (`github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`, renders as "no
+  status"), the MIT badge, and `.github/ISSUE_TEMPLATE/config.yml`'s security `contact_links.url`,
+  which would send public reporters at the private archive. The last one cannot be made relative —
+  GitHub drops a contact_link it cannot resolve, so the entry vanishes with no error. Repoint all
+  three in the rename pass.
 - GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `publish-image.yml` and Compose (the
   package itself is created by the first push from the new repo).
 - **Not renamed by default:** the public domain `bible.trendafilovi.net`, the Cloudflare tunnel, and
@@ -757,8 +762,11 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    - **Discussions: off.** Two channels are worse than one for a solo maintainer and Issues covers
      the same ground. Enabling later is free; disabling later strands whatever is in them.
    - **Code of conduct: Contributor Covenant 2.1**, adopted verbatim apart from the reporting
-     contact, which points at the Security tab and the maintainer's profile rather than committing
-     a personal address. Adopted because this project touches theology, where a stated standard
+     contact, which points at the maintainer's GitHub profile rather than committing a personal
+     address. Deliberately *not* the Security tab: private vulnerability reporting is for
+     vulnerabilities, and routing conduct reports through it would file them as security advisories.
+     The trade is that the profile is the only private channel, which is thin — if conduct reports
+     ever actually arrive, a dedicated address is the fix. Adopted because this project touches theology, where a stated standard
      makes closing a thread a policy rather than an argument — and on the plan's own condition,
      that it is only worth having if it is acted on.
 

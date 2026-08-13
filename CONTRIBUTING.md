@@ -16,10 +16,20 @@ source. MIT is a software licence and sits badly on a translated confession; CC0
 project already does — the Bulgarian 1689 Baptist Confession is CC0, and it is the precedent the
 rest should follow. See [`NOTICE`](NOTICE) for the terms attached to every work already here.
 
-**Do not contribute text you did not write or that is not free of restrictions.** The most useful
-thing you can send with a text contribution is its provenance: where it came from, who holds the
-rights, and why it may be redistributed. A contribution without that cannot be accepted, however
-good it is — see [Content Provenance & Licensing](docs/extra/content-and-licensing.md).
+**Do not contribute text you did not write or that is not free of restrictions.** Two cases, and
+they need different things from you:
+
+- **You wrote it** — a translation, a rendering, editorial notes. Say so, and the CC0 dedication
+  above applies.
+- **You did not write it** — a corrected reading from a printed edition, text from another source.
+  Send its **provenance**: where it came from, who holds the rights, and why it may be
+  redistributed. A contribution without that cannot be accepted however good it is, because the
+  project cannot record terms it does not know.
+
+Either way the result is recorded in [`NOTICE`](NOTICE), which is the authoritative statement of
+what every distributed text is under.
+[Content Provenance & Licensing](docs/extra/content-and-licensing.md) shows the per-work summary —
+it describes what already ships, not the terms asked of you, which are the two clauses above.
 
 If any of this does not suit a contribution you want to make, say so in the pull request rather
 than staying silent. An exception recorded in the open is workable; an unstated one is not.
