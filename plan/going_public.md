@@ -250,18 +250,24 @@ set and fetched only while building (option "remove" in item 3 below).
 
 ### 4.1 Private operations material
 
-- Untrack `plan/deployment/live-runbook.md`, add it to `.gitignore`, and add a short tracked
-  `plan/deployment/README.md` explaining that the live operator runbook is intentionally private.
-- Replace the real operator account/path in `docs/deployment/hosting-options.md` and
-  `docs/deployment/backups-and-rollback.md` with portable examples.
-- Remove public links to the private runbook from **all five referrers** (verified 2026-08-01;
+**Done — verified against the tree 2026-08-13.** The items below were completed across PR #30/#31
+but were never struck through here, so this section read as outstanding work for a week.
+
+- ~~Untrack `plan/deployment/live-runbook.md`, add it to `.gitignore`, and add a short tracked
+  `plan/deployment/README.md` explaining that the live operator runbook is intentionally private.~~
+  Verified: the path is untracked and matched by `.gitignore:51`, and the tracked README exists.
+- ~~Replace the real operator account/path in `docs/deployment/hosting-options.md` and
+  `docs/deployment/backups-and-rollback.md` with portable examples.~~ Verified: the operator account
+  and home path appear nowhere in tracked `docs/`, `plan/` or `README.md`.
+- ~~Remove public links to the private runbook from **all five referrers**~~ (verified 2026-08-01;
   `docs/deployment/index.md` was listed here earlier but is not a referrer):
   `docs/deployment/hosting-options.md`, `docs/deployment/monitoring-and-alerts.md`,
   `plan/deployment/deployment_design.md` (3 mentions), `plan/chat/m9.1-licence-metadata.md`,
   `plan/interactive_chat_plan.md` — plus `.github/workflows/publish-image.yml`'s runbook pointer in its
   header comment. Where the surrounding procedure is generic, repoint to
   `docs/deployment/backups-and-rollback.md` (which documents the same atomic DB replacement and
-  restart ordering).
+  restart ordering). Verified 2026-08-13: the only surviving mentions of `live-runbook` are
+  `.gitignore` and `plan/deployment/README.md`, both of which are supposed to name it.
 - Keep the private runbook in an encrypted/operator-controlled location outside this checkout and
   verify that its recovery procedure is documented there.
 
@@ -372,6 +378,28 @@ assistant both return nothing for Revelation.
 state is a silently lossy importer paired with a `NOTICE` that contradicts it. Repairing first costs
 one milestone of work that was already planned.
 
+**M1 landed (PR #46) and was verified in the artifact 2026-08-13** by rebuilding `content.sqlite`
+from `data/sources/` and querying it, not by re-reading the code:
+
+| | Before | After |
+|---|---|---|
+| Schema `user_version` | 4 | **5** |
+| MHC distinct books | 48 | **66** |
+| MHC entries | 3,479 | **5,355** |
+| Chapter introductions | 0 | **1,106** |
+| `fatal_unmatched` | — | **0** |
+
+Key accounting balances exactly: 5,355 imported + 151 scaffolding = 5,506 raw keys. All eighteen
+previously-absent books are populated (Rev 76, 1 Sam 132, 2 Chr 118 … 3 John 4).
+
+**This is not yet true of what ships.** The check that mattered was against production: on
+2026-08-13 `didachedynamis.com` still returned `entries: []` for Rev, 2 Sam and 1 Cor, and 404 for
+M2's coverage endpoint — the VM runs the pre-M1 corpus and pre-M2 code. So `NOTICE`'s "None to the
+text" remains false in production until a release runs. `scripts/release.sh --content=auto` will
+rebuild on the VM without being told to, because both `apps/importer/bibleimport/` changed and
+`SCHEMA_VERSION` went 4→5. Until then §6's MHC gate item is satisfied by the *build*, not by the
+deployment, and the two must not be confused.
+
 **M2 and M3 are not prerequisites**, but M3 is not as invisible as it first looks. M2 bumps the
 content schema and adds `entry_id` to the API — ordinary product work with no bearing on licensing,
 privacy or history, and with no users to migrate.
@@ -393,11 +421,13 @@ which is the intended behaviour, not an obstacle.
 
 ### 4.3 Stale deployment choices
 
-- `render.yaml` describes an M0-era free-tier route and contains comments that no longer match the
-  implemented service. **Resolved 2026-08-01: delete it.** The README's Render-specific wording was
-  already scrubbed in PR #30; no other references remain.
-- **Resolved 2026-08-02:** delete `.github/workflows/uptime.yml`; UptimeRobot is the sole uptime
-  monitor and must probe `/ready`. This avoids duplicate alerts and recurring Actions runs.
+- ~~`render.yaml` describes an M0-era free-tier route and contains comments that no longer match the
+  implemented service. **Resolved 2026-08-01: delete it.**~~ **Deleted — verified absent
+  2026-08-13.** The README's Render-specific wording was already scrubbed in PR #30; no other
+  references remain.
+- ~~**Resolved 2026-08-02:** delete `.github/workflows/uptime.yml`; UptimeRobot is the sole uptime
+  monitor and must probe `/ready`.~~ **Deleted — verified absent 2026-08-13.** This avoids duplicate
+  alerts and recurring Actions runs.
 - ~~Decide whether to keep the manual GHCR deploy workflow.~~ **Resolved 2026-08-07: keep it, and
   rename it.** The image build works and is worth having; only the SSH step is inert, and its
   preflight already fails loudly with a summary explaining why. What was wrong was the name:
@@ -565,9 +595,12 @@ This section applies only to a release path that publishes rewritten history.
    - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
      never receives the KJV export, even during its private verification phase;
    - remove every historical `plan/mhc_translation/` path (§2.2 — the translation project's planning
-     history stays out of the public tree; only its finished result is intended to reach it). A
-     no-op while the directory is untracked, which is why it must be *in* the invocation rather than
-     assumed: if any of it is ever committed, an unchanged command would carry it over silently;
+     history stays out of the public tree; only its finished result is intended to reach it).
+     **No longer a no-op, and no longer safe to run unattended.** An earlier draft of this line said
+     it was "a no-op while the directory is untracked". That stopped being true when PR #46 landed
+     `plan/mhc_translation/08_english_baseline.md`, which is tracked on `main` today. Running this
+     step as written now *deletes a tracked file* rather than doing nothing — silently, because
+     removing a path that exists is exactly what the command is for. Settle §5b before running it;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
    - rewrite author **and committer** addresses in the same pass (decision 8) with
@@ -588,6 +621,41 @@ This section applies only to a release path that publishes rewritten history.
    refs/caches when eligible. If Support will not purge the non-credential metadata, return to the
    release-strategy decision rather than claiming full removal.
 7. Delete or rebase every other clone/worktree. Never merge an old branch into rewritten history.
+
+### 5b. Two disposition decisions the rewrite depends on — OPEN
+
+Both were implicit defaults until 2026-08-13. Neither is safe to leave to whatever the filter
+command happens to do, because in both cases the default is silent.
+
+**(a) Does `plan/mhc_translation/08_english_baseline.md` publish?**
+
+It is tracked on `main`, so §5's `plan/mhc_translation/` removal would delete it. Reviewed for
+sensitivity: it contains **only English public-domain corpus measurements** — per-book entry, block,
+run, word and token counts, the corpus totals every budget derives from, and the quotation-heuristic
+audit. No Bulgarian text, no vendor pricing, no model selection, no cost projection. Its only
+model references are the 4.07–4.38 chars/token band from `plan/chat/m9.0-findings.md`.
+
+*Recommendation: keep it*, moved out of `plan/mhc_translation/` so the blanket removal stays blunt
+and correct. It is the evidence for a public claim — §4.2b's gate and `NOTICE`'s "None to the text"
+— and a repository that asserts corpus completeness should be able to show the measurement.
+`apps/importer/tests/test_study.py:389` already cites it by path in a checksum-failure message, so
+deleting it leaves a test pointing at a file that does not exist, firing precisely when a
+contributor needs the guidance. If it is dropped instead, that message must be rewritten in the
+same pass.
+
+**(b) Does `plan/going_public.md` — this file — publish?**
+
+It has never stated its own disposition, and it is tracked, so today it publishes by default. That
+is a real decision: it would expose §1.2's private-metadata categories, the §5 rewrite procedure,
+and the fact that history was rewritten at all. No actual private *values* remain in it (§1.2
+compliance was fixed 2026-08-11), so publishing is defensible and arguably good practice.
+
+*Recommendation: keep it*, as a public record of how the repository was sanitized. But two of its
+references — lines citing `plan/mhc_translation/07_master_plan.md` §M3 and §M1 — point at a file
+that is deliberately **not** published, so they must become plain prose or be dropped. A public
+document citing a document nobody can read is the same broken-pointer failure as (a).
+
+Whichever way each goes, decide before §5 runs: the rewrite is the last cheap moment.
 
 ## 6. Verification gate
 
@@ -610,7 +678,9 @@ All of these must pass before visibility changes:
 - audit of PRs/issues, Actions logs/artifacts, packages, deployments, variables, and repository
   settings; record the result in the release issue;
 - MHC corpus repair landed and verified (§4.2b): 66 books present, the source's 5,506 keys fully
-  accounted for, and `NOTICE`'s "None to the text" true of what actually ships;
+  accounted for, and `NOTICE`'s "None to the text" true of what actually ships. Verified against a
+  rebuilt DB on 2026-08-13; **re-verify against the deployed API**, not the build — as of that date
+  production still served the 48-book corpus, so a green build proved nothing about the site;
 - the **new** repository's own workflow runs reviewed, not this archive's. Pushing the mirror
   triggers `ci.yml`, and those logs are public after the flip — check them for anything the runner
   echoed, or keep Actions disabled on `DidacheDynamis` until the tree is verified (§1.4);
