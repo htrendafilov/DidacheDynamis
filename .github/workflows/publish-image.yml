@@ -35,12 +35,19 @@ jobs:
     permissions:
       contents: read
       packages: write
-    env:
-      IMAGE: ghcr.io/${{ github.repository }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           lfs: true
+
+      # Must be lowercased, and cannot be an `env:` expression that does it.
+      # `github.repository` preserves case, so on htrendafilov/DidacheDynamis it yields
+      # ghcr.io/htrendafilov/DidacheDynamis — which Docker rejects outright:
+      # "invalid tag: repository name must be lowercase". This was invisible while the repo was
+      # `bible_app_bg`, because that name is already lowercase; the rename is what arms it.
+      # The lowercased form also matches deploy/docker-compose.yml's ghcr.io/htrendafilov/didachedynamis.
+      - name: Resolve image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3

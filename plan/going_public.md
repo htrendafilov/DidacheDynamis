@@ -474,10 +474,17 @@ turned out to be wrong when the work was actually done; they are corrected below
   bodies, where a relative link resolves against that item's URL rather than the repository root.
   All five now point at `htrendafilov/DidacheDynamis`.
 - ~~GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `publish-image.yml` and
-  Compose.~~ **`publish-image.yml` never hard-coded it** — it builds `IMAGE:
-  ghcr.io/${{ github.repository }}`, so it follows the repository automatically and needed no edit.
-  Only `deploy/docker-compose.yml` and `plan/deployment/deployment_design.md` carried the literal
-  path; both are updated. The package itself is created by the first push from the new repo.
+  Compose.~~ **`publish-image.yml` never hard-coded the path — but it did need an edit, for a
+  reason the rename creates.** It built `IMAGE: ghcr.io/${{ github.repository }}`, and
+  `github.repository` **preserves case**, so on `htrendafilov/DidacheDynamis` it yields
+  `ghcr.io/htrendafilov/DidacheDynamis`, which Docker rejects outright: *"invalid tag: repository
+  name must be lowercase"*. The first publish after the flip would have failed. Nothing was wrong
+  while the repository was `bible_app_bg` — that name is already lowercase, so the rename is what
+  arms the bug, and no test or local build would show it beforehand. The image name is now resolved
+  in a step as `ghcr.io/${GITHUB_REPOSITORY,,}`, which also makes it match
+  `deploy/docker-compose.yml`. `deploy/docker-compose.yml` and `plan/deployment/deployment_design.md`
+  carried the literal path and are updated. The package itself is created by the first push from the
+  new repo.
 - **Provenance carve-out — `bible_app_bg` deliberately survives in the record.** `NOTICE`, the
   `source_version`/`attribution` constants in `apps/importer/bibleimport/cli.py`,
   `data/sources/*.info.json` (including the edition id `bible_app_bg-ed1`),
@@ -787,9 +794,14 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
     **Cut over 2026-08-06 — done.** `didachedynamis.com` is the primary and serves the app through
     the existing Cloudflare Tunnel. `www.didachedynamis.com` and `didachedynamis.org` (+`www`)
-    301 to it. `bible.trendafilovi.net` **302**s to it — deliberately 302 rather than 301 so it
-    stays reversible while it proves itself; promote to 301 before public launch so search engines
-    transfer authority. `/embed.js` and `/api/*` are **excluded from that redirect** and still
+    301 to it. `bible.trendafilovi.net` **301**s to it. It was deliberately a 302 at first, so the
+    cutover stayed reversible while it proved itself, and was **promoted to 301 after the cutover at
+    the owner's instruction**. The redirect rule lives in Cloudflare, not in this repository, so the
+    promotion date is not recoverable from git; what is recorded here is the observation:
+    `https://bible.trendafilovi.net/read` returned **301** to `didachedynamis.com/read` when checked
+    on 2026-08-14. This is no longer a launch gate.
+
+    `/embed.js` and `/api/*` are **excluded from that redirect** and still
     served from the old hostname, because existing third-party embeds allowlist it in their own CSP
     (§4.4 checklist item 2). UptimeRobot now probes `https://didachedynamis.com/ready`. The Dropbox
     OAuth allowlist carries `.com` and `.org` alongside the old host, verified against Dropbox's
