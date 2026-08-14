@@ -1,7 +1,7 @@
 # Runs on the VM. The pipeline sets IMAGE_TAG; the box only pulls from GHCR.
 services:
   app:
-    image: ghcr.io/htrendafilov/bible_app_bg:${IMAGE_TAG:-latest}
+    image: ghcr.io/htrendafilov/didachedynamis:${IMAGE_TAG:-latest}
     restart: always
     ports:
       - "127.0.0.1:8080:8080"   # Cloudflare Tunnel (or another local proxy) reaches this only

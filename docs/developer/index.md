@@ -1,6 +1,6 @@
 # Developer Guide: Quickstart & Setup
 
-Welcome to the developer documentation for **bible_app_bg**. This guide covers local environment setup, architecture principles, and building the project locally.
+Welcome to the developer documentation for **DidacheDynamis**. This guide covers local environment setup, architecture principles, and building the project locally.
 
 ## Monorepo High-Level Workflow
 
@@ -31,8 +31,8 @@ flowchart TD
 ### 1. Clone & Set Up Virtual Environments
 
 ```bash
-git clone https://github.com/htrendafilov/bible_app_bg.git
-cd bible_app_bg
+git clone https://github.com/htrendafilov/DidacheDynamis.git
+cd DidacheDynamis
 git lfs install
 git lfs pull
 

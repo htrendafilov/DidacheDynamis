@@ -64,7 +64,7 @@ body:
       description: >
         Skip this if you are only reporting a problem. It applies when you supply wording to use,
         because that wording becomes part of a distributed text and needs terms attached — see
-        [CONTRIBUTING.md](https://github.com/htrendafilov/bible_app_bg/blob/main/CONTRIBUTING.md).
+        [CONTRIBUTING.md](https://github.com/htrendafilov/DidacheDynamis/blob/main/CONTRIBUTING.md).
       options:
         - label: >
             Any wording I have supplied is my own, and I dedicate it to the public domain under

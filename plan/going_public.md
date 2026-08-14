@@ -448,27 +448,63 @@ which is the intended behaviour, not an obstacle.
 
 ### 4.4 App rename to DidacheDynamis
 
-The public app is named **DidacheDynamis** (decided 2026-08-01). The rename lands in the sanitized
-tree before the first push, not in the private repo's day-to-day history:
+The public app is named **DidacheDynamis** (decided 2026-08-01).
 
-- README/docs product name, repository description/topics, and the `NOTICE`/attribution lines.
-- **Hard-coded repository URLs.** Six of them, all silent when stale, and all pointing at the
-  private archive once the tree moves. Two are badges: CI
-  (`github.com/htrendafilov/bible_app_bg/actions/workflows/ci.yml`, renders as "no status") and MIT.
-  Four are in `.github/`, and every one of them is **absolute deliberately and must stay absolute**:
-  `ISSUE_TEMPLATE/config.yml`'s security `contact_links.url`, because GitHub drops a `contact_links`
-  entry it cannot resolve and the option then vanishes from the chooser with no error at all; and the
-  `CONTRIBUTING.md`/`SECURITY.md` links in `PULL_REQUEST_TEMPLATE.md`,
-  `ISSUE_TEMPLATE/content-correction.yml` and `ISSUE_TEMPLATE/bug-report.yml`, because templates are
-  rendered into issue and pull-request bodies, where a relative link resolves against that item's
-  URL rather than the repository root. The `bug-report.yml` one is the sharpest: it is what steers a
-  reporter away from filing a vulnerability publicly. Repoint all six in the rename pass.
-- GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `publish-image.yml` and Compose (the
-  package itself is created by the first push from the new repo).
-- **Not renamed by default:** the public domain `bible.trendafilovi.net`, the Cloudflare tunnel, and
-  the Caddy vhost keep working regardless of the repo name. Changing the domain is a separate owner
-  decision — **direction taken 2026-08-06 (decision 10): rebrand**, domain not yet bought. Run the
-  checklist below when it is.
+**Done 2026-08-14 (owner instruction), on `main` rather than in the sanitized tree.** This section
+originally said the rename "lands in the sanitized tree before the first push, not in the private
+repo's day-to-day history". It landed early instead, which is harmless — §5 rewrites this history
+anyway, and the URLs now point where they will need to point. The trade is deliberate: the badge and
+the `.github/` links are broken *now*, in a private repository only the owner reads, instead of
+broken *after* the flip, in a public one with real reporters. Three of this section's own claims
+turned out to be wrong when the work was actually done; they are corrected below.
+
+- ~~README/docs product name, repository description/topics, and the `NOTICE`/attribution lines.~~
+  Done for README, `CONTRIBUTING.md`, and the user/developer/deployment/extra docs. **The
+  `NOTICE`/attribution lines were deliberately *not* renamed** — see the provenance carve-out below.
+  Repository description/topics belong to the new repository and are set at §7.
+- ~~**Hard-coded repository URLs.** Six of them~~ — **five, and the MIT badge was never one of
+  them.** It is `[![License: MIT](…shields.io…)](LICENSE)`: the image is external and the link is
+  relative to the repository root, which is exactly where a README relative link resolves. The real
+  five are the CI badge (two occurrences of the same URL) and the four in `.github/`, and every one
+  of those four is **absolute deliberately and must stay absolute**: `ISSUE_TEMPLATE/config.yml`'s
+  security `contact_links.url`, because GitHub drops a `contact_links` entry it cannot resolve and
+  the option then vanishes from the chooser with no error at all; and the `CONTRIBUTING.md` /
+  `SECURITY.md` links in `PULL_REQUEST_TEMPLATE.md`, `ISSUE_TEMPLATE/content-correction.yml` and
+  `ISSUE_TEMPLATE/bug-report.yml`, because templates are rendered into issue and pull-request
+  bodies, where a relative link resolves against that item's URL rather than the repository root.
+  All five now point at `htrendafilov/DidacheDynamis`.
+- ~~GHCR image path becomes `ghcr.io/htrendafilov/didachedynamis` in `publish-image.yml` and
+  Compose.~~ **`publish-image.yml` never hard-coded the path — but it did need an edit, for a
+  reason the rename creates.** It built `IMAGE: ghcr.io/${{ github.repository }}`, and
+  `github.repository` **preserves case**, so on `htrendafilov/DidacheDynamis` it yields
+  `ghcr.io/htrendafilov/DidacheDynamis`, which Docker rejects outright: *"invalid tag: repository
+  name must be lowercase"*. The first publish after the flip would have failed. Nothing was wrong
+  while the repository was `bible_app_bg` — that name is already lowercase, so the rename is what
+  arms the bug, and no test or local build would show it beforehand. The image name is now resolved
+  in a step as `ghcr.io/${GITHUB_REPOSITORY,,}`, which also makes it match
+  `deploy/docker-compose.yml`. `deploy/docker-compose.yml` and `plan/deployment/deployment_design.md`
+  carried the literal path and are updated. The package itself is created by the first push from the
+  new repo.
+- **Provenance carve-out — `bible_app_bg` deliberately survives in the record.** `NOTICE`, the
+  `source_version`/`attribution` constants in `apps/importer/bibleimport/cli.py`,
+  `data/sources/*.info.json` (including the edition id `bible_app_bg-ed1`),
+  `data/sources/README.md` and the SWORD module `.conf` builder all name it inside **dated edition
+  identifiers** such as "CrossWire BaptistConfession1689 1.0.2 + bible_app_bg editorial revision 1
+  (2026-07-29)". Those are historical facts about which edition was published under which name.
+  Rewriting them would assert that a 2026-07-29 edition was issued under a name adopted in August,
+  and would edit files §2.3 keeps precisely *as* rights and provenance evidence. `NOTICE` now
+  carries a short paragraph explaining the former name instead. The one exception is `cli.py`'s
+  `source_url`, which is a **locator, not an identifier**: it points at a file whose old path 404s
+  after the flip, so it was repointed.
+- **Not renamed:** the Cloudflare tunnel, and the code identifiers below (package names, i18n
+  strings, SPA title). `bible.trendafilovi.net` is no longer the public domain. Verified live
+  2026-08-14: `https://bible.trendafilovi.net/read` → **301** to `didachedynamis.com/read`,
+  `didachedynamis.com/read` → **200**, and the `/embed.js` carve-out still **serves 200 rather than
+  redirecting**, which is the one thing a blanket redirect would have broken. The checklist below is
+  *not* fully ticked off — several items are done in reality but never struck through, so read it as
+  a live list, not a finished one.
+  An earlier version of this bullet also credited "the Caddy vhost", which has not been in this
+  app's request path since the tunnel cutover; requests reach the origin through `cloudflared`.
 
 #### Domain cutover checklist
 
@@ -758,9 +794,14 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
     **Cut over 2026-08-06 — done.** `didachedynamis.com` is the primary and serves the app through
     the existing Cloudflare Tunnel. `www.didachedynamis.com` and `didachedynamis.org` (+`www`)
-    301 to it. `bible.trendafilovi.net` **302**s to it — deliberately 302 rather than 301 so it
-    stays reversible while it proves itself; promote to 301 before public launch so search engines
-    transfer authority. `/embed.js` and `/api/*` are **excluded from that redirect** and still
+    301 to it. `bible.trendafilovi.net` **301**s to it. It was deliberately a 302 at first, so the
+    cutover stayed reversible while it proved itself, and was **promoted to 301 after the cutover at
+    the owner's instruction**. The redirect rule lives in Cloudflare, not in this repository, so the
+    promotion date is not recoverable from git; what is recorded here is the observation:
+    `https://bible.trendafilovi.net/read` returned **301** to `didachedynamis.com/read` when checked
+    on 2026-08-14. This is no longer a launch gate.
+
+    `/embed.js` and `/api/*` are **excluded from that redirect** and still
     served from the old hostname, because existing third-party embeds allowlist it in their own CSP
     (§4.4 checklist item 2). UptimeRobot now probes `https://didachedynamis.com/ready`. The Dropbox
     OAuth allowlist carries `.com` and `.org` alongside the old host, verified against Dropbox's

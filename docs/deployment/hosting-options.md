@@ -1,6 +1,6 @@
 # Hosting & Deployment Options
 
-`bible_app_bg` supports two production hosting strategies: **Native Systemd + Gunicorn** (current live VM setup) and **Containerized Docker Deployment**.
+`DidacheDynamis` supports two production hosting strategies: **Native Systemd + Gunicorn** (current live VM setup) and **Containerized Docker Deployment**.
 
 ## Option 1: Native Systemd + Gunicorn (VM Setup)
 

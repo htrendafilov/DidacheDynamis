@@ -1,6 +1,6 @@
 # Desktop App Packaging — Overview
 
-Brainstorm: how to ship `bible_app_bg` as an installable desktop app for macOS, Linux, and
+Brainstorm: how to ship `DidacheDynamis` as an installable desktop app for macOS, Linux, and
 Windows. This is a set of propositions, not a decision. See `AGENTS.md` — packaging choice
 is a product decision and needs owner sign-off before implementation.
 

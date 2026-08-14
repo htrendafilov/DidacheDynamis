@@ -155,7 +155,7 @@ BAPTIST_1689_BG_SPEC = BookSpec(
         "прегледаната английска редакция 1 на bible_app_bg."
     ),
     source_url=(
-        "https://github.com/htrendafilov/bible_app_bg/blob/main/data/sources/"
+        "https://github.com/htrendafilov/DidacheDynamis/blob/main/data/sources/"
         "BaptistConfession1689_BG.info.json"
     ),
     source_version=(

@@ -1,6 +1,6 @@
 # Contribution Guidelines
 
-Thank you for considering contributing to **bible_app_bg**! This document outlines coding standards, git workflows, and contribution policies.
+Thank you for considering contributing to **DidacheDynamis**! This document outlines coding standards, git workflows, and contribution policies.
 
 ## Contribution terms
 

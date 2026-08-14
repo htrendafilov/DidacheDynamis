@@ -1,6 +1,6 @@
 # Security & Local-First Privacy Model
 
-`bible_app_bg` is engineered with a **local-first, privacy-by-design architecture**.
+`DidacheDynamis` is engineered with a **local-first, privacy-by-design architecture**.
 
 ## Security Model Overview
 
@@ -45,7 +45,7 @@ flowchart TD
    Recent and pinned search state (query, refinement, filters, order, and selected result type) is
    also stored unencrypted in `localStorage` under `bible-search-v1`. It can be cleared from Search
    history and is deliberately excluded from Dropbox note synchronization.
-3. **Direct Cloud Sync**: Dropbox synchronization uses OAuth 2.0 PKCE. Tokens and note contents travel directly between your browser and Dropbox servers. The `bible_app_bg` API server never sees or handles your Dropbox token.
+3. **Direct Cloud Sync**: Dropbox synchronization uses OAuth 2.0 PKCE. Tokens and note contents travel directly between your browser and Dropbox servers. The `DidacheDynamis` API server never sees or handles your Dropbox token.
 
 ## Application Security Measures
 
@@ -80,7 +80,7 @@ described here in full.
 ### What leaves the browser, and to whom
 
 Requests go **directly from your browser to the provider** — currently OpenRouter
-(`https://openrouter.ai/api/v1`). The `bible_app_bg` API server is not in that path: it never sees
+(`https://openrouter.ai/api/v1`). The `DidacheDynamis` API server is not in that path: it never sees
 your key, your questions, the passages you attached, or the answers. The Content-Security-Policy
 `connect-src` is the enforcement, not just the intent — it lists exactly `'self'`, the two Dropbox
 API hosts, and `https://openrouter.ai`, so the page cannot post your conversation anywhere else.
@@ -105,7 +105,7 @@ like any other source.
 
 The key lives in `sessionStorage` for the lifetime of that browser tab, and nowhere else — never
 `localStorage`, never IndexedDB, never a URL, never an export, never a log, and never sent to the
-`bible_app_bg` server. Closing the tab or pressing Disconnect removes it. Because it is readable by
+`DidacheDynamis` server. Closing the tab or pressing Disconnect removes it. Because it is readable by
 JavaScript on the origin, the CSP and XSS controls above apply to it as they do to the Dropbox
 token. Billing for every request is against **your** provider account.
 
@@ -141,7 +141,7 @@ Conversations are stored locally in their own IndexedDB database (`bible-chat`: 
 and a per-answer source manifest), capped at 200 threads and roughly 20 MB. Like notes, this store
 is local to the browser profile and **not** application-level encrypted, so anyone with access to
 the profile can read it. It is **not** synchronised to Dropbox and never reaches the
-`bible_app_bg` server. Deleting a thread deletes it locally; it does not reach into whatever the
+`DidacheDynamis` server. Deleting a thread deletes it locally; it does not reach into whatever the
 provider retained.
 
 For models that produce hidden reasoning, only the **token count** is stored — never the reasoning
