@@ -386,7 +386,7 @@ def test_per_book_counts_match_the_checksummed_source_exactly():
         pytest.skip(f"real corpus not present: {source}")
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     assert digest == "3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0", (
-        "MHC source changed; re-measure plan/mhc_translation/08_english_baseline.md and "
+        "MHC source changed; re-measure plan/mhc_english_baseline.md and "
         "regenerate EXPECTED_PER_BOOK before updating this checksum"
     )
 

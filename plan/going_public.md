@@ -168,9 +168,13 @@ prepare the repository for public release" line.
   Matthew Henry translation is a separate project; only its finished result is intended to reach
   the new repository, not its planning history. Nothing here excludes it automatically: the
   sanitized tree carries whatever is tracked, so this has to be an explicit path removal in the
-  §5 `git-filter-repo` invocation, and it must be re-checked at §6 rather than assumed. Note the
-  directory is untracked today, so if it is never committed the removal is a no-op — which is the
-  cheapest way to honour this decision.
+  §5 `git-filter-repo` invocation, and it must be re-checked at §6 rather than assumed. The
+  directory is untracked today, so if nothing is committed into it the removal is a no-op — the
+  cheapest way to honour this decision. Do not read that as a guarantee: it was untracked on
+  2026-08-10 when this was written, and PR #46 tracked a file inside it anyway. The one exception is
+  the M1 corpus baseline, which the owner decided to publish (§5b a) and which now lives outside
+  this directory at `plan/mhc_english_baseline.md`, so this stays a whole-directory removal with
+  nothing to carve out.
 
 ### 2.3 Source-data disposition
 
@@ -183,9 +187,9 @@ deletion other than `.gitkeep`:
 - the uncompressed Bulgarian 1689 IMP drives the revision, SWORD-package, and benchmark scripts;
 - the JSON metadata and correction record provide required rights/provenance evidence.
 
-A later addition will change these numbers: `plan/mhc_translation/07_master_plan.md` §M3 adds an
-LFS rule for `data/sources/mhc_bg/books/*.jsonl.gz`, and the translated book packages that follow
-land as new LFS objects. The rule alone costs nothing — no objects exist until that project's M5/M6
+A later addition will change these numbers: the Bulgarian translation project adds an LFS rule for
+`data/sources/mhc_bg/books/*.jsonl.gz`, and the translated book packages that follow land as new
+LFS objects. The rule alone costs nothing — no objects exist until that project's M5/M6
 — but the budget and alert set below are calibrated against today's set and will need revisiting
 before those packages are committed.
 
@@ -349,7 +353,8 @@ Measured against the built `content.sqlite`, not inferred from the plan that rep
 | Missing entirely | every numbered book — 1/2 Sam, 1/2 Kgs, 1/2 Chr, 1/2 Cor, 1/2 Thess, 1/2 Tim, 1/2 Pet, 1/2/3 John — plus **Revelation** |
 | Build result | `result: ok`, no warnings |
 
-Two independent causes, both diagnosed in `plan/mhc_translation/07_master_plan.md` §M1.
+Two independent causes, both in `apps/importer/bibleimport/formats/study.py` and both diagnosed
+before the repair:
 
 Book-name aliases: Roman-numeral and alternative forms are not matched, so every numbered book falls
 out. And records keyed at verse `0`, which `apps/importer/bibleimport/formats/study.py:297` discards
@@ -378,8 +383,15 @@ assistant both return nothing for Revelation.
 state is a silently lossy importer paired with a `NOTICE` that contradicts it. Repairing first costs
 one milestone of work that was already planned.
 
-**M1 landed (PR #46) and was verified in the artifact 2026-08-13** by rebuilding `content.sqlite`
-from `data/sources/` and querying it, not by re-reading the code:
+**M1 landed (PR #46), verified in the artifact 2026-08-13, and confirmed live in production
+2026-08-15** (build `fe7217f`): all 66 books served, coverage reporting 5,355 units with no empty
+book, per-book counts identical to the local rebuild, chapter introductions returning
+`verse_start: null`, and a search whose only matches fall inside introductions returning **200**
+rather than the `int(NULL)` 500. M2's coverage endpoint is live. `NOTICE`'s "None to the text" is
+now true of what actually ships, closing the gap recorded below.
+
+The original build-time verification, 2026-08-13, rebuilt `content.sqlite` from `data/sources/` and
+queried it rather than re-reading the code:
 
 | | Before | After |
 |---|---|---|
@@ -392,13 +404,12 @@ from `data/sources/` and querying it, not by re-reading the code:
 Key accounting balances exactly: 5,355 imported + 151 scaffolding = 5,506 raw keys. All eighteen
 previously-absent books are populated (Rev 76, 1 Sam 132, 2 Chr 118 … 3 John 4).
 
-**This is not yet true of what ships.** The check that mattered was against production: on
-2026-08-13 `didachedynamis.com` still returned `entries: []` for Rev, 2 Sam and 1 Cor, and 404 for
-M2's coverage endpoint — the VM runs the pre-M1 corpus and pre-M2 code. So `NOTICE`'s "None to the
-text" remains false in production until a release runs. `scripts/release.sh --content=auto` will
-rebuild on the VM without being told to, because both `apps/importer/bibleimport/` changed and
-`SCHEMA_VERSION` went 4→5. Until then §6's MHC gate item is satisfied by the *build*, not by the
-deployment, and the two must not be confused.
+**A green build was not the same as a fixed site, and for two days it was not.** On 2026-08-13,
+with M1 and M2 both merged, `didachedynamis.com` still returned `entries: []` for Rev, 2 Sam and
+1 Cor and 404 for M2's coverage endpoint: the VM was running the pre-M1 corpus and pre-M2 code, so
+`NOTICE`'s "None to the text" was false on the live site while every test passed. The release on
+2026-08-15 closed it. Keep the distinction in §6: the MHC gate item is satisfied by the
+**deployment**, not by the build, and only a probe against the running site can tell them apart.
 
 **M2 and M3 are not prerequisites**, but M3 is not as invisible as it first looks. M2 bumps the
 content schema and adds `entry_id` to the API — ordinary product work with no bearing on licensing,
@@ -410,8 +421,15 @@ prompt, `model_snapshot.json`, blinded scores and results under `plan/mhc_transl
 the `.gitattributes` LFS rule (§2.3) and the `.gitignore` entry. The split matters here: the bench
 artifacts sit inside the path §2.2 excludes and are removed by §5, but **`scripts/mhc_bg/` does
 not** — it would ship publicly like any other tooling. That is acceptable (it is the owner's own
-MIT-licensed code), but it should be a decision rather than a surprise, so run M3 before the flip
-only if that tooling is meant to be public on day one.
+MIT-licensed code), but it should be a decision rather than a surprise.
+
+**Decided 2026-08-15 (§5b c): M3 runs *after* the flip.** `scripts/mhc_bg/` therefore becomes public
+when it is written, as an ordinary commit, rather than appearing in the initial public tree. Two
+reasons. The flip's scope stays minimal, and §5/§6 are the steps where a mistake is expensive and
+hard to undo — adding a whole milestone in front of them buys nothing. And M3 spends real money on
+the bake-off; there is no reason to couple that spend to the release schedule. Nothing about this
+blocks M3 starting whenever the owner wants it, since no owner decision gates M3 tooling (D1 gates
+committing translated text, which M3 keeps in the gitignored workspace).
 
 **D1 is not triggered yet but will be.** That project gates the Bulgarian translation's licence on
 "any public release". No translated text exists, so nothing blocks this flip. When `mhcbg` ships it
@@ -623,20 +641,39 @@ provider is added.
 This section applies only to a release path that publishes rewritten history.
 
 1. Freeze pushes; merge/close open PRs; delete obsolete remote branches; record all branch/tag/PR
-   refs, LFS objects, and the current default-branch SHA.
+   refs, LFS objects, and the current default-branch SHA. Record `git for-each-ref` in full rather
+   than branches and tags alone, so anything under `refs/` that is neither (notably `refs/stash`,
+   see step 2) is on the inventory instead of being discovered later.
 2. Make two backups: an untouched private mirror and a separate disposable mirror for rewriting.
    Never run the rewrite in the day-to-day checkout.
+
+   **Clone both mirrors from `origin`, not from a local working copy** — and if you must clone
+   locally, drop `refs/stash` from the disposable mirror first. Verified 2026-08-15: this checkout
+   carries one stash entry (`bg-pr-unrelated-wip`) whose untracked-files commit `9b19245a` holds
+   **74 `.ua/` files, 3.0 MB** of local agent working data. `git clone --mirror .` copies it —
+   `--mirror` maps `refs/*` to `refs/*` and `refs/stash` is under `refs/` — and `git-filter-repo`
+   rewrites every ref it finds, so the stash would be carried through the sanitization rather than
+   stripped by it. `git ls-remote origin` advertises no `refs/stash`, so cloning from GitHub avoids
+   this entirely. Nothing here is exposed today; the exposure would be created by the backup step.
+
+   This is also why `git log --all` is not sufficient evidence that a path is absent: it does not
+   read `refs/stash`. `.ua/` and `.claude/` return **0 commits** under `--all` and are gitignored,
+   which is exactly what a clean result looks like — the 3 MB is reachable only through the stash.
+   Enumerate with `git for-each-ref` and check the stash explicitly.
 3. Use `git-filter-repo` 2.47+ with sensitive-data removal mode:
    - remove every historical path of the live runbook;
    - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
      never receives the KJV export, even during its private verification phase;
    - remove every historical `plan/mhc_translation/` path (§2.2 — the translation project's planning
      history stays out of the public tree; only its finished result is intended to reach it).
-     **No longer a no-op, and no longer safe to run unattended.** An earlier draft of this line said
-     it was "a no-op while the directory is untracked". That stopped being true when PR #46 landed
-     `plan/mhc_translation/08_english_baseline.md`, which is tracked on `main` today. Running this
-     step as written now *deletes a tracked file* rather than doing nothing — silently, because
-     removing a path that exists is exactly what the command is for. Settle §5b before running it;
+     **Two passes, rename first** (§5b b). The directory is untracked in the working tree, but it
+     appears in four historical commits, and `git-filter-repo` rewrites history rather than `HEAD`.
+     So first rewrite the historical path of the one file ever tracked there —
+     `--path-rename plan/mhc_translation/08_english_baseline.md:plan/mhc_english_baseline.md` —
+     which preserves the M1 measurement history the baseline's credibility rests on. Only then
+     remove `plan/mhc_translation/`, which by that point is genuinely empty in history. Removing it
+     in a single pass would keep the file and delete the commits that produced it. Re-check before
+     running that nothing tracked has reappeared under the directory;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
      outside the repository;
    - rewrite author **and committer** addresses in the same pass (decision 8) with
@@ -658,47 +695,102 @@ This section applies only to a release path that publishes rewritten history.
    release-strategy decision rather than claiming full removal.
 7. Delete or rebase every other clone/worktree. Never merge an old branch into rewritten history.
 
-### 5b. Two disposition decisions the rewrite depends on — OPEN
+### 5b. Disposition decisions — RESOLVED 2026-08-15 (owner)
 
-Both were implicit defaults until 2026-08-13. Neither is safe to leave to whatever the filter
-command happens to do, because in both cases the default is silent.
+Three dispositions were being made by whatever the filter command happened to do rather than on
+purpose. All three are now settled, and all three were settled the same way: **publish, and make the
+tree match the decision instead of relying on the rewrite to enforce it.**
 
-**(a) Does `plan/mhc_translation/08_english_baseline.md` publish?**
+**(a) The M1 corpus baseline publishes.** `08_english_baseline.md` has been **moved out of
+`plan/mhc_translation/` to `plan/mhc_english_baseline.md`**, which is the point of the decision, not
+a detail of it: §5's removal of `plan/mhc_translation/` can now stay a blunt, whole-directory
+command with nothing to carve out. It was reviewed before the move and contains only English
+public-domain corpus measurements — per-book entry, block, run, word and token counts, the corpus
+totals, and the quotation-heuristic audit. No Bulgarian text, no vendor pricing, no model selection,
+no cost projection. Publishing it is what lets a reader check §4.2b's completeness claim and
+`NOTICE`'s "None to the text" rather than take them on trust, and
+`apps/importer/tests/test_study.py` cites it by path in a checksum-failure message — that path is
+updated, and the file's one reference to the unpublished master plan is rewritten so it stands
+alone.
 
-It is tracked on `main`, so §5's `plan/mhc_translation/` removal would delete it. Reviewed for
-sensitivity: it contains **only English public-domain corpus measurements** — per-book entry, block,
-run, word and token counts, the corpus totals every budget derives from, and the quotation-heuristic
-audit. No Bulgarian text, no vendor pricing, no model selection, no cost projection. Its only
-model references are the 4.07–4.38 chars/token band from `plan/chat/m9.0-findings.md`.
+**(b) `plan/mhc_translation/` is untracked in the working tree again — but that is not the same as
+the removal being a no-op, and the distinction matters.** `git-filter-repo` rewrites *history*, not
+`HEAD`. The directory appears in **four historical commits**, and the only file ever tracked under
+it is the baseline itself:
 
-*Recommendation: keep it*, moved out of `plan/mhc_translation/` so the blanket removal stays blunt
-and correct. It is the evidence for a public claim — §4.2b's gate and `NOTICE`'s "None to the text"
-— and a repository that asserts corpus completeness should be able to show the measurement.
-`apps/importer/tests/test_study.py:389` already cites it by path in a checksum-failure message, so
-deleting it leaves a test pointing at a file that does not exist, firing precisely when a
-contributor needs the guidance. If it is dropped instead, that message must be rewritten in the
-same pass.
+```
+10200df docs(5b): settle the three disposition decisions, move the M1 baseline out
+f8e4165 docs(m1): record M1 as done, mapped clause by clause to the tests
+fb7c81e fix(m1): classify by coordinates, not length; correct the quotation figure
+dd94b09 feat(m1): tests, quotation measurement, and the repaired corpus baseline
+```
 
-**(b) Does `plan/going_public.md` — this file — publish?**
+So a plain `--path plan/mhc_translation/ --invert-paths` would strip the baseline's own history while
+keeping the file. The public repository would show `plan/mhc_english_baseline.md` appearing
+fully-formed at the move commit with no trace of the measurement that produced it — a document whose
+entire value is being checkable, published in the one shape that makes it look fabricated. The three
+M1 commits survive, since they carry tests and the audit script too; only the baseline blob would be
+cut out of them.
 
-It has never stated its own disposition, and it is tracked, so today it publishes by default. That
-is a real decision: it would expose §1.2's private-metadata categories, the §5 rewrite procedure,
-and the fact that history was rewritten at all. No actual private *values* remain in it (§1.2
-compliance was fixed 2026-08-11), so publishing is defensible and arguably good practice.
+**Therefore §5 runs this as two passes, rename first:** rewrite the historical path
+`plan/mhc_translation/08_english_baseline.md` → `plan/mhc_english_baseline.md` across all history,
+*then* remove `plan/mhc_translation/`. After the rename the directory really is empty in history, so
+the removal becomes the genuine no-op the earlier draft assumed it already was, and the baseline
+keeps the commits that made it evidence.
 
-*Recommendation: keep it*, as a public record of how the repository was sanitized. But two of its
-references — lines citing `plan/mhc_translation/07_master_plan.md` §M3 and §M1 — point at a file
-that is deliberately **not** published, so they must become plain prose or be dropped. A public
-document citing a document nobody can read is the same broken-pointer failure as (a).
+Keep the removal in the invocation either way. The directory was untracked before too, and stayed
+that way right up until PR #46 quietly tracked a file inside it.
 
-Whichever way each goes, decide before §5 runs: the rewrite is the last cheap moment.
+**(c) M3 runs after the flip; `scripts/mhc_bg/` becomes public when it is written.** No pre-flip
+milestone, and nothing to remember on flip day. §4.2b raised this because the tooling sits *outside*
+the excluded path and would ship publicly as ordinary MIT code — which is accepted, just not on day
+one. The flip's scope stays as small as possible, which matters because §5 and §6 are the steps
+where mistakes are expensive and hard to reverse.
+
+**(d) This file publishes.** `plan/going_public.md` never stated its own disposition and is tracked,
+so it was shipping by default. Now deliberate: it is a public record of how the repository was
+sanitized, which is worth more than the little it discloses. No private *values* remain in it (§1.2
+compliance fixed 2026-08-11) — it names categories and procedures, not secrets. Its two citations of
+the unpublished `07_master_plan.md` are rewritten as plain prose, since a public document citing one
+nobody can read is the same broken pointer the baseline decision exists to avoid.
 
 ## 6. Verification gate
 
 All of these must pass before visibility changes:
 
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
-  zero exit code;
+  zero exit code. **Baseline established 2026-08-15** with `gitleaks` 8.30.1 over 203 commits:
+  **9 findings, all reviewed, none a real credential.** (Scanning `main` today still reports 9;
+  see the note after the table about a 10th that exists only on the PR branch that wrote this
+  section.)
+
+  | # | Rule | What it actually is |
+  |---|---|---|
+  | 1–3 | `generic-api-key` | `sk-or-v1-TESTSENTINEL…` / `sk-or-v1-E2ESENTINEL…` in `ChatPanel.test.tsx`, `ChatPanel.injectionCorpus.test.tsx`, `e2e-chat/chat.spec.ts` — deliberately fake sentinels whose whole job is to prove a key never leaves the browser |
+  | 4–9 | `dropbox-api-token` | false positives inside the stashed `.ua/` files on a JSON value that concatenates a test filename, a colon, and a class name (entropy 3.46) — a source reference, not a token. **Deliberately paraphrased rather than quoted:** an earlier draft of this table pasted the literal string, which made the rule fire on this very file and turned a 9-finding baseline into a 10-finding one. A document describing a scanner false positive must not reproduce it |
+
+  Two consequences rather than a clean bill of health. The sentinels are shaped like real OpenRouter
+  keys, so GitHub's own secret scanning will flag them on the public repository forever; allowlist
+  them **before** the flip so §6's scan is meaningfully clean and a genuine leak cannot hide inside
+  known noise. **Use a path/regex rule in `.gitleaks.toml`, not `.gitleaksignore`.** A
+  `.gitleaksignore` entry is a fingerprint of the form `<commit>:<path>:<rule>:<line>`, and §5
+  rewrites every commit SHA — so an allowlist built before the rewrite silently stops matching
+  after it, which is the worst possible failure for a suppression file: it does not error, it just
+  stops suppressing, and the first post-flip scan comes back dirty for reasons nobody remembers.
+  Build it after §5 or key it on path and pattern rather than commit.
+
+  **A scanner baseline is a statement about history, not about the working tree.** An earlier draft
+  of the table above quoted the false-positive string verbatim, which made the rule fire on this
+  file and took the count to 10. Rewording it at `HEAD` did *not* restore 9: `gitleaks git` walks
+  commits, and the commit that introduced the literal still contains it. That commit
+  (`3ec5165` on `docs/5b-disposition-decisions`) is not on `main`, so the outcome depends on how
+  that PR is merged — **squash-merge keeps the literal out of `main` entirely and the baseline
+  stays 9; an ordinary merge commit carries it in permanently** and the allowlist must then cover
+  `plan/going_public.md` for `dropbox-api-token` forever. Worth stating plainly because it
+  generalises: between now and the flip, anything committed and later "fixed" is still in history,
+  and only §5 removes it. And findings 4–9 only appeared because
+  `gitleaks git` reads `refs/stash` — see §5 step 2; the scan found the stash before the ref audit
+  did;
 - **no commit on any ref carries the employer or Yahoo address** on either the author or the
   committer side (decision 8), and a sample commit resolves to the owner's GitHub account rather
   than to nobody — an unattributed history is a rewrite that has to be done twice;

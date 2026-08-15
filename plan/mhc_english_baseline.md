@@ -3,8 +3,8 @@
 **Measured 2026-08-11 against `data/sources/MHC.imp.gz` (CrossWire MHC 2.2; committed export SHA-256
 `3238c932ece1ced9c4f824e6a293e3caf5c528cd369e4d3cbdeb41e089af61e0`) with the repaired importer.**
 Regenerate the heuristic figures with `scripts/mhc_quotation_audit.py`; the tables below come from
-`load_sword_commentary` directly. **Every budget in the master plan derives from the corpus total
-restated here, not from the pre-repair numbers.**
+`load_sword_commentary` directly. **Any corpus-derived estimate must use the total restated here,
+not the pre-repair numbers**, which understated the corpus by roughly a third.
 
 ## M1 status — done, and how that is checked
 
