@@ -10,9 +10,9 @@ describe("parseInline", () => {
   it("parses bold, italic, and inline code", () => {
     expect(parseInline("a **b** c *d* e `f`")).toEqual([
       { type: "text", text: "a " },
-      { type: "bold", text: "b" },
+      { type: "bold", children: [{ type: "text", text: "b" }] },
       { type: "text", text: " c " },
-      { type: "italic", text: "d" },
+      { type: "italic", children: [{ type: "text", text: "d" }] },
       { type: "text", text: " e " },
       { type: "code", text: "f" },
     ]);
@@ -132,22 +132,22 @@ describe("parseMessage", () => {
   it("parses ==highlight== and ++underline++", () => {
     expect(parseInline("a ==important== and ++noted++ b")).toEqual([
       { type: "text", text: "a " },
-      { type: "highlight", text: "important" },
+      { type: "highlight", children: [{ type: "text", text: "important" }] },
       { type: "text", text: " and " },
-      { type: "underline", text: "noted" },
+      { type: "underline", children: [{ type: "text", text: "noted" }] },
       { type: "text", text: " b" },
     ]);
   });
 
   it("keeps the new marks distinct from bold and italic", () => {
     expect(parseInline("**b** *i* ==h== ++u++")).toEqual([
-      { type: "bold", text: "b" },
+      { type: "bold", children: [{ type: "text", text: "b" }] },
       { type: "text", text: " " },
-      { type: "italic", text: "i" },
+      { type: "italic", children: [{ type: "text", text: "i" }] },
       { type: "text", text: " " },
-      { type: "highlight", text: "h" },
+      { type: "highlight", children: [{ type: "text", text: "h" }] },
       { type: "text", text: " " },
-      { type: "underline", text: "u" },
+      { type: "underline", children: [{ type: "text", text: "u" }] },
     ]);
   });
 
@@ -164,7 +164,7 @@ describe("parseMessage", () => {
   it("still parses a real marker in the same line as C++", () => {
     expect(parseInline("C++ is ++great++")).toEqual([
       { type: "text", text: "C++ is " },
-      { type: "underline", text: "great" },
+      { type: "underline", children: [{ type: "text", text: "great" }] },
     ]);
   });
 
@@ -181,9 +181,9 @@ describe("parseMessage", () => {
 
   it("accepts single-character content", () => {
     expect(parseInline("==h== ++u++")).toEqual([
-      { type: "highlight", text: "h" },
+      { type: "highlight", children: [{ type: "text", text: "h" }] },
       { type: "text", text: " " },
-      { type: "underline", text: "u" },
+      { type: "underline", children: [{ type: "text", text: "u" }] },
     ]);
   });
 
@@ -210,5 +210,94 @@ describe("parseMessage", () => {
     expect(parseMessage("```\n==not a highlight==\n```")).toEqual([
       { type: "codeBlock", text: "==not a highlight==" },
     ]);
+  });
+
+  // Reported from a live Bulgarian answer: "++остатък++" rendered with its markers showing.
+  // The cause was not the token regex — which matches Cyrillic fine — but that emphasis nodes
+  // carried a flat string that was never re-parsed, so anything inside "**...**" or "*...*"
+  // survived as literal text.
+  describe("nesting inside emphasis", () => {
+    it("parses ++underline++ inside bold", () => {
+      expect(parseInline("**Божият ++остатък++**")).toEqual([
+        {
+          type: "bold",
+          children: [
+            { type: "text", text: "Божият " },
+            { type: "underline", children: [{ type: "text", text: "остатък" }] },
+          ],
+        },
+      ]);
+    });
+
+    it("parses ==highlight== inside italic", () => {
+      expect(parseInline("*a ==b==*")).toEqual([
+        {
+          type: "italic",
+          children: [
+            { type: "text", text: "a " },
+            { type: "highlight", children: [{ type: "text", text: "b" }] },
+          ],
+        },
+      ]);
+    });
+
+    // The damaging case. A citation is the reader's only way to check a claim, so one that
+    // renders as literal "[S2]" instead of a chip silently removes the verification path —
+    // and emphasised sentences are exactly where a model puts its summarising claims.
+    it("parses a citation inside emphasis rather than flattening it to text", () => {
+      const nodes = parseInline("*виж [S2] тук*");
+      expect(nodes).toHaveLength(1);
+      const italic = nodes[0];
+      if (italic.type !== "italic") throw new Error("expected italic");
+      expect(italic.children.map((n) => n.type)).toEqual(["text", "citation", "text"]);
+    });
+
+    it("keeps code content literal instead of recursing into it", () => {
+      expect(parseInline("`a ++b++`")).toEqual([{ type: "code", text: "a ++b++" }]);
+    });
+
+    it("stops recursing at a bounded depth on hostile input", () => {
+      const deep = "*".repeat(12) + "x" + "*".repeat(12);
+      expect(() => parseInline(deep)).not.toThrow();
+    });
+  });
+
+  // The same answer showed "###" and "---" as literal characters.
+  describe("headings and thematic breaks", () => {
+    it("parses a heading and the prose on the next line as separate blocks", () => {
+      expect(parseMessage("### Осъждане\nПророкът изобличава.")).toEqual([
+        { type: "heading", level: 3, inline: [{ type: "text", text: "Осъждане" }] },
+        { type: "paragraph", inline: [{ type: "text", text: "Пророкът изобличава." }] },
+      ]);
+    });
+
+    it("parses a thematic break", () => {
+      expect(parseMessage("---")).toEqual([{ type: "thematicBreak" }]);
+    });
+
+    it("does not mistake a list bullet for a thematic break", () => {
+      expect(parseMessage("- item")).toEqual([
+        { type: "list", ordered: false, items: [[{ type: "text", text: "item" }]] },
+      ]);
+    });
+
+    it("parses inline markup inside a heading", () => {
+      expect(parseMessage("## a **b**")).toEqual([
+        {
+          type: "heading",
+          level: 2,
+          inline: [
+            { type: "text", text: "a " },
+            { type: "bold", children: [{ type: "text", text: "b" }] },
+          ],
+        },
+      ]);
+    });
+
+    it("leaves # without a space as ordinary text", () => {
+      expect(parseMessage("#hashtag")).toEqual([
+        { type: "paragraph", inline: [{ type: "text", text: "#hashtag" }] },
+      ]);
+    });
   });
 });

@@ -414,6 +414,22 @@ input[type="search"] {
   text-decoration-thickness: 2px;
   text-underline-offset: 0.15em;
 }
+/* Sized relative to the answer body rather than the page: these come from a model writing
+   "###" inside a panel, so they are section markers within a message, not page headings. */
+.chat-heading {
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0.9em 0 0.35em;
+}
+.chat-heading:first-child {
+  margin-top: 0;
+}
+.chat-rule {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
 .chat-message-flag {
   font-size: 0.72rem;
   font-weight: 600;
