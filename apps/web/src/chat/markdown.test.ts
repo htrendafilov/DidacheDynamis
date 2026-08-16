@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseInline, parseMessage } from "./markdown";
+import { type InlineNode, parseInline, parseMessage } from "./markdown";
 
 describe("parseInline", () => {
   it("parses plain text with no formatting as a single text node", () => {
@@ -256,9 +256,82 @@ describe("parseMessage", () => {
       expect(parseInline("`a ++b++`")).toEqual([{ type: "code", text: "a ++b++" }]);
     });
 
-    it("stops recursing at a bounded depth on hostile input", () => {
-      const deep = "*".repeat(12) + "x" + "*".repeat(12);
-      expect(() => parseInline(deep)).not.toThrow();
+    // Standard markdown, and the case that leaked a stray "*" into the prose before: the bold
+    // pattern refused any "*" inside, so "**bold *italic* text**" never matched as bold and the
+    // tokenizer re-paired the asterisks across the span.
+    it("parses italic nested inside bold", () => {
+      expect(parseInline("**bold *italic* text**")).toEqual([
+        {
+          type: "bold",
+          children: [
+            { type: "text", text: "bold " },
+            { type: "italic", children: [{ type: "text", text: "italic" }] },
+            { type: "text", text: " text" },
+          ],
+        },
+      ]);
+    });
+
+    it("parses bold nested inside italic", () => {
+      expect(parseInline("*a **b** c*")).toEqual([
+        {
+          type: "italic",
+          children: [
+            { type: "text", text: "a " },
+            { type: "bold", children: [{ type: "text", text: "b" }] },
+            { type: "text", text: " c" },
+          ],
+        },
+      ]);
+    });
+
+    // Tolerating the other marker must not let one run swallow the next.
+    it("keeps adjacent runs separate", () => {
+      expect(parseInline("**a** b **c**")).toEqual([
+        { type: "bold", children: [{ type: "text", text: "a" }] },
+        { type: "text", text: " b " },
+        { type: "bold", children: [{ type: "text", text: "c" }] },
+      ]);
+      expect(parseInline("*a* b *c*")).toEqual([
+        { type: "italic", children: [{ type: "text", text: "a" }] },
+        { type: "text", text: " b " },
+        { type: "italic", children: [{ type: "text", text: "c" }] },
+      ]);
+    });
+
+    // What actually bounds recursion, asserted rather than assumed. Two earlier attempts at this
+    // test were vacuous: "*".repeat(12) cannot nest at all (only the innermost pair matches), and
+    // a version using MAX_DEPTH still passed with the limit raised to 99 — because MAX_DEPTH
+    // cannot currently fire. No marker may contain itself, so four marker types cap real nesting
+    // at four emphasis levels, and asking for a fifth breaks the *outer* match instead of
+    // nesting deeper. That structural bound is the real guarantee, so it is what gets tested.
+    const depthOf = (nodes: InlineNode[]): number =>
+      1 + Math.max(0, ...nodes.map((n) => ("children" in n ? depthOf(n.children) : 0)));
+
+    const nest = (n: number) => {
+      const open = ["**", "*", "==", "++"];
+      let s = "x";
+      for (let i = n - 1; i >= 0; i--) s = `${open[i % open.length]}a ${s} b${open[i % open.length]}`;
+      return s;
+    };
+
+    it("nests through every marker type", () => {
+      expect(depthOf(parseInline(nest(4)))).toBe(5); // 4 emphasis levels + the text leaf
+    });
+
+    it("cannot be driven deeper than the number of marker types", () => {
+      // A fifth level repeats a marker inside itself, which the tokenizer refuses, so the outer
+      // run stops matching and the depth collapses instead of growing without bound.
+      for (const n of [5, 6, 7, 8, 9]) {
+        expect(depthOf(parseInline(nest(n)))).toBeLessThanOrEqual(5);
+      }
+    });
+
+    it("never throws and never drops content on pathological input", () => {
+      for (const s of [nest(9), "*".repeat(200), "**".repeat(100) + "x", "==".repeat(100) + "y"]) {
+        expect(() => parseInline(s)).not.toThrow();
+      }
+      expect(JSON.stringify(parseInline(nest(9)))).toContain("x");
     });
   });
 

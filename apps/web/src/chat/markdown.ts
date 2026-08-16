@@ -42,12 +42,23 @@ export type BlockNode =
 // the stricter form is also the more conventional one. ** and * are left as they are —
 // changing them would alter how existing answers render, and a literal "**" in prose is not
 // a realistic thing to type.
+// Bold and italic must tolerate the *other* marker inside them, or the most ordinary nested
+// markup there is — "**bold *italic* text**" — fails to match as bold and the tokenizer
+// re-pairs the asterisks across the span, emitting a stray "*" into the prose. So bold accepts
+// any lone "*" but never a "**" (which would let one bold run swallow the next), and italic
+// accepts a whole "**" run but never a lone "*". Each therefore stops at its own closing
+// marker, and the recursion in parseInline does the rest.
 const INLINE_TOKEN =
-  /\[S[^[\]]*\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
+  /\[S[^[\]]*\]|\*\*(?:[^*]|\*(?!\*))+\*\*|\*(?!\*)(?:[^*]|\*\*)+?\*(?!\*)|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
 
-// Hostile input can nest emphasis arbitrarily deep; recursion has to be bounded rather than
-// trusted. At the limit the remaining span is emitted as literal text, which is the same
-// degradation this parser already applies to anything it does not recognize.
+// Defence in depth, and — measured, not assumed — currently unreachable. No marker may contain
+// itself: bold rejects a nested "**", italic a lone "*", and == and ++ reject their own
+// character. With four marker types that caps real nesting at four emphasis levels, and a fifth
+// level makes the *outer* match fail rather than nesting deeper. So this limit cannot fire
+// today. It stays because the thing keeping recursion finite is a property of four regexes
+// rather than anything structural, and adding a fifth marker or relaxing one pattern would
+// change that quietly. At the limit the span degrades to literal text, which is the same
+// treatment this parser already gives anything it does not recognize.
 const MAX_DEPTH = 6;
 
 export function parseInline(text: string, depth = 0): InlineNode[] {
