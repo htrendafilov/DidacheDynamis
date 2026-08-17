@@ -55,13 +55,18 @@ export type BlockNode =
 // remainder into the text. "Nested" is not the same property as "ends at the same place", and
 // only the first was covered until this case was reported.
 //
+// That atom needs the "(?!\*)" too. Written as a bare "\*(?=\*\*)" it also matches the first
+// star of a four-star run, so "**a****b**" — two bold runs with no gap — closed one character
+// late and produced bold("a**") followed by literal "b**". The lookahead must therefore mean
+// "immediately before a closing \*\* that is not itself part of a longer run".
+//
 // One case stays divergent by choice: "**a***b*", where a run ends exactly where the next begins,
 // is <strong>a</strong><em>b</em> in CommonMark but not here. Resolving that needs a delimiter
 // stack rather than a regex, which is a different parser than this one is meant to be. It is
 // pinned by a test so the behaviour is a recorded decision, and it degrades to visible text
 // rather than to anything unsafe.
 const INLINE_TOKEN =
-  /\[S[^[\]]*\]|\*\*(?:[^*]|\*(?!\*)|\*(?=\*\*))+\*\*|\*(?!\*)(?:[^*]|\*\*)+?\*(?!\*)|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
+  /\[S[^[\]]*\]|\*\*(?:[^*]|\*(?!\*)|\*(?=\*\*(?!\*)))+\*\*|\*(?!\*)(?:[^*]|\*\*)+?\*(?!\*)|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
 
 // Defence in depth, and — measured, not assumed — currently unreachable. No marker may contain
 // itself: bold rejects a nested "**", italic a lone "*", and == and ++ reject their own

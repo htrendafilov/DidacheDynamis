@@ -333,18 +333,37 @@ describe("parseMessage", () => {
       ]);
     });
 
-    // Tolerating the other marker must not let one run swallow the next.
-    it("keeps adjacent runs separate", () => {
-      expect(parseInline("**a** b **c**")).toEqual([
+    // Tolerating the other marker must not let one run swallow the next. Table-driven on
+    // purpose: every regression in this area so far came from a hand-picked case list that
+    // happened to put a space or a word between the runs. "**a****b**" with no gap at all broke
+    // when bold learned to accept a "*" before its closing "**" — the atom also matched the
+    // *first* "*" of a four-star run, so the run closed one character late. Separation is the
+    // variable, so it is the axis that gets enumerated.
+    it.each([
+      ["**a** b **c**", "space-separated bold"],
+      ["**a**b**c**", "word-separated bold"],
+      ["**a****b**", "zero-gap bold"],
+      ["*a* b *c*", "space-separated italic"],
+      ["*a*b*c*", "zero-gap italic"],
+    ])("keeps adjacent runs separate: %s (%s)", (input) => {
+      const nodes = parseInline(input);
+      // No marker characters may survive into rendered text, whatever the grouping.
+      for (const n of nodes) {
+        if (n.type === "text") expect(n.text).not.toMatch(/\*/);
+      }
+      expect(nodes.filter((n) => n.type === "bold" || n.type === "italic").length).toBeGreaterThan(1);
+    });
+
+    it("groups zero-gap bold runs as two separate nodes", () => {
+      expect(parseInline("**a****b**")).toEqual([
         { type: "bold", children: [{ type: "text", text: "a" }] },
-        { type: "text", text: " b " },
-        { type: "bold", children: [{ type: "text", text: "c" }] },
+        { type: "bold", children: [{ type: "text", text: "b" }] },
       ]);
-      expect(parseInline("*a* b *c*")).toEqual([
-        { type: "italic", children: [{ type: "text", text: "a" }] },
-        { type: "text", text: " b " },
-        { type: "italic", children: [{ type: "text", text: "c" }] },
-      ]);
+    });
+
+    // A bare marker run with no content is text, not an empty node.
+    it.each(["*", "**", "****", "======", "++++"])("leaves the bare run %s as text", (input) => {
+      expect(parseInline(input)).toEqual([{ type: "text", text: input }]);
     });
 
     // What actually bounds recursion, asserted rather than assumed. Two earlier attempts at this
