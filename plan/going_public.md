@@ -115,17 +115,78 @@ Inventory at the 2026-08-10 audit, for the archive record:
   unmerged. Each added line was confirmed present in `main` or deliberately superseded (schema
   version 3 → 4, the three-value `ai_context_policy` union → four, `m9.0b-bulgarian-benchmark.md`
   split into `m9.0b-1`/`m9.0b-2`, and a `.gitignore` comment rewritten by this very cleanup). Their
-  tip SHAs are recorded in the release issue in case anything needs recovering before gc;
+  tip SHAs are recorded in the release issue in case anything needs recovering before gc.
+
+  **Repeated 2026-08-17 — and this is a recurring step, not a one-off.** Ten more branches had
+  accumulated and all ten are now deleted locally and on the remote, leaving only `main` again.
+  The set is **the branches origin still advertised**, which is not the same as a PR range and was
+  mis-stated as "PRs #43–#52" in the first draft of this entry: it is **PRs #41–#45 and #48–#52**.
+  #46 and #47 are absent because their branches had already been deleted — their heads are
+  `f8e4165` and `2762c86`, recoverable only through `refs/pull`, not from this list.
+
+  | PR | branch | tip |
+  |----|--------|-----|
+  | #41 | `chore/rename-deploy-workflow` | `935c0a0` |
+  | #42 | `docs/assistant-alpha` | `e405440` |
+  | #43 | `docs/refresh-extra-docs` | `716394a` |
+  | #44 | `docs/github-side-audit` | `b56521a` |
+  | #45 | `docs/mhc-corpus-prerequisite` | `051e08e` |
+  | #48 | `docs/decision-9-contribution-policy` | `67376ef` |
+  | #49 | `docs/plan-corrections-post-m1` | `751fb3f` |
+  | #50 | `feat/4.4-rename-didachedynamis` | `d13807f` |
+  | #51 | `docs/5b-disposition-decisions` | `722a388` |
+  | #52 | `fix/chat-markdown-nesting` | `b5ea350` |
+
+  **Re-run this immediately before §5** rather than trusting this entry — the rewrite processes
+  every ref it finds, so a branch merged after this date is old history the sanitization would
+  carry forward.
+
+  **Deleting the branch is necessary and not sufficient — `refs/pull/*` still reaches the
+  commit.** `docs/5b-disposition-decisions` (`722a388`) held `3ec5165`, the commit whose §6 table
+  quoted the scanner false positive verbatim. PR #51 was **squash-merged**, so it never reached
+  `main`. The branch is now gone. GitHub nevertheless still advertises
+  `refs/pull/51/head` at `722a388`, from which `3ec5165` is reachable — verified 2026-08-18 with
+  `git ls-remote origin 'refs/pull/51/*'`, and a fresh `git clone --mirror` from GitHub pulls
+  **52 pull refs** along with the branches.
+
+  So the 10 → 9 drop recorded earlier is real but **local-only**: it describes a checkout that
+  never fetches pull refs. Measured on the two candidate §5 inputs, neither is clean, and they are
+  not dirty in the same way:
+
+  | mirror source | carries | `gitleaks git` |
+  |---|---|---|
+  | `git clone --mirror .` (local) | `refs/stash` → `.ua/`, 3.0 MB | **9** (3 sentinels + 6 stash) |
+  | `git clone --mirror` from GitHub | `refs/pull/*` → `3ec5165` | **4** (3 sentinels + 1 pull ref) |
+
+  The GitHub mirror carries no stash, which is what §5 step 2 was written for and that part holds.
+  It simply solves one trap by walking into another. §5 must strip **both** `refs/pull/*` and
+  `refs/stash` before `git-filter-repo` runs;
 - **GHCR package — the one item path 2 does *not* neutralise.** Package visibility is managed
   separately from repository visibility, so a private repo does not imply a private package. An
   image **was published and may still exist**: run `30153760051` (2026-07-25) shows `Build and push
   image` succeeding before the run failed at `Deploy to VM`, so `ghcr.io/htrendafilov/bible_app_bg`
   received a full `content.sqlite` — every imported text, including the KJV (decision 11) — under
-  the pre-rename name. Whether it is *still* there, and whether it is public, is **not established**:
+  the pre-rename name. ~~Whether it is *still* there, and whether it is public, is **not established**:
   the audit token lacked `read:packages`, and an unauthenticated pull returns 401 either way, which
   cannot distinguish a private package from a deleted one. Before §7, check with a `read:packages`
-  token and then delete it or confirm it is private. Note the two historical runs are both marked *failure* while one of them
+  token and then delete it or confirm it is private.~~ Note the two historical runs are both marked *failure* while one of them
   published successfully — the misleading signal §4.3 has since fixed by splitting the jobs.
+
+  **Settled 2026-08-18: it existed, it was private, and it is now deleted.** The check needed a
+  `read:packages` scope the audit token never had — `gh auth refresh -h github.com -s
+  read:packages,delete:packages` rather than a new stored credential. Result: the package was
+  present and **`visibility: private`**, so the KJV-bearing image was never publicly pullable and
+  no exposure ever occurred. Deleted anyway, because *private today* is a weaker guarantee than
+  *absent*: package visibility is a control separate from the repository's, it is the one this
+  entry exists to flag, and once attention moves to `DidacheDynamis` nobody is watching this
+  toggle. Nothing depended on it — one version, from a run that failed at deploy, orphaned by the
+  rename since §4.4 repoints publishing at `ghcr.io/htrendafilov/didachedynamis`.
+
+  Recorded because deletion is reversible for 30 days and after that this is the only trace:
+  package `bible_app_bg`, version `1065714616`, digest
+  `sha256:3193ea6a69422bc31f6d3ac760c3ca33134d2278affab056f7418b5b1b733dd3`, tags `latest` and
+  `fd29f0305ca47f8c541a4cf8b4e05c537eba0eb0`, created `2026-07-25T10:03:15Z`. Verified gone: the
+  account reports **0 container packages** and a direct fetch returns 404.
 
 GitHub supports deleting completed workflow runs. Keep an audit note listing which runs/artifacts
 were retained or removed rather than assuming secret masking made every log safe.
@@ -515,7 +576,13 @@ turned out to be wrong when the work was actually done; they are corrected below
   `source_url`, which is a **locator, not an identifier**: it points at a file whose old path 404s
   after the flip, so it was repointed.
 - **Not renamed:** the Cloudflare tunnel, and the code identifiers below (package names, i18n
-  strings, SPA title). `bible.trendafilovi.net` is no longer the public domain. Verified live
+  strings, SPA title). **The user-visible product name stays too — confirmed by the owner
+  2026-08-17: the SPA title `Bible Reader` and the Bulgarian `app.title` "Библия" are not
+  renamed.** This was raised as an open question because it is the one place the old name is
+  read by users rather than by tooling, so leaving it was a decision to make rather than an
+  omission to inherit. DidacheDynamis is therefore the name of the *project and repository*;
+  what a reader sees at the top of the page describes what the app is.
+  `bible.trendafilovi.net` is no longer the public domain. Verified live
   2026-08-14: `https://bible.trendafilovi.net/read` → **301** to `didachedynamis.com/read`,
   `didachedynamis.com/read` → **200**, and the `/embed.js` carve-out still **serves 200 rather than
   redirecting**, which is the one thing a blanket redirect would have broken. The checklist below is
@@ -574,10 +641,13 @@ domain. Run it when the new domain is registered.
    there is no HTTP fallback for debugging on that hostname — including locally, if a
    `didachedynamis.app` name is ever mapped in `/etc/hosts` for testing. Not an issue for `.com` or
    `.org`.
-8. **If mail is ever put on a DidacheDynamis domain** (Proton, as with the existing domains): keep
+8. ~~**If mail is ever put on a DidacheDynamis domain** (Proton, as with the existing domains): keep
    the three DKIM records **DNS-only (grey cloud)** — Cloudflare will otherwise proxy the CNAMEs and
    DKIM resolves to the proxy instead of Proton, so signing fails silently — and do **not** enable
-   Cloudflare Email Routing on that zone, since it inserts its own MX records and fights Proton's.
+   Cloudflare Email Routing on that zone, since it inserts its own MX records and fights Proton's.~~
+   **Done 2026-08-17 — and both warnings were right.** Mail is on the domain: `conduct@` is live as
+   a Proton Pass alias, the three DKIM CNAMEs were created unproxied, and Email Routing was never
+   enabled. Full record, including two traps this item did not anticipate, at §7.6.
 9. Set the GitHub repository Website field and social preview to the new domain.
 
 **Tracked references — 16 files at the 2026-08-06 audit** (`git grep -l bible\.trendafilovi\.net`).
@@ -611,8 +681,12 @@ dependency: the CSP `connect-src` is `'self'` plus the provider origin, and the 
 the app with a fixed `X-Title` header, not a URL. The only `HTTP-Referer` carrying the domain is in
 the benchmark script above, which is tooling rather than the product. Re-check this if a second
 provider is added.
-- Code identifiers (`apps/*` package names, i18n strings, SPA title) can be renamed incrementally
-  post-release; only user-visible branding blocks publication.
+- ~~Code identifiers (`apps/*` package names, i18n strings, SPA title) can be renamed incrementally
+  post-release; only user-visible branding blocks publication.~~ **Superseded 2026-08-17.** The
+  user-visible part is not deferred work, it is *settled*: the SPA title and the i18n `app.title`
+  keep their current names by owner decision (above), so there is no pending branding rename to
+  block publication. What remains genuinely optional-and-later is the rest — `apps/*` package
+  names and other internal identifiers, none of which a reader sees.
 - **Logo (selected 2026-08-01):** a geometric lighthouse mark — dark-navy interlocking triangles
   forming the tower, white light beams fanning left and right, flanked by cyan accent dots with red
   centers. AI-generated with Gemini by the owner (2026); the owner dedicates it to the public
@@ -647,19 +721,55 @@ This section applies only to a release path that publishes rewritten history.
 2. Make two backups: an untouched private mirror and a separate disposable mirror for rewriting.
    Never run the rewrite in the day-to-day checkout.
 
-   **Clone both mirrors from `origin`, not from a local working copy** — and if you must clone
-   locally, drop `refs/stash` from the disposable mirror first. Verified 2026-08-15: this checkout
-   carries one stash entry (`bg-pr-unrelated-wip`) whose untracked-files commit `9b19245a` holds
-   **74 `.ua/` files, 3.0 MB** of local agent working data. `git clone --mirror .` copies it —
-   `--mirror` maps `refs/*` to `refs/*` and `refs/stash` is under `refs/` — and `git-filter-repo`
-   rewrites every ref it finds, so the stash would be carried through the sanitization rather than
-   stripped by it. `git ls-remote origin` advertises no `refs/stash`, so cloning from GitHub avoids
-   this entirely. Nothing here is exposed today; the exposure would be created by the backup step.
+   **Neither clone source is clean, and they are dirty in different ways.** Whichever is used, the
+   disposable mirror must have **both** `refs/stash` and `refs/pull/*` stripped before
+   `git-filter-repo` runs. An earlier draft of this step said only "clone from `origin`, not from a
+   local working copy", which fixes the first trap by walking into the second.
 
-   This is also why `git log --all` is not sufficient evidence that a path is absent: it does not
-   read `refs/stash`. `.ua/` and `.claude/` return **0 commits** under `--all` and are gitignored,
-   which is exactly what a clean result looks like — the 3 MB is reachable only through the stash.
-   Enumerate with `git for-each-ref` and check the stash explicitly.
+   *Cloning locally carries the stash.* Verified 2026-08-15: this checkout carries one stash entry
+   (`bg-pr-unrelated-wip`) whose untracked-files commit `9b19245a` holds **74 `.ua/` files,
+   3.0 MB** of local agent working data. `git clone --mirror .` copies it — `--mirror` maps
+   `refs/*` to `refs/*` and `refs/stash` is under `refs/` — and `git-filter-repo` rewrites every
+   ref it finds, so the stash would be carried through the sanitization rather than stripped by it.
+   Nothing here is exposed today; the exposure would be created by the backup step.
+
+   *Cloning from GitHub carries the pull refs.* Verified 2026-08-18: `git ls-remote origin` shows
+   no `refs/stash` — so that half of the old advice holds — but it **does** advertise
+   `refs/pull/*`, and a fresh `git clone --mirror` from GitHub pulls **52 of them**. Those refs
+   reach commits no branch does: `refs/pull/51/head` is still `722a388`, from which `3ec5165` (the
+   verbatim `dropbox-api-token` false positive) is reachable even though PR #51 was squash-merged
+   and its branch deleted (§1.4). `gitleaks git` over that mirror returns **4**, including that
+   commit. Merging, squashing and deleting branches does not retire a pull ref; only GitHub can,
+   and §5 step 5 already records that `refs/pull/*` is read-only and rejects pushes.
+
+   Strip them explicitly after cloning and before rewriting — do not assume `--mirror` gave you
+   only branches and tags:
+
+   ```
+   git for-each-ref --format='delete %(refname)' refs/pull refs/stash | git update-ref --stdin
+   git reflog expire --expire=now --all && git gc --prune=now
+   ```
+
+   **`git log --all` is not sufficient evidence that a path is absent — but not for the reason an
+   earlier draft of this step gave.** That draft said `--all` "reads neither `refs/stash` nor
+   `refs/pull/*`". That is simply false: `--all` walks every ref under `refs/`, both namespaces
+   included, whenever they exist locally. Measured 2026-08-18 — in this checkout `git log --all`
+   lists the stash's untracked-files commit `9b19245`, and in a GitHub mirror it lists `3ec5165`.
+
+   The two real reasons, which matter because they call for different countermeasures:
+
+   - **Path-limited log applies history simplification.** `git log --all -- .ua/` returns
+     **0 commits** while `git log --all --full-history -- .ua/` returns **2**. The commits are
+     right there on a walked ref; simplification hides them. Any "is this path gone?" check must
+     pass `--full-history`, or it reports clean on history that is not.
+   - **A day-to-day checkout never fetched `refs/pull/*` in the first place.** `--all` cannot walk
+     what was never fetched, so a local scan is silent about 52 refs that a mirror clone will
+     happily bring along. The gap is in what is present locally, not in what `--all` covers.
+
+   `.ua/` and `.claude/` are gitignored and return 0 commits under a path-limited `--all`, which is
+   exactly what a clean result looks like — and the 3 MB is there the whole time. Enumerate with
+   `git for-each-ref`, check both namespaces explicitly, and use `--full-history` for any
+   path-absence claim.
 3. Use `git-filter-repo` 2.47+ with sensitive-data removal mode:
    - remove every historical path of the live runbook;
    - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
@@ -790,7 +900,16 @@ All of these must pass before visibility changes:
   generalises: between now and the flip, anything committed and later "fixed" is still in history,
   and only §5 removes it. And findings 4–9 only appeared because
   `gitleaks git` reads `refs/stash` — see §5 step 2; the scan found the stash before the ref audit
-  did;
+  did.
+
+  **More precisely: it is a statement about the refs the scanner could see, and that number is not
+  portable.** PR #51 was squash-merged and its branch deleted, so the local checkout now reports
+  the expected 9. The same history scanned from a GitHub mirror reports **4** — no stash, but
+  `refs/pull/51/head` still reaches `3ec5165` (§1.4, §5 step 2). Neither number is wrong and
+  neither is the baseline on its own. **State the ref set alongside any count**, and run the §6
+  scan against the *rewritten mirror that will actually be pushed*, after `refs/pull/*` and
+  `refs/stash` have been stripped — the count from a day-to-day checkout says nothing about what
+  ships;
 - **no commit on any ref carries the employer or Yahoo address** on either the author or the
   committer side (decision 8), and a sample commit resolves to the owner's GitHub account rather
   than to nobody — an unattributed history is a rewrite that has to be done twice;
@@ -835,12 +954,42 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    Create the **`content`** label and point `content-correction.yml` at it — labels do not travel
    with the tree, and GitHub drops a label a form names but the repository does not have, silently.
    The form ships pointing at `documentation`, which exists, so it degrades rather than breaks.
-6. **Create the `conduct@didachedynamis.com` alias before Issues are enabled.**
+6. ~~**Create the `conduct@didachedynamis.com` alias before Issues are enabled.**~~
+   **Done and verified end-to-end 2026-08-17 — this item is closed.**
    `CODE_OF_CONDUCT.md` tells reporters not to raise conduct concerns publicly and names that
    address as the private route. A GitHub profile is not a channel — profiles carry no private
    messaging, and this one publishes no contact — so without the alias the document forbids the
    only route it leaves open. Same failure as SECURITY.md pointing at a Security tab that did not
    exist (§7.6): the document is only true once the channel does.
+
+   **Mechanism: a Proton Pass alias on the domain**, not a Cloudflare Email Routing forward. DNS
+   stays at Cloudflare; mail does not. The zone now carries `mx1`/`mx2.alias.proton.me`,
+   `v=spf1 include:alias.proton.me ~all`, three `*._domainkey` CNAMEs to `alias.proton.me`
+   (**unproxied** — Cloudflare defaults new CNAMEs to the orange cloud, which returns its own IPs
+   instead of the target and breaks DKIM lookups), and `_dmarc` at
+   `v=DMARC1; p=quarantine; pct=100; adkim=s; aspf=s`. The site's apex/`www` tunnel records are
+   untouched.
+
+   **Two traps worth recording.** First, Proton validates the DMARC record by **string equality,
+   not by parsing it**: a valid, spec-legal `rua=` tag appended to their recommended value made the
+   dashboard report the domain as misconfigured. Their published string is the only string that
+   verifies. Second, `dkim02`/`dkim03` publish no key — they are empty rotation slots Proton
+   pre-provisions so it can rotate without touching DNS again. Any external DKIM checker will call
+   them missing; only the `dkim` selector signs.
+
+   **Verified against Gmail rather than declared done**, because a channel a published document
+   forbids public alternatives to is exactly the wrong thing to assume works. Inbound reached the
+   inbox, not spam; the reply went out as `From: conduct@didachedynamis.com` with no trace of the
+   maintainer's mailbox; and Gmail returned `dkim=pass header.i=@didachedynamis.com`,
+   `spf=pass`, `dmarc=pass (p=QUARANTINE dis=NONE)`. **Both** mechanisms align under `s` strict:
+   SimpleLogin sets the return-path at the alias's own domain (`sl.…@didachedynamis.com`) rather
+   than at theirs, and sends from an IP inside the `/28` that `alias.proton.me` publishes — so
+   `aspf=s` aligns, which is not what forwarding usually does to SPF.
+
+   The CoC's "can be rotated if it is abused" holds and needs no edit: a Pass alias can be
+   **disabled**, which stops delivery while keeping the address reserved so nobody else can claim
+   it — a strictly better answer than deleting a forward and leaving the published address to
+   bounce.
 7. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
    reporters to the Security tab's "Report a vulnerability" button, and that button does not exist
    until this is switched on — GitHub offers the feature for **public repositories only**, so it
@@ -851,10 +1000,15 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    `repository_advisories:read`, which is not worth storing as a secret in a public repository.
    GitHub already notifies maintainers on submission and confirms receipt to the reporter.
 8. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
-   Also settle the **old** `ghcr.io/htrendafilov/bible_app_bg` package: an image holding a full
+   This still applies to the **new** package: the first push from `DidacheDynamis` creates
+   `ghcr.io/htrendafilov/didachedynamis`, and its visibility is a separate control that does not
+   follow the repository — set it on purpose rather than discovering it later.
+   ~~Also settle the **old** `ghcr.io/htrendafilov/bible_app_bg` package: an image holding a full
    `content.sqlite` was pushed to it on 2026-07-25 and may still be there (§1.4 — current state
    unverified, needs `read:packages`). Check, then delete it or confirm it is private. It is not
-   covered by the repository staying private.
+   covered by the repository staying private.~~ **Done 2026-08-18: it was private throughout and
+   is now deleted — §1.4 carries the digest and tags in case the 30-day restore window is ever
+   needed.**
 9. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
    and `publish-image.yml` builds the SPA with it, so without it a published image would ship a
    build whose Dropbox sync cannot authenticate.
@@ -982,13 +1136,23 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    - **Discussions: off.** Two channels are worse than one for a solo maintainer and Issues covers
      the same ground. Enabling later is free; disabling later strands whatever is in them.
    - **Code of conduct: Contributor Covenant 2.1**, adopted verbatim apart from the reporting
-     contact, which points at the maintainer's GitHub profile rather than committing a personal
-     address. Deliberately *not* the Security tab: private vulnerability reporting is for
+     contact, which ~~points at the maintainer's GitHub profile rather than committing a personal
+     address~~ is a dedicated alias — see the rider below. Deliberately *not* the Security tab:
+     private vulnerability reporting is for
      vulnerabilities, and routing conduct reports through it would file them as security advisories.
-     The trade is that the profile is the only private channel, which is thin — if conduct reports
-     ever actually arrive, a dedicated address is the fix. Adopted because this project touches theology, where a stated standard
+     ~~The trade is that the profile is the only private channel, which is thin — if conduct reports
+     ever actually arrive, a dedicated address is the fix.~~ Adopted because this project touches theology, where a stated standard
      makes closing a thread a policy rather than an argument — and on the plan's own condition,
      that it is only worth having if it is acted on.
+
+     **Rider, 2026-08-17: the dedicated address exists, and the GitHub profile is no longer the
+     private route.** `CODE_OF_CONDUCT.md` names `conduct@didachedynamis.com`, live and verified
+     end-to-end (§7.6). The original wording anticipated a dedicated address only "if conduct
+     reports ever actually arrive" — that was the wrong trigger. A reporting channel has to exist
+     *before* the first report, because the document forbids the public alternative, so the thin
+     period would have fallen entirely on whoever needed it first. Committing a *personal* address
+     is still avoided: the alias is what is published, and it can be disabled without exposing the
+     mailbox behind it.
 
    **This also answers the MHC translation project's D4** ("first reader-report destination:
    GitHub issue form with a copy-to-clipboard fallback"). The content-correction form is that
