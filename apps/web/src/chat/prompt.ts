@@ -70,10 +70,11 @@ function systemContract(answerLanguage: "en" | "bg"): string {
     // which is what prompted the feature. Naming the exact syntax matters: it is a bespoke
     // renderer, so ==x== and ++x++ work while <mark>, <u> and any CSS stay inert text.
     "Formatting available to you: **bold**, *italic*, ==highlighted== (yellow background), " +
-      "++underlined++, `code`, and lists. Use ==highlight== for the single most important " +
-      "point and ++underline++ for secondary emphasis; do not use capital letters for " +
-      "emphasis. HTML, colours other than the highlight, and headings are not rendered — " +
-      "they appear to the reader as literal characters.",
+      "++underlined++, `code`, lists, ### headings, and --- horizontal rules. These combine, " +
+      "so **bold with ==highlight== inside** works. Use ==highlight== for the single most " +
+      "important point and ++underline++ for secondary emphasis; do not use capital letters " +
+      "for emphasis. HTML and colours other than the highlight are not rendered — they appear " +
+      "to the reader as literal characters.",
   ];
   return `You are a study assistant for a Bible reading app. Follow every rule below.\n\n${rules.map((r) => `- ${r}`).join("\n")}`;
 }

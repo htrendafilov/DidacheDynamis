@@ -23,13 +23,29 @@ function InlineRun({
     case "text":
       return <>{node.text}</>;
     case "bold":
-      return <strong>{node.text}</strong>;
+      return (
+        <strong>
+          <Inline nodes={node.children} manifest={manifest} onCitationClick={onCitationClick} />
+        </strong>
+      );
     case "italic":
-      return <em>{node.text}</em>;
+      return (
+        <em>
+          <Inline nodes={node.children} manifest={manifest} onCitationClick={onCitationClick} />
+        </em>
+      );
     case "highlight":
-      return <mark className="chat-mark">{node.text}</mark>;
+      return (
+        <mark className="chat-mark">
+          <Inline nodes={node.children} manifest={manifest} onCitationClick={onCitationClick} />
+        </mark>
+      );
     case "underline":
-      return <u className="chat-underline">{node.text}</u>;
+      return (
+        <u className="chat-underline">
+          <Inline nodes={node.children} manifest={manifest} onCitationClick={onCitationClick} />
+        </u>
+      );
     case "code":
       return <code>{node.text}</code>;
     case "citation": {
@@ -103,6 +119,18 @@ function Block({
         </Tag>
       );
     }
+    case "heading": {
+      // Rendered one level down: the answer sits inside the panel's own heading structure, so a
+      // model writing "#" must not produce an <h1> that outranks the page.
+      const Tag = `h${Math.min(block.level + 1, 6)}` as "h2";
+      return (
+        <Tag className="chat-heading">
+          <Inline nodes={block.inline} manifest={manifest} onCitationClick={onCitationClick} />
+        </Tag>
+      );
+    }
+    case "thematicBreak":
+      return <hr className="chat-rule" />;
     case "codeBlock":
       return (
         <pre>
