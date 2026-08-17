@@ -48,8 +48,20 @@ export type BlockNode =
 // any lone "*" but never a "**" (which would let one bold run swallow the next), and italic
 // accepts a whole "**" run but never a lone "*". Each therefore stops at its own closing
 // marker, and the recursion in parseInline does the rest.
+//
+// Bold needs one more atom: a "*" sitting immediately before its own closing "**". Without it
+// the two markers cannot end together, so "***both***" and "**bold *italic***" — where the
+// inner run closes flush against the outer one — matched one "*" short and spilled the
+// remainder into the text. "Nested" is not the same property as "ends at the same place", and
+// only the first was covered until this case was reported.
+//
+// One case stays divergent by choice: "**a***b*", where a run ends exactly where the next begins,
+// is <strong>a</strong><em>b</em> in CommonMark but not here. Resolving that needs a delimiter
+// stack rather than a regex, which is a different parser than this one is meant to be. It is
+// pinned by a test so the behaviour is a recorded decision, and it degrades to visible text
+// rather than to anything unsafe.
 const INLINE_TOKEN =
-  /\[S[^[\]]*\]|\*\*(?:[^*]|\*(?!\*))+\*\*|\*(?!\*)(?:[^*]|\*\*)+?\*(?!\*)|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
+  /\[S[^[\]]*\]|\*\*(?:[^*]|\*(?!\*)|\*(?=\*\*))+\*\*|\*(?!\*)(?:[^*]|\*\*)+?\*(?!\*)|`[^`]+`|==[^\s=](?:[^=\n]*[^\s=])?==|\+\+[^\s+](?:[^+\n]*[^\s+])?\+\+/g;
 
 // Defence in depth, and — measured, not assumed — currently unreachable. No marker may contain
 // itself: bold rejects a nested "**", italic a lone "*", and == and ++ reject their own

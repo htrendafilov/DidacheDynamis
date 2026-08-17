@@ -285,6 +285,54 @@ describe("parseMessage", () => {
       ]);
     });
 
+    // Reported after the first nesting fix: nesting was only tested where prose separated the
+    // inner closing marker from the outer one. When they close flush against each other the
+    // match came up one "*" short and spilled the rest into the text as a visible asterisk.
+    it("closes an inner run flush against the outer one", () => {
+      expect(parseInline("**bold *italic***")).toEqual([
+        {
+          type: "bold",
+          children: [
+            { type: "text", text: "bold " },
+            { type: "italic", children: [{ type: "text", text: "italic" }] },
+          ],
+        },
+      ]);
+    });
+
+    it("parses a triple marker as bold wrapping italic", () => {
+      expect(parseInline("***both***")).toEqual([
+        {
+          type: "bold",
+          children: [{ type: "italic", children: [{ type: "text", text: "both" }] }],
+        },
+      ]);
+    });
+
+    it("closes a bold run flush inside an italic one", () => {
+      expect(parseInline("*a **b***")).toEqual([
+        {
+          type: "italic",
+          children: [
+            { type: "text", text: "a " },
+            { type: "bold", children: [{ type: "text", text: "b" }] },
+          ],
+        },
+      ]);
+    });
+
+    // Pinned, not fixed. "**a***b*" is CommonMark's <strong>a</strong><em>b</em>: one run ending
+    // exactly where the next begins, which needs a delimiter stack to resolve, not a regex. This
+    // parser is deliberately a regex tokenizer, so the case is a known divergence rather than an
+    // oversight — recorded here so a future change is a decision and not a surprise. Nothing is
+    // lost or executed; the stray characters render as text.
+    it("has a known divergence where one run ends exactly where the next begins", () => {
+      expect(parseInline("**a***b*")).toEqual([
+        { type: "bold", children: [{ type: "text", text: "a*" }] },
+        { type: "text", text: "b*" },
+      ]);
+    });
+
     // Tolerating the other marker must not let one run swallow the next.
     it("keeps adjacent runs separate", () => {
       expect(parseInline("**a** b **c**")).toEqual([
