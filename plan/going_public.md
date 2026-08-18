@@ -115,7 +115,12 @@ Inventory at the 2026-08-10 audit, for the archive record:
   unmerged. Each added line was confirmed present in `main` or deliberately superseded (schema
   version 3 → 4, the three-value `ai_context_policy` union → four, `m9.0b-bulgarian-benchmark.md`
   split into `m9.0b-1`/`m9.0b-2`, and a `.gitignore` comment rewritten by this very cleanup). Their
-  tip SHAs are recorded in the release issue in case anything needs recovering before gc.
+  ~~tip SHAs are recorded in the release issue in case anything needs recovering before gc.~~
+  **False when written, fixed 2026-08-18.** No release issue existed — this repository had exactly
+  two issues, #6 and #15, neither of them that. The tips were recorded nowhere, so the safety net
+  this sentence describes was never in place. The record now exists as **issue #54**, and it
+  supersedes the problem rather than patching it: it lists every `refs/pull/*` head, so no partial
+  branch list can go missing again.
 
   **Repeated 2026-08-17 — and this is a recurring step, not a one-off.** Ten more branches had
   accumulated and all ten are now deleted locally and on the remote, leaving only `main` again.
@@ -147,7 +152,12 @@ Inventory at the 2026-08-10 audit, for the archive record:
   `main`. The branch is now gone. GitHub nevertheless still advertises
   `refs/pull/51/head` at `722a388`, from which `3ec5165` is reachable — verified 2026-08-18 with
   `git ls-remote origin 'refs/pull/51/*'`, and a fresh `git clone --mirror` from GitHub pulls
-  **52 pull refs** along with the branches.
+  **every `refs/pull/*` origin advertises** along with the branches. Treat that as a shape, not a
+  number: the count moves with every PR. `/head` exists for each PR ever opened and `/merge` only
+  while one is open, so the same repository read three times gives three answers — **51 heads / 0
+  merge** at the step-1 inventory (issue #54, nothing open), 52 total during PR #53, and 52 heads
+  + 1 merge while PR #55 was open. Any figure here is only meaningful with its date and its
+  heads-versus-merge split.
 
   So the 10 → 9 drop recorded earlier is real but **local-only**: it describes a checkout that
   never fetches pull refs. Measured on the two candidate §5 inputs, neither is clean, and they are
@@ -714,10 +724,29 @@ provider is added.
 
 This section applies only to a release path that publishes rewritten history.
 
-1. Freeze pushes; merge/close open PRs; delete obsolete remote branches; record all branch/tag/PR
+1. ~~Freeze pushes;~~ merge/close open PRs; delete obsolete remote branches; record all branch/tag/PR
    refs, LFS objects, and the current default-branch SHA. Record `git for-each-ref` in full rather
    than branches and tags alone, so anything under `refs/` that is neither (notably `refs/stash`,
    see step 2) is on the inventory instead of being discovered later.
+
+   **Done 2026-08-18. The inventory is [issue #54](https://github.com/htrendafilov/bible_app_bg/issues/54)**,
+   not a file in the tree: §5 rewrites every SHA it records, so a tracked copy would go through the
+   rewrite that invalidates it and would publish under §5b (d). Issues sit outside git history.
+   State captured: `main` at `fddfb1a`, **51 `refs/pull/*` heads, 0 tags**, `refs/stash` at
+   `606d8e9` (untracked-files commit `9b19245`), and 11 LFS paths / 12 OIDs across all history.
+
+   **"Freeze pushes" is not available on this repository and does not need to be.** Branch
+   protection and rulesets both return `403 Upgrade to GitHub Pro or make this repository public`
+   — they are paid/public-only features. Rather than upgrade, check what the freeze would exclude:
+   **1 collaborator** (the owner), **0 deploy keys**, and no workflow that pushes back (`ci.yml`
+   runs *on* push and never writes). There is no third party to lock out.
+
+   **The untouched mirror from step 2 is the real freeze.** Once it exists, a later push cannot
+   corrupt anything — it only makes the backup stale, which re-running this inventory detects. The
+   exposure window is the interval between step 1 and step 2, with one person holding push rights.
+   Archiving the repository read-only is genuinely available on this plan and is this repo's end
+   state anyway (§0, path 2), but it blocks the §5b/§6/§7 records that still have to land here, so
+   it belongs at §7 rather than in this step.
 2. Make two backups: an untouched private mirror and a separate disposable mirror for rewriting.
    Never run the rewrite in the day-to-day checkout.
 
@@ -735,7 +764,8 @@ This section applies only to a release path that publishes rewritten history.
 
    *Cloning from GitHub carries the pull refs.* Verified 2026-08-18: `git ls-remote origin` shows
    no `refs/stash` — so that half of the old advice holds — but it **does** advertise
-   `refs/pull/*`, and a fresh `git clone --mirror` from GitHub pulls **52 of them**. Those refs
+   `refs/pull/*`, and a fresh `git clone --mirror` from GitHub pulls **all of them** — 51 heads at
+   the step-1 snapshot, more by the time this is read. Those refs
    reach commits no branch does: `refs/pull/51/head` is still `722a388`, from which `3ec5165` (the
    verbatim `dropbox-api-token` false positive) is reachable even though PR #51 was squash-merged
    and its branch deleted (§1.4). `gitleaks git` over that mirror returns **4**, including that
@@ -750,6 +780,37 @@ This section applies only to a release path that publishes rewritten history.
    git reflog expire --expire=now --all && git gc --prune=now
    ```
 
+   **Rehearsed 2026-08-18 at `~/mydev/bible_app_bg_rewrite/` (outside the working tree). The recipe
+   works, measured rather than assumed:**
+
+   | mirror | heads | `refs/pull` | LFS objects | size | `gitleaks git` |
+   |---|---|---|---|---|---|
+   | `backup-mirror.git` (untouched) | 2 | **51** | 12 | 50 MB | — keeps everything, including `3ec5165` |
+   | `rewrite-mirror.git` (stripped) | 2 | **0** | 12 | 50 MB | **3** |
+
+   Before the strip the disposable mirror scanned **4**; after it, **3** — and `git cat-file -e
+   3ec5165` reports the object *gone*, not merely unreferenced, so deleting the refs and running
+   `gc --prune=now` genuinely removes it. `git fsck` is clean. The three survivors are the
+   deliberate fake OpenRouter sentinels in the chat tests, i.e. exactly the known noise §6 says to
+   allowlist and nothing else.
+
+   **A `--mirror` clone fetches no LFS objects.** The backup was 7.1 MB and looked complete; the
+   real content is 43 MB and arrived only after an explicit `git lfs fetch --all`. Without that
+   step the "backup" is a full ref graph in which every source file is a pointer to data that was
+   never copied — a failure that stays invisible until the moment it is needed. Run
+   `git lfs fetch --all` against **both** mirrors and check `find <mirror>/lfs/objects -type f`
+   returns the OID count from step 1, not a clone's exit status.
+
+   **Strip the disposable mirror only.** The untouched backup is supposed to retain `refs/pull/*`
+   and the commits being removed — that is what makes it the record rather than a second copy of
+   the sanitized result.
+
+   **Re-take both mirrors immediately before step 3.** A mirror is a point-in-time snapshot, and
+   the one taken here is already stale: it holds **2 heads** where step 1's inventory recorded 1,
+   because a plan commit was pushed between the two steps. Harmless in itself, and a working
+   demonstration of why "freeze pushes" is in step 1 — but it means what exists now proves the
+   procedure, and is not the final rewrite input.
+
    **`git log --all` is not sufficient evidence that a path is absent — but not for the reason an
    earlier draft of this step gave.** That draft said `--all` "reads neither `refs/stash` nor
    `refs/pull/*`". That is simply false: `--all` walks every ref under `refs/`, both namespaces
@@ -763,8 +824,9 @@ This section applies only to a release path that publishes rewritten history.
      right there on a walked ref; simplification hides them. Any "is this path gone?" check must
      pass `--full-history`, or it reports clean on history that is not.
    - **A day-to-day checkout never fetched `refs/pull/*` in the first place.** `--all` cannot walk
-     what was never fetched, so a local scan is silent about 52 refs that a mirror clone will
-     happily bring along. The gap is in what is present locally, not in what `--all` covers.
+     what was never fetched, so a local scan is silent about the whole `refs/pull/*` namespace —
+     51 refs at the step-1 snapshot — that a mirror clone will happily bring along. The gap is in
+     what is present locally, not in what `--all` covers.
 
    `.ua/` and `.claude/` are gitignored and return 0 commits under a path-limited `--all`, which is
    exactly what a clean result looks like — and the 3 MB is there the whole time. Enumerate with
@@ -777,7 +839,11 @@ This section applies only to a release path that publishes rewritten history.
    - remove every historical `plan/mhc_translation/` path (§2.2 — the translation project's planning
      history stays out of the public tree; only its finished result is intended to reach it).
      **Two passes, rename first** (§5b b). The directory is untracked in the working tree, but it
-     appears in four historical commits, and `git-filter-repo` rewrites history rather than `HEAD`.
+     appears in **five commits reachable from `main`** (§5b lists them; a sixth, `10200df`, is
+     reachable only through `refs/pull/51/head` and is therefore absent once step 2's strip has
+     run). Count it with `git log --full-history main -- plan/mhc_translation/` — **without
+     `--full-history` the merge commit disappears**, which is exactly how the superseded
+     four-commit figure was produced. `git-filter-repo` rewrites history rather than `HEAD`.
      So first rewrite the historical path of the one file ever tracked there —
      `--path-rename plan/mhc_translation/08_english_baseline.md:plan/mhc_english_baseline.md` —
      which preserves the M1 measurement history the baseline's credibility rests on. Only then
@@ -825,15 +891,24 @@ alone.
 
 **(b) `plan/mhc_translation/` is untracked in the working tree again — but that is not the same as
 the removal being a no-op, and the distinction matters.** `git-filter-repo` rewrites *history*, not
-`HEAD`. The directory appears in **four historical commits**, and the only file ever tracked under
-it is the baseline itself:
+`HEAD`. The directory appears in **five historical commits** — re-measured 2026-08-18 during §5
+step 1; the earlier list of four was taken before PR #51 merged and is stale in both directions.
+The only file ever tracked under it is the baseline itself, confirmed by enumerating every tree
+that ever existed below the directory rather than by reading the log:
 
 ```
-10200df docs(5b): settle the three disposition decisions, move the M1 baseline out
+ebe7a79 docs(5b): settle disposition decisions, move the M1 baseline out (#51)
+3fc375b Merge pull request #46 from htrendafilov/feat/m1-mhc-corpus-repair
 f8e4165 docs(m1): record M1 as done, mapped clause by clause to the tests
 fb7c81e fix(m1): classify by coordinates, not length; correct the quotation figure
 dd94b09 feat(m1): tests, quotation measurement, and the repaired corpus baseline
 ```
+
+Two corrections in that list, both the kind that only surface when the command is actually run.
+`10200df` was the pre-squash commit on `docs/5b-disposition-decisions`; PR #51 was squash-merged, so
+what is on `main` is `ebe7a79` and `10200df` is reachable only through `refs/pull/51/head`. And the
+**merge commit `3fc375b` was never listed at all** — a merge that carries the path is as much part
+of the rewrite input as the commits it joins.
 
 So a plain `--path plan/mhc_translation/ --invert-paths` would strip the baseline's own history while
 keeping the file. The public repository would show `plan/mhc_english_baseline.md` appearing
