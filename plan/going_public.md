@@ -837,7 +837,8 @@ This section applies only to a release path that publishes rewritten history.
    **Inputs prepared and verified 2026-08-22**, in `~/mydev/bible_app_bg_rewrite/` alongside the
    mirrors — outside the repository, mode `600`, never committed (§1.2).
 
-   *`replacements.txt` — 9 rules.* Every rule was checked against history and none is dead: the
+   *`replacements.txt` — 11 rules.* (**9 when first built; two more were added during step 4 —
+   see the finding recorded there.**) Every rule was checked against history and none is dead: the
    operator home path (4 blob-change commits), four password-store entry names (2 each), the origin
    IP (6), the operator username (10 blobs **and 1 commit message**), and the former employer npm
    registry host (4 — a single historical `apps/web/package-lock.json` blob, `82eef888b2`, with 366
@@ -862,8 +863,10 @@ This section applies only to a release path that publishes rewritten history.
      not 9** — and a scratch test confirms the failure is real rather than merely untidy: a `#`
      line matching text in a blob replaced it with `***REMOVED***`. Annotations now live in a
      sidecar `replacements.NOTES.md` that is never passed to the tool, and the rule count is
-     verified by calling `FilteringOptions.get_replace_text()` directly: **9 literals, 0 regexes,
-     no `#`-prefixed rules**. The mailmap parser is unaffected — it strips comments explicitly, and
+     verified by calling `FilteringOptions.get_replace_text()` directly rather than by counting
+     lines — **11 literals, 0 regexes, no `#`-prefixed rules** at the state that was actually run
+     (9 at first authoring). Re-run that check after any edit to the file: the count is the one
+     number here that a human eye gets wrong, because comments look like they do not count. The mailmap parser is unaffected — it strips comments explicitly, and
      that too was checked by running it.
 
    Note also that
@@ -916,6 +919,39 @@ This section applies only to a release path that publishes rewritten history.
    - record first-changed commits, changed refs, and orphaned LFS objects from the report.
 4. Inspect the rewritten mirror before pushing: all refs, all commits, commit metadata, large blobs,
    LFS pointers, and exact searches for every private value and encoded variant.
+
+   **Run 2026-08-23 against `main` `18b0e9f`; rewritten head `375b799`, 253 → 247 commits (six lost
+   their only content). Nothing pushed. The inspection earned its place — it caught two defects the
+   rewrite reported no error for.**
+
+   **(i) `--mailmap` rewrites commit *metadata* only.** An old address occurring in *file content*
+   or a *commit message* is untouched by it — and the addresses were deliberately kept out of
+   `replacements.txt` because §1.2 assigns them to the mailmap. Between the two mechanisms the
+   address surface was uncovered. The first run left the employer address in **one commit message**
+   and in **two historical `plan/going_public.md` blobs**, where an example mailmap block and a
+   statistics table quoted it literally. HEAD was clean — the §1.2 fix of 2026-08-11 removed it
+   there — which is exactly the trap §6 already names: fixing at `HEAD` does not remove history,
+   and only §5 does. Except §5, as written, did not. **Both old addresses are now explicit rules in
+   `replacements.txt`, placed *before* the bare-username rule** — without that ordering the
+   username rule rewrote only the address's local part, mangling it into a plausible-looking
+   address instead of removing it.
+
+   **(ii) Removing an LFS *pointer* does not remove the LFS *object*.** After the path removal the
+   mirror still held **12 stored objects against 11 referenced** — the KJV blob `6155ed9188…`,
+   3.8 MB, orphaned but physically present, exactly the artefact §5 step 3 says to remove. It would
+   not have been pushed by a normal `git lfs push` (nothing references it), but a wholesale copy of
+   the mirror carries it, and the step asks for its removal rather than its unreachability.
+   `git lfs prune` **does** clear it in a bare mirror with no remote — verified, contrary to the
+   expectation that it would be retained — leaving 11 stored against 11 referenced. **Verify by
+   counting stored versus referenced objects, not by trusting the path removal.**
+
+   Post-fix state, all re-run from a fresh clone: **11/11 replacement rules clean in blobs *and*
+   messages; 0 blobs and 0 message lines containing either old domain; 443 target + 51 GitHub
+   `noreply` identity slots across 2 distinct addresses; the three removed paths at 0 commits each;
+   `crossreferences_kjv.tsv` retained** (it matches `*kjv*` and is not the KJV); **LFS 10 paths /
+   11 OIDs with the KJV absent; `git fsck` clean; `gitleaks` 3 — the known chat-test sentinels and
+   nothing else; one ref, `refs/heads/main`.** `plan/mhc_english_baseline.md` carries **5 commits**
+   of history rather than appearing fully formed, which is §5b (b) working as intended.
 5. Push the complete rewritten mirror only after approval. Expect GitHub's read-only `refs/pull/*` to
    reject updates; that is a documented limitation, not a successful purge.
 6. If retaining the current GitHub repository, follow the GitHub Support procedure for affected PR
