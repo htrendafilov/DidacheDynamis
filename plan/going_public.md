@@ -833,6 +833,56 @@ This section applies only to a release path that publishes rewritten history.
    `git for-each-ref`, check both namespaces explicitly, and use `--full-history` for any
    path-absence claim.
 3. Use `git-filter-repo` 2.47+ with sensitive-data removal mode:
+
+   **Inputs prepared and verified 2026-08-22**, in `~/mydev/bible_app_bg_rewrite/` alongside the
+   mirrors — outside the repository, mode `600`, never committed (§1.2).
+
+   *`replacements.txt` — 9 rules.* Every rule was checked against history and none is dead: the
+   operator home path (4 blob-change commits), four password-store entry names (2 each), the origin
+   IP (6), the operator username (10 blobs **and 1 commit message**), and the former employer npm
+   registry host (4 — a single historical `apps/web/package-lock.json` blob, `82eef888b2`, with 366
+   `resolved` entries). A sweep for uncovered public IPv4s and `/home/` paths found nothing beyond
+   `/opt/bible-app`, itself a generic value from an earlier scrub, included as optional cosmetic
+   harmonisation. **Rule order is load-bearing:** `/home/<operator>` must precede the bare username
+   rule, or the compound resolves to `/opt/bible-app` instead of `/opt/bible-app`.
+
+   **Two properties of the expressions file, both verified against `git-filter-repo` 2.47.0 rather
+   than assumed, and both capable of silently ruining the run:**
+
+   - **`--replace-text` edits blob contents only. Commit and tag messages need `--replace-message`,
+     which takes the same file.** Pass `replacements.txt` to *both* options. This is not academic
+     here: one rule matches a commit **message** (`bba5c42`, the decision-8 commit) and nothing
+     else, so with `--replace-text` alone that occurrence survives the entire rewrite. Tested on a
+     scratch repository — with only `--replace-text`, the blob was rewritten and the message
+     containing the same string was left untouched.
+   - **`#` is not a comment in this file.** `get_replace_text()` skips only *empty* lines; it has
+     no comment handling, unlike `get_paths_from_file()` immediately below it in the same source.
+     Every `#` line is therefore a live literal rule whose replacement defaults to `***REMOVED***`.
+     The first version of `replacements.txt` carried 11 annotation lines and so loaded **20 rules,
+     not 9** — and a scratch test confirms the failure is real rather than merely untidy: a `#`
+     line matching text in a blob replaced it with `***REMOVED***`. Annotations now live in a
+     sidecar `replacements.NOTES.md` that is never passed to the tool, and the rule count is
+     verified by calling `FilteringOptions.get_replace_text()` directly: **9 literals, 0 regexes,
+     no `#`-prefixed rules**. The mailmap parser is unaffected — it strips comments explicitly, and
+     that too was checked by running it.
+
+   Note also that
+   HEAD is already clean of all three principal values — every occurrence is history-only, which is
+   the case for the rewrite in one sentence: nothing is wrong with the repository you see, and
+   everything is wrong with the one you would publish.
+
+   *`mailmap` — 2 lines.* History carries only **4 distinct addresses across 514 author+committer
+   slots**, with a consistent display name, so no name normalisation is needed. Verified without
+   rewriting anything, via `git -c mailmap.file=… log --use-mailmap`: 4 addresses collapse to
+   **2**, the target takes **464 slots** (378 employer + 54 already-correct + 32 Yahoo), and
+   `noreply@github.com` keeps its **50** — deliberately unmapped, since rewriting it would
+   attribute merge commits to a human who did not make them.
+
+   *Decision 8 re-confirmed.* A commit already authored with the target address resolves through
+   the API to `author.login: htrendafilov`, so the rewritten history will attribute to the owner's
+   account rather than to nobody. This is the check that decides whether the rewrite has to be done
+   once or twice.
+
    - remove every historical path of the live runbook;
    - remove every historical `data/sources/KJV.imp.gz` path and its LFS object so the new repository
      never receives the KJV export, even during its private verification phase;
@@ -851,7 +901,9 @@ This section applies only to a release path that publishes rewritten history.
      in a single pass would keep the file and delete the commits that produced it. Re-check before
      running that nothing tracked has reappeared under the directory;
    - replace the origin, operator/path, and internal-registry strings using a replacement file stored
-     outside the repository;
+     outside the repository, passed to **both `--replace-text` and `--replace-message`** — the
+     first rewrites blob contents, the second commit and tag messages, and at least one value here
+     occurs only in a message;
    - rewrite author **and committer** addresses in the same pass (decision 8) with
      `git-filter-repo --mailmap <file>`, which applies to both sides. The mailmap maps the two old
      addresses to `hristo@trendafilovi.eu`, one `Name <new> <old>` line each. **The literal old
