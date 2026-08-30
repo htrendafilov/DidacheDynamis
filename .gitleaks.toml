@@ -1,0 +1,19 @@
+[extend]
+useDefault = true
+
+# The chat tests hold OpenRouter-shaped sentinel keys on purpose: their job is to
+# prove a key never leaves the browser. condition = "AND" means a finding is
+# suppressed only if it is in one of these files *and* has the sentinel shape, so a
+# real key committed to the same file is still reported.
+[[allowlists]]
+id = "chat-test-sentinels"
+description = "OpenRouter-shaped sentinel keys in the chat test suite"
+condition = "AND"
+paths = [
+  '''^apps/web/e2e-chat/chat\.spec\.ts$''',
+  '''^apps/web/src/chat/(client|credentials)\.test\.ts$''',
+  '''^apps/web/src/components/chat/ChatPanel(\.injectionCorpus)?\.test\.tsx$''',
+]
+regexes = [
+  '''sk-or-v1-(TEST|E2E)SENTINEL[0-9A-Za-z]*''',
+]
