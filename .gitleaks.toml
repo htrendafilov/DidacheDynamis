@@ -1,13 +1,13 @@
 [extend]
 useDefault = true
 
-# The chat tests hold OpenRouter-shaped sentinel keys on purpose: their job is to
-# prove a key never leaves the browser. condition = "AND" means a finding is
-# suppressed only if it is in one of these files *and* has the sentinel shape, so a
-# real key committed to the same file is still reported.
+# The chat tests hold OpenRouter-shaped sentinel keys deliberately. targetRules is
+# load-bearing: without it a global paths allowlist skips the whole file in
+# `gitleaks dir`, so condition = "AND" never gates and a real key there is hidden.
 [[allowlists]]
 id = "chat-test-sentinels"
 description = "OpenRouter-shaped sentinel keys in the chat test suite"
+targetRules = ["generic-api-key"]
 condition = "AND"
 paths = [
   '''^apps/web/e2e-chat/chat\.spec\.ts$''',
