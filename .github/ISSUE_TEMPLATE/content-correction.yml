@@ -1,8 +1,6 @@
 name: Content correction
 description: A verse, commentary entry, dictionary entry or confession text is wrong or missing
-# "documentation" exists in both repositories today; "content" does not, and GitHub silently
-# drops a label it cannot find. §7 creates "content" at the flip and this becomes ["content"].
-labels: ["documentation"]
+labels: ["content"]
 body:
   - type: markdown
     attributes:
