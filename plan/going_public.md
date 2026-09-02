@@ -1454,10 +1454,11 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
     values are unbalanced in total, so any fix that tries to *pair* braces rather than remove them
     has to cope with a source that does not pair them.
 
-    **The code half landed in PR #3, which must merge before this record.** Until it does, `main`
-    still extracts with `.strip("{}")` and a rebuilt `content.sqlite` would still ship the 88
-    mangled values. The policy half — keep the 52 CJK values verbatim, do not re-file archive
-    issue #15, do not swap the source — stands on its own and is settled regardless.
+    **The code half squash-merged to `main` on 2026-09-02 as `e5c32441` (PR #3).** `main` no longer
+    extracts with `.strip("{}")`, so a rebuilt `content.sqlite` no longer ships the 88 mangled
+    values — only the deploy of that rebuild is outstanding. The policy half — keep the 52 CJK
+    values verbatim, do not re-file archive issue #15, do not swap the source — was settled
+    independently of it.
 
     **Replacing the source was investigated and does not solve it.** Both candidates are CJK-free,
     and neither carries Strong's phonetic pronunciation at all:
