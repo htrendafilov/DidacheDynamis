@@ -952,17 +952,19 @@ This section applies only to a release path that publishes rewritten history.
    11 OIDs with the KJV absent; `git fsck` clean; `gitleaks` 3 — the known chat-test sentinels and
    nothing else; one ref, `refs/heads/main`.** `plan/mhc_english_baseline.md` carries **5 commits**
    of history rather than appearing fully formed, which is §5b (b) working as intended.
-5. ~~Push the complete rewritten mirror only after approval.~~ **Done 2026-08-29.** Pushed to
+5. ~~Push the complete rewritten mirror only after approval.~~ **Done 2026-08-23.** Pushed to
    `htrendafilov/DidacheDynamis` at `08f94a4` — 248 commits, `refs/heads/main` only, no tags, no
    `refs/pull/*`, no `refs/stash`. The 11 LFS objects (40 MB) were pushed explicitly with
    `git lfs push --all`: a `--mirror` clone fetches no LFS objects, so they do not follow the refs
    and a mirror that looks complete can still be a repository of dangling pointers.
 
    The `refs/pull/*` warning stands and is now visible from the other side. `DidacheDynamis` grew
-   its own `refs/pull/1/head` the moment PR #1 merged (2026-08-31). Pull refs are created by
-   GitHub, are unreachable from any branch, are never deleted, and are fetched in full by
-   `git clone --mirror` — so the ref-set-dependent counting problem this document records for the
-   archive now applies to the new repository too, from its first merged PR onward.
+   its own `refs/pull/1/head` when PR #1 was **opened** (2026-08-30), not when it merged: GitHub
+   creates the ref at open, so an unmerged PR already produces the problem — `refs/pull/3/head`
+   and `refs/pull/4/head` exist while those PRs are still open, alongside their `/merge` refs. Pull
+   refs are created by GitHub, are unreachable from any branch, are never deleted, and are fetched
+   in full by `git clone --mirror`, so the ref-set-dependent counting problem this document records
+   for the archive applies to the new repository from its **first PR**, not its first merge.
 6. If retaining the current GitHub repository, follow the GitHub Support procedure for affected PR
    refs/caches when eligible. If Support will not purge the non-credential metadata, return to the
    release-strategy decision rather than claiming full removal.
@@ -1048,7 +1050,9 @@ All of these must pass before visibility changes:
 
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
   zero exit code. **Baseline established 2026-08-15** with `gitleaks` 8.30.1 over 203 commits:
-  **9 findings, all reviewed, none a real credential.** (Scanning `main` today still reports 9;
+  **9 findings, all reviewed, none a real credential.** (As of 2026-08-15, before the rewrite and
+  before the allowlist, scanning the archive's `main` reported 9 — this is a historical baseline,
+  not the present `DidacheDynamis` count, which is 0 with `.gitleaks.toml` and was 3 without it;
   see the note after the table about a 10th that exists only on the PR branch that wrote this
   section.)
 
@@ -1067,7 +1071,7 @@ All of these must pass before visibility changes:
   stops suppressing, and the first post-flip scan comes back dirty for reasons nobody remembers.
   Build it after §5 or key it on path and pattern rather than commit.
 
-  **Landed 2026-09-01 as `.gitleaks.toml` on `DidacheDynamis` (PR #1)**, keyed on path and pattern
+  **Landed 2026-08-31 as `.gitleaks.toml` on `DidacheDynamis` (PR #1)**, keyed on path and pattern
   as this paragraph requires: 3 findings before, 0 after, and no `.gitleaksignore` fingerprints to
   go stale.
 
@@ -1126,7 +1130,7 @@ All of these must pass before visibility changes:
 - anonymous-access rehearsal against the candidate remote, including source archives and LFS;
 - audit of PRs/issues, Actions logs/artifacts, packages, deployments, variables, and repository
   settings; record the result in the release issue;
-- **Gate executed against the pushed candidate, 2026-08-29 to 08-31:**
+- **Gate executed against the pushed candidate, 2026-08-23 to 08-31:**
 
   | check | result |
   |---|---|
@@ -1162,7 +1166,8 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
 1. Temporarily restrict writes during the cutover.
 2. ~~Push the verified sanitized mirror to `DidacheDynamis`; set description and topics.~~
-   **Done 2026-08-29/30.** Description set; 11 topics set (`bible`, `bible-reader`, `bulgarian`,
+   **Refs pushed 2026-08-23** (CI run `32662863897`); **description and topics set 2026-08-30.**
+   11 topics set (`bible`, `bible-reader`, `bulgarian`,
    `sword-project`, `react`, `typescript`, `fastapi`, `python`, `sqlite`, `fts5`, `self-hosted`).
 3. Immediately restore branch/ruleset protection because GitHub disables push rulesets on a
    private-to-public visibility change.
@@ -1242,8 +1247,12 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    resolves where `publish-image.yml` reads it. The **value** cannot be verified through the API —
    secrets are write-only — but it need not be: `VITE_` means Vite inlines it into the client
    bundle, so it ships to every browser and can be read back from the deployed site and compared.
-   Worth stating plainly because a wrong value fails silently: `isDropboxConfigured()` returns
-   false and Dropbox sync simply disappears from the build.
+   The two failure modes differ and neither is loud. An **empty or missing** secret makes
+   `isDropboxConfigured()` false, and `DropboxSyncSettings` replaces the Connect button with the
+   `dropbox.notConfigured` warning — the section stays, so this is at least visible to anyone who
+   opens settings. A **mistyped but non-empty** value returns true, so the UI looks entirely
+   normal and the failure surfaces only when a user clicks Connect and OAuth is rejected at
+   Dropbox's end. Only the second case needs the bundle comparison; the first announces itself.
 
    Original wording, for the record: recreate the `DROPBOX_APP_KEY` Actions secret — secrets do not transfer,
    and `publish-image.yml` builds the SPA with it, so without it a published image would ship a
@@ -1440,9 +1449,15 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
     `.strip("{}")` trims only the ends of a string, so the 88 multi-form entries came out with
     interior braces intact and one delimiter missing. Fixed 2026-09-02: the 5,398 single-form
     values are byte-identical, exactly the 88 change, all four pinned regression assertions still
-    pass, and the CJK count is still 52 so the disclosure holds. Three source values are unbalanced
-    upstream, so any fix that tries to *pair* braces rather than remove them has to cope with a
-    source that does not pair them.
+    pass, and the CJK count is still 52 so the disclosure holds. Of the 88, 68 carry more than one
+    brace pair, 19 carry a single pair, and `G1640` has one open and two closes; three source
+    values are unbalanced in total, so any fix that tries to *pair* braces rather than remove them
+    has to cope with a source that does not pair them.
+
+    **The code half landed in PR #3, which must merge before this record.** Until it does, `main`
+    still extracts with `.strip("{}")` and a rebuilt `content.sqlite` would still ship the 88
+    mangled values. The policy half — keep the 52 CJK values verbatim, do not re-file archive
+    issue #15, do not swap the source — stands on its own and is settled regardless.
 
     **Replacing the source was investigated and does not solve it.** Both candidates are CJK-free,
     and neither carries Strong's phonetic pronunciation at all:
@@ -1470,7 +1485,7 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 
 The §3.3 fetch-at-build implementation is complete, and decision 11 settles the artifact question.
 ~~One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former
-KJV path or its LFS object.~~ **Cleared 2026-08-29.** The path is absent from all history and
+KJV path or its LFS object.~~ **Cleared before the 2026-08-23 push.** The path is absent from all history and
 `git lfs prune` removed the orphaned 3.8 MB KJV object from the rewritten mirror — contrary to the
 expectation that a pruned-but-stored object would be retained, which is why it was checked by
 counting stored objects against referenced ones (12 stored, 11 referenced) rather than by trusting
