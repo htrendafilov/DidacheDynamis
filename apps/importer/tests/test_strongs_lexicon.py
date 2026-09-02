@@ -41,7 +41,7 @@ def test_greek_multi_form_pronunciations_drop_every_brace():
     prons = {row.strong_id: row.pronunciation for row in rows}
     assert prons["G0210"] == "ak'-ohn 或 hekon hek-ohn'"
     assert prons["G0206"] == "Pagos ar'-i-os pag'-os"
-    assert prons["G0207"] == "ak-rog-o-nee-ah'-yos"  # source closes twice
+    assert prons["G1640"] == "el-as'-sone 和 elatton (el-at-tone'"  # unbalanced mid-string
 
 
 def test_greek_entry_count_regression_fails_loudly():
