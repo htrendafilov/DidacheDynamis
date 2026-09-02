@@ -952,8 +952,19 @@ This section applies only to a release path that publishes rewritten history.
    11 OIDs with the KJV absent; `git fsck` clean; `gitleaks` 3 — the known chat-test sentinels and
    nothing else; one ref, `refs/heads/main`.** `plan/mhc_english_baseline.md` carries **5 commits**
    of history rather than appearing fully formed, which is §5b (b) working as intended.
-5. Push the complete rewritten mirror only after approval. Expect GitHub's read-only `refs/pull/*` to
-   reject updates; that is a documented limitation, not a successful purge.
+5. ~~Push the complete rewritten mirror only after approval.~~ **Done 2026-08-23.** Pushed to
+   `htrendafilov/DidacheDynamis` at `08f94a4` — 248 commits, `refs/heads/main` only, no tags, no
+   `refs/pull/*`, no `refs/stash`. The 11 LFS objects (40 MB) were pushed explicitly with
+   `git lfs push --all`: a `--mirror` clone fetches no LFS objects, so they do not follow the refs
+   and a mirror that looks complete can still be a repository of dangling pointers.
+
+   The `refs/pull/*` warning stands and is now visible from the other side. `DidacheDynamis` grew
+   its own `refs/pull/1/head` when PR #1 was **opened** (2026-08-30), not when it merged: GitHub
+   creates the ref at open, so an unmerged PR already produces the problem — `refs/pull/3/head`
+   and `refs/pull/4/head` exist while those PRs are still open, alongside their `/merge` refs. Pull
+   refs are created by GitHub, are unreachable from any branch, are never deleted, and are fetched
+   in full by `git clone --mirror`, so the ref-set-dependent counting problem this document records
+   for the archive applies to the new repository from its **first PR**, not its first merge.
 6. If retaining the current GitHub repository, follow the GitHub Support procedure for affected PR
    refs/caches when eligible. If Support will not purge the non-credential metadata, return to the
    release-strategy decision rather than claiming full removal.
@@ -1020,7 +1031,13 @@ the excluded path and would ship publicly as ordinary MIT code — which is acce
 one. The flip's scope stays as small as possible, which matters because §5 and §6 are the steps
 where mistakes are expensive and hard to reverse.
 
-**(d) This file publishes.** `plan/going_public.md` never stated its own disposition and is tracked,
+**(d) This file publishes.** **Update 2026-09-02: the published copy is now the authoritative one.**
+The archive's copy stops at the rewrite. Everything after it — §5 step 5, the executed §6 gate, the
+§7 completions — is recorded here on `DidacheDynamis`, because a public record of how a repository
+was sanitized is worth very little if it describes the process as still pending. The archive keeps
+the pre-flip history; this copy keeps the outcome. The two diverge deliberately from `08f94a4`.
+
+`plan/going_public.md` never stated its own disposition and is tracked,
 so it was shipping by default. Now deliberate: it is a public record of how the repository was
 sanitized, which is worth more than the little it discloses. No private *values* remain in it (§1.2
 compliance fixed 2026-08-11) — it names categories and procedures, not secrets. Its two citations of
@@ -1033,7 +1050,9 @@ All of these must pass before visibility changes:
 
 - a secret scanner over every rewritten ref, with findings reviewed rather than merely counting a
   zero exit code. **Baseline established 2026-08-15** with `gitleaks` 8.30.1 over 203 commits:
-  **9 findings, all reviewed, none a real credential.** (Scanning `main` today still reports 9;
+  **9 findings, all reviewed, none a real credential.** (As of 2026-08-15, before the rewrite and
+  before the allowlist, scanning the archive's `main` reported 9 — this is a historical baseline,
+  not the present `DidacheDynamis` count, which is 0 with `.gitleaks.toml` and was 3 without it;
   see the note after the table about a 10th that exists only on the PR branch that wrote this
   section.)
 
@@ -1051,6 +1070,30 @@ All of these must pass before visibility changes:
   after it, which is the worst possible failure for a suppression file: it does not error, it just
   stops suppressing, and the first post-flip scan comes back dirty for reasons nobody remembers.
   Build it after §5 or key it on path and pattern rather than commit.
+
+  **Landed 2026-08-31 as `.gitleaks.toml` on `DidacheDynamis` (PR #1)**, keyed on path and pattern
+  as this paragraph requires: 3 findings before, 0 after, and no `.gitleaksignore` fingerprints to
+  go stale.
+
+  **A trap worth recording, because the first version of the file shipped with it.** A *global*
+  `[[allowlists]]` block carrying `paths` is not evaluated per finding. In `gitleaks dir` it is
+  applied as a whole-file skip **before** any finding is considered, so `condition = "AND"` never
+  gates anything and a genuine key committed to one of those test files is suppressed along with
+  the sentinels. `gitleaks git` does not behave that way — it keeps evaluating findings inside
+  allowlisted paths. Measured on 8.30.1 against the real history plus two injected fixtures, a
+  non-sentinel key in an allowlisted file and a sentinel-shaped key outside those paths:
+
+  | config | `gitleaks git` | `gitleaks dir` |
+  |---|---|---|
+  | no config | 5 | 5 |
+  | global allowlist, no `targetRules` | 2 | **1** |
+  | `targetRules = ["generic-api-key"]` | 2 | 2 |
+
+  The fix is `targetRules`, which attaches the allowlist to the rule rather than to the scan. The
+  process lesson is larger than the config: **the first verification passed honestly and proved
+  nothing**, because it exercised one scan mode and the hole was in the other. A suppression rule
+  is only verified once it has been made to *fail* — an allowlist that has never been shown to
+  still report something is indistinguishable from a blind spot, and both look like a zero.
 
   **A scanner baseline is a statement about history, not about the working tree.** An earlier draft
   of the table above quoted the false-positive string verbatim, which made the rule fire on this
@@ -1087,6 +1130,22 @@ All of these must pass before visibility changes:
 - anonymous-access rehearsal against the candidate remote, including source archives and LFS;
 - audit of PRs/issues, Actions logs/artifacts, packages, deployments, variables, and repository
   settings; record the result in the release issue;
+- **Gate executed against the pushed candidate, 2026-08-23 to 08-31:**
+
+  | check | result |
+  |---|---|
+  | secret scan over every rewritten ref | 3 findings, all known chat-test sentinels; 0 unexplained |
+  | decision 8 addresses | 0 commits carry the employer or Yahoo address; 100/100 sampled resolve to `htrendafilov` |
+  | replacement-map values | all 11 absent from tree, history **and** commit messages |
+  | removed paths | `data/sources/KJV.imp.gz` and `plan/mhc_translation/` absent from all history |
+  | LFS | 11/11 objects upload-verified and resolving to real content in a fresh clone |
+  | `ci.yml` on the **new** repository | run `32662863897` green; 638 log lines reviewed, no value hits |
+  | anonymous-access rehearsal | **deferred** — still private, so this is necessarily post-flip |
+  | GitHub secret scanning | unavailable on a free private repository; post-flip only |
+
+  Two of these can only be completed after the visibility change, which is a property of the plan
+  rather than an oversight: rehearsing anonymous access requires anonymous access to exist.
+
 - MHC corpus repair landed and verified (§4.2b): 66 books present, the source's 5,506 keys fully
   accounted for, and `NOTICE`'s "None to the text" true of what actually ships. Verified against a
   rebuilt DB on 2026-08-13; **re-verify against the deployed API**, not the build — as of that date
@@ -1106,13 +1165,24 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
 **private** — deliberately, so the §6 gate runs before anything is publicly reachable).
 
 1. Temporarily restrict writes during the cutover.
-2. Push the verified sanitized mirror to `DidacheDynamis`; set description and topics.
+2. ~~Push the verified sanitized mirror to `DidacheDynamis`; set description and topics.~~
+   **Refs pushed 2026-08-23** (CI run `32662863897`); **description and topics set 2026-08-30.**
+   11 topics set (`bible`, `bible-reader`, `bulgarian`,
+   `sword-project`, `react`, `typescript`, `fastapi`, `python`, `sqlite`, `fts5`, `self-hosted`).
 3. Immediately restore branch/ruleset protection because GitHub disables push rulesets on a
    private-to-public visibility change.
 4. Configure public-fork Actions approval, read-only default `GITHUB_TOKEN`, Dependabot, secret
    scanning/push protection, and code scanning as appropriate.
-5. Set repository features to match decision 9: **Issues on**, **Discussions off**, Wiki and
-   Projects off. The issue forms ship in the tree and appear automatically once Issues are on;
+5. ~~Set repository features to match decision 9.~~ **Done 2026-08-30/09-01.** Issues on;
+   Discussions, Wiki and Projects off. The **`content`** label was created 2026-09-01 and
+   `content-correction.yml` repointed at it (PR #2) — **label first, form second**, because GitHub
+   drops a label an issue form names but the repository lacks and does so silently: the issue files
+   unlabelled with nothing in the UI to say why. Landing the form change first would have opened a
+   window of unlabelled content reports. Labels do not travel with a tree, so this could not be
+   inherited from the archive or carried by the mirror push.
+
+   Original wording, for the record: set repository features to match decision 9: **Issues on**,
+   **Discussions off**, Wiki and Projects off. The issue forms ship in the tree and appear automatically once Issues are on;
    `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md` are picked up by GitHub's community profile.
    Create the **`content`** label and point `content-correction.yml` at it — labels do not travel
    with the tree, and GitHub drops a label a form names but the repository does not have, silently.
@@ -1172,7 +1242,19 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    covered by the repository staying private.~~ **Done 2026-08-18: it was private throughout and
    is now deleted — §1.4 carries the digest and tags in case the 30-day restore window is ever
    needed.**
-9. Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository — secrets do not transfer,
+9. ~~Recreate the `DROPBOX_APP_KEY` Actions secret on the new repository.~~ **Done 2026-08-30
+   (owner).** Repo-level secret, no environments configured and no `environment:` on the job, so it
+   resolves where `publish-image.yml` reads it. The **value** cannot be verified through the API —
+   secrets are write-only — but it need not be: `VITE_` means Vite inlines it into the client
+   bundle, so it ships to every browser and can be read back from the deployed site and compared.
+   The two failure modes differ and neither is loud. An **empty or missing** secret makes
+   `isDropboxConfigured()` false, and `DropboxSyncSettings` replaces the Connect button with the
+   `dropbox.notConfigured` warning — the section stays, so this is at least visible to anyone who
+   opens settings. A **mistyped but non-empty** value returns true, so the UI looks entirely
+   normal and the failure surfaces only when a user clicks Connect and OAuth is rejected at
+   Dropbox's end. Only the second case needs the bundle comparison; the first announces itself.
+
+   Original wording, for the record: recreate the `DROPBOX_APP_KEY` Actions secret — secrets do not transfer,
    and `publish-image.yml` builds the SPA with it, so without it a published image would ship a
    build whose Dropbox sync cannot authenticate.
 10. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
@@ -1357,9 +1439,62 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    alias they control; the trade is that a real address in public history is scrapable, which an
    alias makes recoverable rather than permanent.
 
+12. **The Strong's Greek pronunciation contamination stays; the importer's share of it is fixed.**
+    RESOLVED 2026-09-02 (owner). Archive issue #15 is **not** re-filed on `DidacheDynamis` and
+    stays archive-only.
+
+    The two halves are different problems. The Chinese editorial text in 52 `<pron>` elements is
+    upstream CrossWire data, kept verbatim — which is precisely what makes `NOTICE`'s "None to the
+    text" true, and what a partial cleanup would have falsified. The **brace damage was ours**:
+    `.strip("{}")` trims only the ends of a string, so the 88 multi-form entries came out with
+    interior braces intact and one delimiter missing. Fixed 2026-09-02: the 5,398 single-form
+    values are byte-identical, exactly the 88 change, all four pinned regression assertions still
+    pass, and the CJK count is still 52 so the disclosure holds. Of the 88, 68 carry more than one
+    brace pair, 19 carry a single pair, and `G1640` has one open and two closes; three source
+    values are unbalanced in total, so any fix that tries to *pair* braces rather than remove them
+    has to cope with a source that does not pair them.
+
+    **The code half squash-merged to `main` on 2026-09-02 as `e5c32441` (PR #3).** `main` no longer
+    extracts with `.strip("{}")`, so a rebuilt `content.sqlite` no longer ships the 88 mangled
+    values — only the deploy of that rebuild is outstanding. The policy half — keep the 52 CJK
+    values verbatim, do not re-file archive issue #15, do not swap the source — was settled
+    independently of it.
+
+    **Replacing the source was investigated and does not solve it.** Both candidates are CJK-free,
+    and neither carries Strong's phonetic pronunciation at all:
+
+    | source | licence | entries | pronunciation |
+    |---|---|---|---|
+    | CrossWire StrongsGreek 2.0 (current) | Public Domain | 5,488 | yes — 52 contaminated |
+    | `openscriptures/strongs` | **none declared**; last push 2021-07 | 5,523 | **no such field** |
+    | STEPBible TBESG | CC BY 4.0 asserted in README, no detectable LICENSE | 11,035 | transliteration only |
+
+    `openscriptures/strongs` ships `derivation`/`strongs_def`/`kjv_def`/`translit`/`lemma` and no
+    phonetic field. TBESG gives `ho`, `akōn`, `Alpha` — transliterations, not Strong's respellings;
+    `al'-fah` and `ak'-ohn` appear nowhere in it. **Swapping either one in would not clean the
+    pronunciation, it would delete the feature.** TBESG changes more besides: Abbott-Smith
+    definitions rather than Strong's 1890, an extended-Strongs ID space including LXX and variants,
+    and CC BY 4.0 would attach an attribution obligation to content that is currently unrestricted
+    — a rights downgrade for a project whose content is otherwise PD or CrossWire-licensed.
+
+    What stays genuinely available: targeted overrides for the 52 IDs keeping the public-domain
+    text, or an upstream fix at CrossWire. Both are content work, not a data-file substitution. The
+    importer pins this exact module with four constants and two SHA-256s, so any swap fails loudly
+    by design rather than drifting in unnoticed.
+
 **Still pending:** none — every decision above is recorded and settled.
 
 The §3.3 fetch-at-build implementation is complete, and decision 11 settles the artifact question.
-One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former KJV
-path or its LFS object. Everything else can be completed as a reviewable cleanup commit before the
-destructive release cutover.
+~~One hard gate remains: proving the candidate `DidacheDynamis` history never contains the former
+KJV path or its LFS object.~~ **Cleared before the 2026-08-23 push.** The path is absent from all history and
+`git lfs prune` removed the orphaned 3.8 MB KJV object from the rewritten mirror — contrary to the
+expectation that a pruned-but-stored object would be retained, which is why it was checked by
+counting stored objects against referenced ones (12 stored, 11 referenced) rather than by trusting
+the removal.
+
+**What is left is post-flip by necessity, not by choice.** Restoring rulesets (GitHub disables push
+rulesets on a visibility change), private vulnerability reporting, secret scanning and push
+protection, and GHCR package visibility all require the repository to be public or the package to
+exist. The sharp edge is the first of those: there is a window immediately after the flip in which
+the repository is public and unprotected, so restoring protection is the next action after
+flipping, not the next day.
