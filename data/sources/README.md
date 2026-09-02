@@ -156,6 +156,9 @@ SWORD_PATH=/path/to/unpacked/modules mod2imp BaptistConfession1689 \
     imported). 135 numbers have no key at all (module holes; 30 of them are tagged in the
     KJV, e.g. `G3778` — no entry exists to import). 52 entries carry Chinese editorial
     annotations from the upstream e-text; imported verbatim and counted in diagnostics.
+  - `<pron>` wraps each pronunciation form in `{...}`. 5,398 entries carry one form; the
+    remaining 88 carry several, and 3 of those are unbalanced upstream. All braces are
+    removed on import, so a multi-form value keeps every form and no stray delimiter.
 - Strong's Hebrew Dictionary module:
   https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=StrongsHebrew
   - CrossWire metadata records version 1.2 and `Public Domain — Copy Freely`; same 1890

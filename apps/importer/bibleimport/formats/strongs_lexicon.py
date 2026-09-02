@@ -52,6 +52,9 @@ _ENTRY_N = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Za-z]?)$")
 _SEE_REF = re.compile(r"see\s+(?P<lang>GREEK|HEBREW)\s+for\s+(?P<number>\d+)(?P<suffix>[A-Za-z]?)")
 _HEBREW_FIRST_LINE = re.compile(r"^\s*(?P<number>\d+)\s\s+(?P<lemma>.+?)\s\s+(?P<pron>\S.*?)\s*$")
 _SPURIOUS = "&Š"  # CP1252 byte 0x8A in the Hebrew e-text; see module docstring
+# Braces delimit each pronunciation form. 88 Greek entries carry more than one form and 3 of
+# those are unbalanced in the source, so stripping only the ends leaves braces mid-value.
+_PRON_BRACES = str.maketrans("", "", "{}")
 
 
 def _entry_id(raw: str, letter: str) -> str | None:
@@ -146,7 +149,7 @@ def load_strongs_greek(
                 elif orth_type == "trans" and transliteration is None:
                     transliteration = norm_ws("".join(child.itertext())).strip()
             elif tag == "pron" and pronunciation is None:
-                pronunciation = norm_ws("".join(child.itertext())).strip().strip("{}")
+                pronunciation = norm_ws("".join(child.itertext()).translate(_PRON_BRACES)).strip()
             elif tag == "def" and def_element is None:
                 def_element = child
         if def_element is None:

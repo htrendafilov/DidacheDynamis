@@ -10,6 +10,7 @@ from bibleimport.formats.strongs_lexicon import (
 FIXTURES = Path(__file__).parent / "fixtures"
 GREEK = FIXTURES / "mini_strongs_greek.imp"
 HEBREW = FIXTURES / "mini_strongs_hebrew.imp"
+GREEK_MULTIPRON = FIXTURES / "mini_strongs_greek_multipron.imp"
 MINI_GREEK_EXPECTATIONS = {
     "expected_sequence_gaps": None,
     "expected_cjk_annotations": None,
@@ -33,6 +34,14 @@ def test_greek_parses_entries_and_skips_front_matter_and_stubs():
     assert diag["skipped_front_matter"] == 1
     assert diag["skipped_stubs"] == 1  # the @@@@ placeholder key 00031A
     assert diag["entries"] == 2
+
+
+def test_greek_multi_form_pronunciations_drop_every_brace():
+    rows, _ = load_strongs_greek(GREEK_MULTIPRON, expected_entries=3, **MINI_GREEK_EXPECTATIONS)
+    prons = {row.strong_id: row.pronunciation for row in rows}
+    assert prons["G0210"] == "ak'-ohn 或 hekon hek-ohn'"
+    assert prons["G0206"] == "Pagos ar'-i-os pag'-os"
+    assert prons["G0207"] == "ak-rog-o-nee-ah'-yos"  # source closes twice
 
 
 def test_greek_entry_count_regression_fails_loudly():
