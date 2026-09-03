@@ -10,6 +10,20 @@ import i18n from "../../i18n";
 // the real ContextPicker's default-selected panes would otherwise hit.
 const buildContextMock = vi.fn();
 vi.mock("../../chat/context", () => ({ buildContext: (...args: unknown[]) => buildContextMock(...args) }));
+
+// Real Dexie here bought nothing: these tests assert what the panel renders, and every turn
+// waited on fake-indexeddb transactions that stalled on CI. The fake keeps put/upsert,
+// ordering and clearing semantics, so the reload and private-session tests still mean what
+// they did; retention and the byte caps are covered against the real database in
+// chat/history.test.ts.
+vi.mock("../../chat/history", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../chat/history")>();
+  const { createFakeChatHistory } = await import("../../test/fakeChatHistory");
+  return {
+    ...actual,
+    ...createFakeChatHistory(actual.MAX_TITLE_LENGTH, actual.MAX_MANIFEST_JSON_LENGTH),
+  };
+});
 // ContextPicker (rendered inside ChatPanel) also calls usePassage/useGeneralBook, even
 // though the store's single default pane never exercises the code paths that use them.
 vi.mock("../../data/hooks", () => ({
@@ -120,7 +134,7 @@ function openOverflowMenu() {
 }
 
 async function connectAndSelectModel() {
-  render(<ChatPanel onClose={() => {}} />);
+  const mounted = render(<ChatPanel onClose={() => {}} />);
   openModelPicker();
   await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
 
@@ -134,6 +148,7 @@ async function connectAndSelectModel() {
 
   // Selecting a model closes the popover, same as a real click would.
   fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
+  return mounted;
 }
 
 describe("ChatPanel", () => {
@@ -563,7 +578,7 @@ describe("ChatPanel history (M9.3 step 6)", () => {
   });
 
   it("finds saved history on reload: a new mount restores the previous thread's messages", async () => {
-    await connectAndSelectModel();
+    const mounted = await connectAndSelectModel();
     fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "hi" } });
     fetchMock.mockResolvedValueOnce(sseResponse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -571,16 +586,18 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
     expect(screen.getByText("No context selected. The assistant will answer from the question alone.")).toBeInTheDocument();
 
-    // Simulate a reload: unmount and mount a fresh ChatPanel — nothing but Dexie persists.
+    // Simulate a reload: the first panel must actually go away, or the assertions below
+    // are satisfied by it and pass whether or not anything was restored.
+    mounted.unmount();
     render(<ChatPanel onClose={() => {}} />);
-    await waitFor(() => expect(screen.getAllByText("hi").length).toBeGreaterThan(0));
-    expect(screen.getAllByText("ok").length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByText("hi")).toBeInTheDocument());
+    expect(screen.getByText("ok")).toBeInTheDocument();
     // The pre-send summary (§5, §9: stored with the turn) survives the reload too, not
     // just the message text — it lived only in React state until a second saveMessage()
     // call persisted it once buildContext resolved.
     expect(
-      screen.getAllByText("No context selected. The assistant will answer from the question alone.").length,
-    ).toBeGreaterThan(0);
+      screen.getByText("No context selected. The assistant will answer from the question alone."),
+    ).toBeInTheDocument();
   });
 
   it("a private session never touches Dexie: nothing is there to find after reload", async () => {
