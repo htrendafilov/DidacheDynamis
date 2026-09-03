@@ -53,5 +53,9 @@ export default defineConfig({
     // Must clear setup.ts's asyncUtilTimeout (5s), or a slow findBy* trips vitest's own
     // 5s default first and reports a bare test timeout instead of the element it wanted.
     testTimeout: 20000,
+    // Two ChatPanel tests wait on a pipeline with two fake-indexeddb writes in it, and have
+    // twice blown setup.ts's 5s budget on a contended runner — not reproducible locally, even
+    // under 8x CPU load. Retries stop that blocking merges; a real break still fails all three.
+    retry: 2,
   },
 });
