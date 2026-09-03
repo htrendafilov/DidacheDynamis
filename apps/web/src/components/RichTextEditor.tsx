@@ -56,7 +56,7 @@ export function RichTextEditor({
 
   useEffect(() => {
     noteIdRef.current = noteId;
-    editor?.commands.setContent(sanitizeHtml(initialHtmlRef.current), false);
+    editor?.commands.setContent(sanitizeHtml(initialHtmlRef.current), { emitUpdate: false });
   }, [editor, noteId]);
 
   useEffect(() => {
