@@ -9,7 +9,7 @@ asset caching, and isolation of the Bible app's loopback origin.
 flowchart TD
     PublicInternet([Public Internet Client]) -->|HTTPS| CFEdge[Cloudflare Edge / CDN]
     
-    subgraph Origin Server (Private Network)
+    subgraph OriginServer ["Origin Server (Private Network)"]
         cloudflared[cloudflared daemon\nSystemd Service]
         AppServer[FastAPI + Gunicorn\n127.0.0.1:8080]
         Isolation[No public Bible vhost\nApp bound to loopback]
