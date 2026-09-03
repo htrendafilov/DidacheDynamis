@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    subgraph Browser Client (Local-First)
+    subgraph BrowserClient ["Browser Client (Local-First)"]
         NotesData[(Personal Notes\nIndexedDB)]
         ChatData[(Assistant History\nIndexedDB, not synced)]
         DropboxToken[Short-Lived Dropbox Token\nsessionStorage]
@@ -18,7 +18,7 @@ flowchart TD
         UI <-->|Direct HTTPS| DropboxAPI[Dropbox Cloud API]
     end
 
-    subgraph Backend Server (Zero User Data)
+    subgraph BackendServer ["Backend Server (Zero User Data)"]
         FastAPI[FastAPI Service\napps/api]
         SQLite[(content.sqlite\nRead-Only Bible DB)]
 
