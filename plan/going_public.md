@@ -1210,10 +1210,9 @@ once.
    outside contributor cannot run workflows unreviewed either. `GITHUB_TOKEN` was already
    `read`-only and unable to approve pull requests.
 
-   **Dependabot found 11 vulnerabilities within minutes** — 6 auto-dismissed, 5 actionable
-   (2 high, 3 moderate), all in `apps/web/package-lock.json`. They predated the flip; going public
-   only made them visible, to us and to everyone else. All five are fixed and the alert count is
-   now 0. One was not a version bump: `@tiptap/core` 3.30 changed `setContent`'s second argument
+   **Dependabot found 11 vulnerabilities within minutes** — 4 auto-dismissed (`brace-expansion`),
+   7 fixed (4 high, 3 moderate), all in `apps/web/package-lock.json`. They predated the flip; going public
+   only made them visible, to us and to everyone else. The open alert count is now 0. One was not a version bump: `@tiptap/core` 3.30 changed `setContent`'s second argument
    from an `emitUpdate` boolean to an options object, and preserving `emitUpdate: false` is what
    keeps *opening* a note from firing `onUpdate` and marking it dirty.
 5. ~~Set repository features to match decision 9.~~ **Done 2026-08-30/09-01.** Issues on;
