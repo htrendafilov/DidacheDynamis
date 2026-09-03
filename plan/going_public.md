@@ -1275,10 +1275,31 @@ once.
    trigger a workflow, and reading unpublished advisories over the API needs a token with
    `repository_advisories:read`, which is not worth storing as a secret in a public repository.
    GitHub already notifies maintainers on submission and confirms receipt to the reporter.
-8. Deliberately set GHCR package visibility and source linkage; do not assume it follows the repo.
-   This still applies to the **new** package: the first push from `DidacheDynamis` creates
-   `ghcr.io/htrendafilov/didachedynamis`, and its visibility is a separate control that does not
-   follow the repository — set it on purpose rather than discovering it later.
+8. ~~Deliberately set GHCR package visibility and source linkage; do not assume it follows the
+   repo.~~ **Done 2026-09-03.** `publish-image.yml` was dispatched by hand for the first time
+   (`deploy_to_vm` left off; the rollout job skipped, which is a success rather than a failure).
+   `ghcr.io/htrendafilov/didachedynamis` now exists at `latest` and `4b22ef7…` — 11 layers,
+   156.5 MB — and is **public**, which is the intended end state under decision 11 since the KJV
+   ships inside `content.sqlite` and the image.
+
+   **Confirmed by an anonymous pull, not by reading the API field.** A fresh unauthenticated GHCR
+   token fetched the manifest; the field says what GitHub believes, the anonymous fetch says what a
+   stranger actually gets. Note *how* it became public: GitHub's default, not a choice — which is
+   exactly this item's point. A private repository would have produced the same default silently.
+
+   **The run also exercised a trap the rename armed.** `github.repository` preserves case, so on
+   `htrendafilov/DidacheDynamis` the untreated name is `ghcr.io/htrendafilov/DidacheDynamis`, which
+   Docker rejects outright. The `${GITHUB_REPOSITORY,,}` lowercasing step handles it and produced
+   `ghcr.io/htrendafilov/didachedynamis` — but that step had never executed before, because
+   `bible_app_bg` was already lowercase and could not have exposed it. It is now tested rather than
+   assumed.
+
+   **What the image is for, recorded because it is easy to misread:** the container path is
+   Option 2 in `docs/deployment/hosting-options.md`, for other people and other hosts. Production
+   remains Option 1 — native systemd + gunicorn, released with the operator's local
+   `scripts/release.sh` — and this publish never touched it. The four VM secrets
+   (`VM_HOST`/`VM_USER`/`SSH_DEPLOY_KEY`/`DEPLOY_DIR`) still do not exist, so the rollout could not
+   run even if requested.
    ~~Also settle the **old** `ghcr.io/htrendafilov/bible_app_bg` package: an image holding a full
    `content.sqlite` was pushed to it on 2026-07-25 and may still be there (§1.4 — current state
    unverified, needs `read:packages`). Check, then delete it or confirm it is private. It is not
@@ -1310,12 +1331,12 @@ once.
     Strong's pronunciation fix is live and MHC serves all 66 books — the §4.2b claim is now true of
     production and not merely of a build, which is the distinction that made it worth re-checking.
 12. Watch Actions/LFS usage and security alerts during the first week. **Open — started
-    2026-09-03.** Two things worth watching specifically rather than generally: the GHCR package in
-    item 8, which does not exist yet; and CI stability now that `vite.config.ts`'s `retry: 2` has
-    been removed. That retry was added for a `ChatPanel` stall whose cause — real Dexie writes
-    inside the assertion path — has since been removed by mocking chat history in those tests. The
-    stall was never reproducible locally, so only green CI over the coming days actually tests the
-    claim; keeping the retry would have masked the answer.
+    2026-09-03.** Two things worth watching specifically rather than generally: GHCR usage now that
+    the package in item 8 exists and is anonymously pullable; and CI stability now that
+    `vite.config.ts`'s `retry: 2` has been removed. That retry was added for a `ChatPanel` stall
+    whose cause — real Dexie writes inside the assertion path — has since been removed by mocking
+    chat history in those tests. The stall was never reproducible locally, so only green CI over
+    the coming days actually tests the claim; keeping the retry would have masked the answer.
 
 ## 8. Decisions
 
@@ -1552,10 +1573,15 @@ anonymous rehearsal and the community-profile checks all landed the same day (§
 this section warned about — public and unprotected — was real and was closed in the same session,
 which is the only reason it stayed a footnote rather than an incident.
 
-**One item remains, and it is waiting on an event rather than on anyone:** GHCR package visibility.
-`ghcr.io/htrendafilov/didachedynamis` does not exist until the first image publishes, and its
-visibility does not follow the repository — so it must be set deliberately at that point, not
-assumed. The week-one watch (§7.12) is open alongside it.
+**Every §7 item is now closed.** The last of them, GHCR package visibility, was settled on
+2026-09-03 by publishing the first image deliberately rather than waiting for one to appear as a
+side effect (§7.8). Only the week-one watch (§7.12) stays open, and it is observation rather than
+work: Actions and LFS usage, and whether CI holds now that `vite.config.ts`'s `retry: 2` is gone.
+
+This paragraph is itself the fourth instance of the pattern below. It previously said the package
+"does not exist until the first image publishes" — true when written, false thirteen minutes later
+when the image published. A plan that records current state has to be edited on the same pass as
+the state it records, or it becomes the most confident wrong document in the repository.
 
 Worth recording as the closing note, because it recurred at every stage: each defect this plan
 caught was a tool covering less surface than its name implied — `--replace-text` not touching commit
