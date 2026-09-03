@@ -22,7 +22,7 @@
     "@tiptap/starter-kit": "^2.27.2",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.4.13",
     "dropbox": "^10.37.1",
     "i18next": "^23.11.5",
     "react": "^18.3.1",
