@@ -1140,11 +1140,27 @@ All of these must pass before visibility changes:
   | removed paths | `data/sources/KJV.imp.gz` and `plan/mhc_translation/` absent from all history |
   | LFS | 11/11 objects upload-verified and resolving to real content in a fresh clone |
   | `ci.yml` on the **new** repository | run `32662863897` green; 638 log lines reviewed, no value hits |
-  | anonymous-access rehearsal | **deferred** — still private, so this is necessarily post-flip |
-  | GitHub secret scanning | unavailable on a free private repository; post-flip only |
+  | anonymous-access rehearsal | **done 2026-09-03**, after the flip — see below |
+  | GitHub secret scanning | **enabled 2026-09-03**, with push protection; 0 alerts |
 
-  Two of these can only be completed after the visibility change, which is a property of the plan
-  rather than an oversight: rehearsing anonymous access requires anonymous access to exist.
+  The last two could only be completed after the visibility change, which is a property of the plan
+  rather than an oversight: rehearsing anonymous access requires anonymous access to exist. Both are
+  now closed.
+
+  **Anonymous rehearsal, 2026-09-03.** Run with no credentials and no git config at all
+  (`GIT_TERMINAL_PROMPT=0`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_SYSTEM=/dev/null`), because a
+  rehearsal that quietly uses the operator's own credential helper proves nothing about what a
+  stranger sees: clone succeeded at `15aab3c`; `git lfs pull` fetched **all 9 LFS files as real
+  content, not pointers**; `data/sources/KJV.imp.gz` absent from every ref; the source tarball
+  downloaded anonymously at 4.1 MB.
+
+  **Secret scanning found 0 alerts, and the reason matters more than the number.** §6 predicted the
+  three `sk-or-v1-…SENTINEL` keys would alert forever and need dismissing. They do not:
+  `secret_scanning_non_provider_patterns` is **off by default**, so GitHub matches only partner
+  provider patterns and OpenRouter is not one. `.gitleaks.toml` remains the thing that keeps the
+  local scan clean; GitHub's scanner never reads it. Turning non-provider patterns on would be more
+  thorough and would immediately raise those three as false positives — a deliberate trade, not a
+  default to drift into.
 
 - MHC corpus repair landed and verified (§4.2b): 66 books present, the source's 5,506 keys fully
   accounted for, and `NOTICE`'s "None to the text" true of what actually ships. Verified against a
@@ -1161,18 +1177,44 @@ All of these must pass before visibility changes:
 
 ## 7. Publication and post-flip checks
 
-The target repository **`htrendafilov/DidacheDynamis`** already exists (created 2026-08-01,
-**private** — deliberately, so the §6 gate runs before anything is publicly reachable).
+The target repository **`htrendafilov/DidacheDynamis`** was created 2026-08-01 and held **private**
+deliberately, so the §6 gate ran before anything was publicly reachable.
+
+**It went public on 2026-09-03**, at `cb3a610`, after a final pre-flight: gitleaks clean in both
+`git` and `dir` modes, only `hristo@trendafilovi.eu` and `noreply@github.com` across all history,
+the removed paths absent, and no open PRs. Protection was created in the same session (item 3).
+What follows is what the flip actually did, kept in the past tense on purpose — a plan that
+describes a completed process in the future tense is the failure this document has hit more than
+once.
 
 1. Temporarily restrict writes during the cutover.
 2. ~~Push the verified sanitized mirror to `DidacheDynamis`; set description and topics.~~
    **Refs pushed 2026-08-23** (CI run `32662863897`); **description and topics set 2026-08-30.**
    11 topics set (`bible`, `bible-reader`, `bulgarian`,
    `sword-project`, `react`, `typescript`, `fastapi`, `python`, `sqlite`, `fts5`, `self-hosted`).
-3. Immediately restore branch/ruleset protection because GitHub disables push rulesets on a
-   private-to-public visibility change.
-4. Configure public-fork Actions approval, read-only default `GITHUB_TOKEN`, Dependabot, secret
-   scanning/push protection, and code scanning as appropriate.
+3. ~~Immediately restore branch/ruleset protection.~~ **Done 2026-09-03, in the same session as
+   the flip.** Ruleset `22153211` on `~DEFAULT_BRANCH`, active and verified enforcing: `deletion`,
+   `non_fast_forward`, `pull_request` (0 required approvals — a solo maintainer cannot approve their
+   own PR, so requiring one would deadlock), and `required_status_checks` on `check`. Repository
+   admin has `bypass_mode: always`, so a stuck required check can never lock the owner out.
+
+   **"Restore" was the wrong word and it hid something.** Nothing was disabled by the visibility
+   change, because nothing existed: the rulesets endpoint returned
+   `403 Upgrade to GitHub Pro or make this repository public` for the entire private life of both
+   repositories. This was first-time protection, and the window it closes is real — between the
+   flip and the ruleset there is a public, unprotected repository.
+4. ~~Configure public-fork Actions approval, read-only default `GITHUB_TOKEN`, Dependabot, secret
+   scanning/push protection, and code scanning.~~ **Done 2026-09-03.** Secret scanning and push
+   protection on; Dependabot alerts and security updates on; fork-PR approval tightened from
+   GitHub's default `first_time_contributors` to **`all_external_contributors`**, so a returning
+   outside contributor cannot run workflows unreviewed either. `GITHUB_TOKEN` was already
+   `read`-only and unable to approve pull requests.
+
+   **Dependabot found 11 vulnerabilities within minutes** — 4 auto-dismissed (`brace-expansion`),
+   7 fixed (4 high, 3 moderate), all in `apps/web/package-lock.json`. They predated the flip; going public
+   only made them visible, to us and to everyone else. The open alert count is now 0. One was not a version bump: `@tiptap/core` 3.30 changed `setContent`'s second argument
+   from an `emitUpdate` boolean to an options object, and preserving `emitUpdate: false` is what
+   keeps *opening* a note from firing `onUpdate` and marking it dirty.
 5. ~~Set repository features to match decision 9.~~ **Done 2026-08-30/09-01.** Issues on;
    Discussions, Wiki and Projects off. The **`content`** label was created 2026-09-01 and
    `content-correction.yml` repointed at it (PR #2) — **label first, form second**, because GitHub
@@ -1223,7 +1265,8 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    **disabled**, which stops delivery while keeping the address reserved so nobody else can claim
    it — a strictly better answer than deleting a forward and leaving the published address to
    bounce.
-7. **Enable private vulnerability reporting** (Settings → Code security). `SECURITY.md` sends
+7. ~~**Enable private vulnerability reporting** (Settings → Code security).~~ **Done 2026-09-03;
+   `enabled: true`.** `SECURITY.md`'s "Report a vulnerability" button now exists. `SECURITY.md` sends
    reporters to the Security tab's "Report a vulnerability" button, and that button does not exist
    until this is switched on — GitHub offers the feature for **public repositories only**, so it
    cannot be enabled on `bible_app_bg` in advance and must be done here, right after the flip.
@@ -1259,9 +1302,20 @@ The target repository **`htrendafilov/DidacheDynamis`** already exists (created 
    build whose Dropbox sync cannot authenticate.
 10. Verify Actions secrets still exist, workflow permissions are minimal, and untrusted fork PRs do
     not receive secrets or write tokens.
-11. Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release build, and
-    the live site from an anonymous browser.
-12. Watch Actions/LFS usage and security alerts during the first week.
+11. ~~Check README badges, community profile, LICENSE/NOTICE rendering, LFS download, release
+    build, and the live site.~~ **Done 2026-09-03.** Community profile **100%** (code of conduct,
+    contributing, licence, PR template, readme); MIT badge resolves; LFS and the source archive
+    verified anonymously under §6 above. The deployed site was checked the same day and matches
+    `main`: the SPA carries build id `cb3a610`, and `content.sqlite` had been rebuilt, so the
+    Strong's pronunciation fix is live and MHC serves all 66 books — the §4.2b claim is now true of
+    production and not merely of a build, which is the distinction that made it worth re-checking.
+12. Watch Actions/LFS usage and security alerts during the first week. **Open — started
+    2026-09-03.** Two things worth watching specifically rather than generally: the GHCR package in
+    item 8, which does not exist yet; and CI stability now that `vite.config.ts`'s `retry: 2` has
+    been removed. That retry was added for a `ChatPanel` stall whose cause — real Dexie writes
+    inside the assertion path — has since been removed by mocking chat history in those tests. The
+    stall was never reproducible locally, so only green CI over the coming days actually tests the
+    claim; keeping the retry would have masked the answer.
 
 ## 8. Decisions
 
@@ -1492,9 +1546,20 @@ expectation that a pruned-but-stored object would be retained, which is why it w
 counting stored objects against referenced ones (12 stored, 11 referenced) rather than by trusting
 the removal.
 
-**What is left is post-flip by necessity, not by choice.** Restoring rulesets (GitHub disables push
-rulesets on a visibility change), private vulnerability reporting, secret scanning and push
-protection, and GHCR package visibility all require the repository to be public or the package to
-exist. The sharp edge is the first of those: there is a window immediately after the flip in which
-the repository is public and unprotected, so restoring protection is the next action after
-flipping, not the next day.
+**The flip is done — 2026-09-03 — and everything it gated is closed.** Protection, private
+vulnerability reporting, secret scanning with push protection, Dependabot, fork-PR approval, the
+anonymous rehearsal and the community-profile checks all landed the same day (§6, §7). The window
+this section warned about — public and unprotected — was real and was closed in the same session,
+which is the only reason it stayed a footnote rather than an incident.
+
+**One item remains, and it is waiting on an event rather than on anyone:** GHCR package visibility.
+`ghcr.io/htrendafilov/didachedynamis` does not exist until the first image publishes, and its
+visibility does not follow the repository — so it must be set deliberately at that point, not
+assumed. The week-one watch (§7.12) is open alongside it.
+
+Worth recording as the closing note, because it recurred at every stage: each defect this plan
+caught was a tool covering less surface than its name implied — `--replace-text` not touching commit
+messages, `--mailmap` not touching content, path removal not touching LFS storage, `--mirror` not
+fetching LFS objects, a global gitleaks allowlist skipping whole files in one scan mode but not the
+other, and GitHub's secret scanning not matching non-partner patterns at all. The habit that caught
+them was the same every time: make the check fail on purpose before trusting it to pass.
