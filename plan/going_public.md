@@ -1331,12 +1331,12 @@ once.
     Strong's pronunciation fix is live and MHC serves all 66 books — the §4.2b claim is now true of
     production and not merely of a build, which is the distinction that made it worth re-checking.
 12. Watch Actions/LFS usage and security alerts during the first week. **Open — started
-    2026-09-03.** Two things worth watching specifically rather than generally: the GHCR package in
-    item 8, which does not exist yet; and CI stability now that `vite.config.ts`'s `retry: 2` has
-    been removed. That retry was added for a `ChatPanel` stall whose cause — real Dexie writes
-    inside the assertion path — has since been removed by mocking chat history in those tests. The
-    stall was never reproducible locally, so only green CI over the coming days actually tests the
-    claim; keeping the retry would have masked the answer.
+    2026-09-03.** Two things worth watching specifically rather than generally: GHCR usage now that
+    the package in item 8 exists and is anonymously pullable; and CI stability now that
+    `vite.config.ts`'s `retry: 2` has been removed. That retry was added for a `ChatPanel` stall
+    whose cause — real Dexie writes inside the assertion path — has since been removed by mocking
+    chat history in those tests. The stall was never reproducible locally, so only green CI over
+    the coming days actually tests the claim; keeping the retry would have masked the answer.
 
 ## 8. Decisions
 
