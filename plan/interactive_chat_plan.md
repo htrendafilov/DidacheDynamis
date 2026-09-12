@@ -119,8 +119,12 @@ sequenceDiagram
     User->>Web: "Къде се говори за възкресение?"
     Web->>LLM: POST /chat/completions (expand to EN search terms, JSON out)
     LLM-->>Web: ["resurrection", "raised from the dead", "risen"]
-    Web->>API: GET /api/v1/search?q=...&types=bible,commentary
-    API-->>Web: SearchResponse
+    Web->>User: confirm or edit the terms before anything is searched
+    loop once per confirmed term - fts_query ANDs its tokens, so terms cannot share a call
+        Web->>API: GET /api/v1/search?q=(term)
+        API-->>Web: SearchResponse (all types, 5 rows per group)
+    end
+    Web->>Web: merge round-robin, cap, then the same normalize/budget/manifest pipeline
     Web->>LLM: POST /chat/completions (grounded answer over the hits)
 ```
 
@@ -438,6 +442,8 @@ Treat the response as hostile input:
 
 ## 10. Topical questions (M9.4)
 
+**Work order: [`chat/m9.4-topical-questions.md`](chat/m9.4-topical-questions.md)** (2026-09-04), which records the owner's seven design decisions and corrects four assumptions below that do not survive contact with the code — most importantly that the expanded terms **cannot share one search call**, because `fts_query()` ANDs its tokens.
+
 Open-ended questions ("What does the Bible say about resurrection?") need retrieval, not model recall. Use **deterministic query expansion**, not a tool loop:
 
 1. One model call converts the question into 2–5 English search terms, returned as JSON and schema-validated in the browser.
@@ -643,11 +649,13 @@ Exit: every navigable citation maps to context the app actually sent; no fabrica
 
 ### M9.4 — topical questions
 
-Query expansion (§10), schema-validated terms, filtered search, pagination, visible expanded terms, grounded answer over hits.
+**Work order: [`chat/m9.4-topical-questions.md`](chat/m9.4-topical-questions.md).**
+
+Query expansion (§10), schema-validated terms, one multi-type search **per term** merged round-robin, an explicit composer toggle, an editable term-confirmation step, and a grounded answer over the hits. "Pagination" here was a misreading: a multi-type query returns a fixed 5-row preview per group and ignores `limit`/`offset`.
 
 Exit: "Къде се говори за възкресение?" returns a cited answer over English content, with the expansion visible and labelled.
 
-**Effort: 2 days.**
+**Effort: 4 days** — revised from 2 when the work order was written, then twice more across two review rounds; see its §"Effort".
 
 ### M9.5 — hardening and public beta
 
@@ -675,9 +683,9 @@ OpenRouter OAuth PKCE (§5.5); model-driven bounded tool loop; Ollama / Hugging 
 | M9.1 licence metadata | 1.0 |
 | M9.2 workspace + provider | 4.0 |
 | M9.3 grounded assistant | 8.0 |
-| M9.4 topical | 2.0 |
+| M9.4 topical | 4.0 |
 | M9.5 hardening | 2.5 |
-| **Total to public beta** | **18.5** |
+| **Total to public beta** | **20.5** |
 | M9.6 optional | +4–6 |
 
 Shortest path to a chat you can actually use: **M9.0 + M9.1 + M9.2 + M9.3 ≈ 14 days.** M9.4 and M9.5 are polish on a working feature.
