@@ -1,8 +1,13 @@
-// M9.4 step 1: question -> validated English terms. Retrieval and the staged UI
-// turn are later steps; this module does not search or alter conversation state.
+// M9.4 steps 1, 3 and 4: question -> validated English terms -> search hits -> context
+// candidates. Pure retrieval plumbing; the staged UI turn that drives it is a later step,
+// and nothing here alters conversation state.
+import { api, type SearchHit, type Work } from "../data/api";
 import { streamChat, type ChatModel, type ChatUsage } from "./client";
+import type { ExtraCandidate } from "./context";
 import { ChatError } from "./errors";
 import { buildExpansionMessages } from "./prompt";
+import { estimateTokens } from "./tokens";
+import type { ContextChip } from "./types";
 
 export interface ExpansionResult {
   terms: string[];
@@ -89,4 +94,165 @@ export async function expandQuestion(
     }
     throw expansionFailed();
   }
+}
+
+// ---------------------------------------------------------------------------------------
+// Step 3/4 — search fan-out, merge, and hit -> candidate mapping (work order §2, §3)
+
+export interface RankedHit {
+  hit: SearchHit;
+  term: string; // which confirmed term found it
+  rank: number; // its row within its group for that term; 0 is the group's top hit
+}
+
+// One search per term, not one search for all terms: fts_query() ANDs its tokens
+// (apps/api/app/search_providers.py), so a single call carrying five terms matches only
+// documents that hold all five — for a topical question, approximately nothing.
+export const MAX_MERGED_HITS = 16;
+
+// Every discriminator is per-work — commentary entry_id numbers from 1 in each work,
+// book section_id likewise, and a verse ref is shared by every Bible — so a key without
+// work_id would drop a second work's hit as a duplicate of the first. Strong's ids are
+// global by construction.
+export function hitKey(hit: SearchHit): string {
+  switch (hit.kind) {
+    case "bible":
+    case "strongs_occurrence":
+      // An occurrence maps to the same bible chip as a plain hit on that verse (§3).
+      return `bible:${hit.work_id}:${hit.osis}:${hit.chapter}:${hit.verse}`;
+    case "commentary":
+      return `commentary:${hit.work_id}:${hit.entry_id}`;
+    case "dictionary":
+      return `dictionary:${hit.work_id}:${hit.headword}`;
+    case "book":
+      return `book:${hit.work_id}:${hit.section_id}`;
+    case "strongs_entry":
+      return `lexicon:${hit.strong_id}`;
+  }
+}
+
+// Round-robin, not concatenation: rank r of every group of every term before rank r+1 of
+// any. Concatenating puts all of term 1's hits first, and when the cap bites, terms 3-5
+// contribute nothing — the expansion would be decorative for most of the terms shown.
+// Within one rank the API's group order (bible, commentary, dictionary, book, strongs)
+// is kept, which is what gives the merged list type diversity as well as term diversity.
+export function mergeHits(perTerm: { term: string; hits: SearchHit[][] }[]): RankedHit[] {
+  const merged: RankedHit[] = [];
+  const seen = new Set<string>();
+  const deepest = Math.max(0, ...perTerm.flatMap((t) => t.hits.map((g) => g.length)));
+  for (let rank = 0; rank < deepest && merged.length < MAX_MERGED_HITS; rank++) {
+    for (const { term, hits } of perTerm) {
+      for (const group of hits) {
+        const hit = group[rank];
+        if (!hit) continue;
+        const key = hitKey(hit);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ hit, term, rank });
+        if (merged.length >= MAX_MERGED_HITS) return merged;
+      }
+    }
+  }
+  return merged;
+}
+
+export async function searchTerms(terms: string[], signal: AbortSignal): Promise<RankedHit[]> {
+  if (signal.aborted) throw new ChatError("aborted", "The request was cancelled.");
+  let responses;
+  try {
+    // Independent GETs against a read-only API, at most five of them. All-or-nothing: a
+    // term the reader confirmed and that silently returned nothing would misrepresent
+    // what was searched.
+    responses = await Promise.all(
+      terms.map((term) => api.search(term, { sort: "relevance", signal })),
+    );
+  } catch (err) {
+    if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+      throw new ChatError("aborted", "The request was cancelled.");
+    }
+    throw new ChatError("network", "A network error occurred.");
+  }
+  return mergeHits(
+    responses.map((r, i) => ({ term: terms[i], hits: r.groups.map((g) => g.hits) })),
+  );
+}
+
+// The API marks FTS matches as <b>…</b> — those two literals only (search_providers.py
+// snippet(...) calls). Nothing else in a snippet is markup, so nothing else is touched:
+// a general HTML strip would silently alter source text.
+export function stripHighlights(snippet: string): string {
+  return snippet.replace(/<\/?b>/g, "");
+}
+
+// A hit becomes either a chip (Path A — the existing retrieval fetches the exact unit, so
+// scripture is never a snippet) or a pre-built candidate carrying its snippet (Path B —
+// commentary and book, whose full units routinely exceed the per-source cap; §3).
+export type MappedHit = { chip: ContextChip } | { extra: ExtraCandidate };
+
+export function mapHit(hit: SearchHit, works: readonly Work[]): MappedHit {
+  const work = works.find((w) => w.id === hit.work_id);
+  const abbrev = work?.abbrev ?? hit.work_id;
+  switch (hit.kind) {
+    case "bible":
+    case "strongs_occurrence":
+      return {
+        chip: { kind: "bible", workId: hit.work_id, osis: hit.osis, chapter: hit.chapter, verses: String(hit.verse) },
+      };
+    case "dictionary":
+      return { chip: { kind: "dictionary", workId: hit.work_id, headword: hit.headword } };
+    case "strongs_entry":
+      return { chip: { kind: "lexicon", strongId: hit.strong_id } };
+    case "commentary": {
+      const excerpt = stripHighlights(hit.snippet);
+      const verse = hit.verse_start != null ? `:${hit.verse_start}` : "";
+      return {
+        extra: {
+          source: {
+            kind: "commentary",
+            workId: hit.work_id,
+            label: `${abbrev} — ${hit.osis} ${hit.chapter}${verse}`,
+            canonicalTarget: { kind: "commentary", workId: hit.work_id, osis: hit.osis, chapter: hit.chapter },
+            language: work?.language ?? "",
+            excerpt,
+            estimatedTokens: estimateTokens(excerpt, "commentary"),
+            searchExcerpt: true,
+          },
+          requires: [{ workId: hit.work_id, policy: work?.ai_context_policy ?? "unknown" }],
+          entryIds: [hit.entry_id],
+        },
+      };
+    }
+    case "book": {
+      const excerpt = stripHighlights(hit.snippet);
+      return {
+        extra: {
+          source: {
+            kind: "book",
+            workId: hit.work_id,
+            label: `${hit.title} (${abbrev})`,
+            canonicalTarget: { kind: "book", workId: hit.work_id, sectionId: hit.section_id },
+            language: work?.language ?? "",
+            excerpt,
+            estimatedTokens: estimateTokens(excerpt, "book"),
+            searchExcerpt: true,
+          },
+          requires: [{ workId: hit.work_id, policy: work?.ai_context_policy ?? "unknown" }],
+        },
+      };
+    }
+  }
+}
+
+export function hitsToContext(
+  hits: readonly RankedHit[],
+  works: readonly Work[],
+): { chips: ContextChip[]; extras: ExtraCandidate[] } {
+  const chips: ContextChip[] = [];
+  const extras: ExtraCandidate[] = [];
+  for (const { hit } of hits) {
+    const mapped = mapHit(hit, works);
+    if ("chip" in mapped) chips.push(mapped.chip);
+    else extras.push(mapped.extra);
+  }
+  return { chips, extras };
 }

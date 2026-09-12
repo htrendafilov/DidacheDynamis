@@ -12,6 +12,7 @@ import type {
 } from "../data/api";
 import { db } from "../data/notes";
 import type { Note } from "../data/notes";
+import { DEFAULT_CONTEXT_BUDGET } from "./contextBudget";
 import { setLoggingConfirmed } from "./credentials";
 import type { ContextChip } from "./types";
 
@@ -29,7 +30,7 @@ vi.mock("../data/hooks", () => ({ strongEntry: vi.fn() }));
 
 import { api } from "../data/api";
 import { strongEntry } from "../data/hooks";
-import { buildContext } from "./context";
+import { buildContext, type ExtraCandidate } from "./context";
 
 const apiMock = vi.mocked(api);
 const strongEntryMock = vi.mocked(strongEntry);
@@ -556,5 +557,133 @@ describe("buildContext book chip", () => {
     expect(tight.dropped).toHaveLength(1);
     expect(tight.dropped[0].reason).toBe("over-cap");
     expect(tight.dropped[0].estimatedTokens).toBeGreaterThan(200);
+  });
+});
+
+// M9.4 steps 3/4: pre-built candidates threaded through the same gate, dedupe and budget
+// as chips, so an expansion snippet can never bypass what a chip is subject to.
+describe("buildContext extraCandidates (M9.4)", () => {
+  function extra(overrides: Partial<ExtraCandidate["source"]> = {}, rest: Partial<ExtraCandidate> = {}): ExtraCandidate {
+    return {
+      source: {
+        kind: "commentary",
+        workId: "mhc",
+        label: "MHC — 1Cor 15:12",
+        canonicalTarget: { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15 },
+        language: "en",
+        excerpt: "…if Christ be preached that he rose from the dead…",
+        estimatedTokens: 20,
+        searchExcerpt: true,
+        ...overrides,
+      },
+      requires: [{ workId: "mhc", policy: "allowed" }],
+      entryIds: [12],
+      ...rest,
+    };
+  }
+
+  function mhcEntries(...spans: [number, number, number][]) {
+    vi.mocked(api.commentary).mockResolvedValue({
+      work_id: "mhc",
+      osis: "1Cor",
+      chapter: 15,
+      entries: spans.map(([entry_id, verse_start, verse_end]) => ({
+        entry_id,
+        unit_id: `mhc/1Cor/15/${verse_start}-${verse_end}/01`,
+        verse_start,
+        verse_end,
+        body: { blocks: [{ kind: "paragraph", text: `Entry ${entry_id} on verses ${verse_start}-${verse_end}.` }] },
+      })),
+    } as never);
+  }
+
+  const works = [work("mhc", { type: "commentary" })];
+  const signal = () => new AbortController().signal;
+
+  it("stamps contentVersion from the /meta call it already makes, and keeps the search-excerpt mark", async () => {
+    const { sources } = await buildContext([], works, true, signal(), DEFAULT_CONTEXT_BUDGET, [extra()]);
+    expect(sources).toHaveLength(1);
+    expect(sources[0]).toMatchObject({ id: "S1", contentVersion: "v1", searchExcerpt: true });
+    expect(apiMock.meta).toHaveBeenCalledTimes(1);
+  });
+
+  it("licence-gates an extra exactly like a chip: a prohibited work's snippet never leaves", async () => {
+    const restricted = extra({ excerpt: "Restricted snippet text" }, { requires: [{ workId: "mhc", policy: "prohibited" }] });
+    const { sources, dropped } = await buildContext([], [work("mhc", { ai_context_policy: "prohibited" })], true, signal(), DEFAULT_CONTEXT_BUDGET, [restricted]);
+    expect(sources).toEqual([]);
+    expect(dropped).toEqual([expect.objectContaining({ reason: "licence", kind: "commentary" })]);
+    expect(JSON.stringify({ sources, dropped })).not.toContain("Restricted snippet text");
+  });
+
+  it("gates unknown as prohibited", async () => {
+    const { sources } = await buildContext([], works, true, signal(), DEFAULT_CONTEXT_BUDGET, [
+      extra({}, { requires: [{ workId: "mhc", policy: "unknown" }] }),
+    ]);
+    expect(sources).toEqual([]);
+  });
+
+  it("keeps a reader's chip for 15:4 and a search excerpt from the 15:12 entry as two sources", async () => {
+    mhcEntries([1, 1, 11], [2, 12, 19]);
+    const chips: ContextChip[] = [{ kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: 4 }];
+    const { sources, dropped } = await buildContext(chips, works, true, signal(), DEFAULT_CONTEXT_BUDGET, [extra({}, { entryIds: [2] })]);
+    expect(dropped).toEqual([]);
+    expect(sources.map((s) => [s.id, s.searchExcerpt ?? false])).toEqual([["S1", false], ["S2", true]]);
+  });
+
+  it("drops a search excerpt from the entry the chip already fetched in full, and the chip's full text wins", async () => {
+    mhcEntries([1, 1, 11], [2, 12, 19]);
+    const chips: ContextChip[] = [{ kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: 4 }];
+    const { sources, dropped } = await buildContext(chips, works, true, signal(), DEFAULT_CONTEXT_BUDGET, [extra({}, { entryIds: [1] })]);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].excerpt).toBe("Entry 1 on verses 1-11.");
+    expect(sources[0].searchExcerpt).toBeUndefined();
+    expect(dropped).toEqual([expect.objectContaining({ reason: "duplicate", kind: "commentary" })]);
+  });
+
+  it("treats a whole-chapter commentary chip as covering every excerpt from that chapter", async () => {
+    mhcEntries([1, 1, 11], [2, 12, 19]);
+    const chips: ContextChip[] = [{ kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15 }];
+    const { sources, dropped } = await buildContext(chips, works, true, signal(), DEFAULT_CONTEXT_BUDGET, [extra({}, { entryIds: [2] })]);
+    expect(sources).toHaveLength(1);
+    expect(dropped.map((d) => d.reason)).toEqual(["duplicate"]);
+  });
+
+  it("does not collapse two extras from different chapters or different works", async () => {
+    const { sources } = await buildContext([], [work("mhc", { type: "commentary" }), work("other", { type: "commentary" })], true, signal(), DEFAULT_CONTEXT_BUDGET, [
+      extra({}, { entryIds: [1] }),
+      extra({ canonicalTarget: { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 16 }, excerpt: "Chapter sixteen." }, { entryIds: [1] }),
+      extra({ workId: "other", canonicalTarget: { kind: "commentary", workId: "other", osis: "1Cor", chapter: 15 }, excerpt: "Another commentary." }, { requires: [{ workId: "other", policy: "allowed" }], entryIds: [1] }),
+    ]);
+    expect(sources).toHaveLength(3);
+  });
+
+  it("ranks extras by kind with chips, ties by insertion, and assigns contiguous ids across both", async () => {
+    apiMock.passage.mockResolvedValue(passage("Now is Christ risen from the dead.", 20));
+    const chips: ContextChip[] = [{ kind: "bible", workId: "web", osis: "1Cor", chapter: 15, verses: "20" }];
+    const bookExtra: ExtraCandidate = {
+      source: {
+        kind: "book",
+        workId: "bcf1689",
+        label: "Chapter 31 (BCF1689)",
+        canonicalTarget: { kind: "book", workId: "bcf1689", sectionId: "ch31" },
+        language: "en",
+        excerpt: "…the bodies of men after death return to dust…",
+        estimatedTokens: 15,
+        searchExcerpt: true,
+      },
+      requires: [{ workId: "bcf1689", policy: "allowed" }],
+    };
+    const allWorks = [work("web"), work("mhc", { type: "commentary" }), work("bcf1689", { type: "book" })];
+    // Extras arrive book-then-commentary; KIND_PRIORITY must still put bible, commentary, book.
+    const { sources } = await buildContext(chips, allWorks, true, signal(), DEFAULT_CONTEXT_BUDGET, [bookExtra, extra()]);
+    expect(sources.map((s) => [s.id, s.kind])).toEqual([["S1", "bible"], ["S2", "commentary"], ["S3", "book"]]);
+  });
+
+  it("applies the per-source cap and total budget to extras", async () => {
+    const big = extra({ estimatedTokens: 5000, excerpt: "big" }, { entryIds: [1] });
+    const small = extra({ estimatedTokens: 10, excerpt: "small", canonicalTarget: { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 16 } }, { entryIds: [2] });
+    const { sources, dropped } = await buildContext([], works, true, signal(), { perSourceCap: 1000, totalBudget: 1000 }, [big, small]);
+    expect(sources.map((s) => s.excerpt)).toEqual(["small"]);
+    expect(dropped).toEqual([expect.objectContaining({ reason: "over-cap", estimatedTokens: 5000 })]);
   });
 });

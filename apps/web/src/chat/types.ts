@@ -31,6 +31,10 @@ export interface StudySource {
   excerpt: string;
   contentVersion: string;
   estimatedTokens: number;
+  // M9.4: the excerpt is an FTS search snippet, not the source's full text — it may begin
+  // or end mid-sentence. The prompt says so (prompt.ts) and the UI marks it. Never set on
+  // Bible text: scripture is always re-fetched whole (m9.4-topical-questions.md §3).
+  searchExcerpt?: true;
 }
 
 // What the user (via ContextPicker, step 5) has asked to include for this turn. context.ts

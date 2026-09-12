@@ -101,7 +101,7 @@ function selectCommentaryEntries(entries: CommentaryEntry[], verse?: number): Co
 
 // One licence policy this candidate's text depends on. Usually one work; an xref source
 // depends on two (the reference database and whichever work supplied preview text).
-interface RequiredPolicy {
+export interface RequiredPolicy {
   workId: string;
   policy: Work["ai_context_policy"];
 }
@@ -115,10 +115,22 @@ interface VerseSpan {
   end: number;
 }
 
-interface Candidate {
+export interface Candidate {
   source: Omit<StudySource, "id">;
   requires: RequiredPolicy[];
   verseSpan?: VerseSpan;
+  // The commentary entries the excerpt actually contains — the commentary parallel of
+  // verseSpan. CanonicalTarget.commentary has no verse, so without this two distinct
+  // entries in one chapter compare equal and one is dropped as a duplicate of the other.
+  entryIds?: number[];
+}
+
+// A candidate built outside this module — M9.4's search-snippet sources (expand.ts). The
+// caller cannot know contentVersion without a second /meta call, so buildContext stamps it.
+export interface ExtraCandidate {
+  source: Omit<StudySource, "id" | "contentVersion">;
+  requires: RequiredPolicy[];
+  entryIds?: number[];
 }
 
 function fallbackLabel(chip: ContextChip): string {
@@ -215,6 +227,7 @@ async function buildCandidate(
           estimatedTokens: estimateTokens(excerpt, "commentary"),
         },
         requires: [{ workId: chip.workId, policy: work?.ai_context_policy ?? "unknown" }],
+        entryIds: entries.map((e) => e.entry_id),
       };
     }
     case "dictionary": {
@@ -378,6 +391,14 @@ function isDuplicate(a: Candidate, b: Candidate): boolean {
     if (!a.verseSpan || !b.verseSpan) return true;
     return spansOverlap(a.verseSpan, b.verseSpan);
   }
+  if (at.kind === "commentary" && bt.kind === "commentary") {
+    if (at.osis !== bt.osis || at.chapter !== bt.chapter) return false;
+    // Same rule as bible: duplicate means the content overlaps, here as a shared entry. A
+    // chip with no verse fetched every entry in the chapter, so its ids cover any excerpt
+    // from that chapter — the whole-chapter case falls out without a special branch.
+    if (a.entryIds && b.entryIds) return a.entryIds.some((id) => b.entryIds!.includes(id));
+    return true;
+  }
 
   return JSON.stringify(at) === JSON.stringify(bt);
 }
@@ -392,6 +413,10 @@ export async function buildContext(
   // Only the retrieval limits: how large the answer may be is not this function's concern,
   // and requiring it here would force every caller to supply an irrelevant number.
   budget: Pick<ContextBudget, "perSourceCap" | "totalBudget"> = DEFAULT_CONTEXT_BUDGET,
+  // Pre-built candidates that need no retrieval (M9.4 search snippets). Appended AFTER the
+  // chips so that when one duplicates a chip, the chip — the reader's own choice, and the
+  // full text rather than a snippet — is the copy that survives dedup.
+  extraCandidates: ExtraCandidate[] = [],
 ): Promise<{ sources: StudySource[]; dropped: DroppedSource[] }> {
   const meta = await api.meta();
   const contentVersion = meta.content_version ?? "unknown";
@@ -409,6 +434,9 @@ export async function buildContext(
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       dropped.push({ label: fallbackLabel(chip), kind: chip.kind, reason: "unavailable" });
     }
+  }
+  for (const extra of extraCandidates) {
+    candidates.push({ ...extra, source: { ...extra.source, contentVersion } });
   }
 
   // 2. Licence gate, before anything else that costs budget.

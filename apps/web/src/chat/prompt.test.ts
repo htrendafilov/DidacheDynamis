@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { parseMessage } from "./markdown";
+import systemContractBg from "./__fixtures__/system-contract.m9.3.bg.txt?raw";
+import systemContractEn from "./__fixtures__/system-contract.m9.3.en.txt?raw";
 import { buildExpansionMessages, buildMessages } from "./prompt";
 import type { StudySource } from "./types";
 
@@ -168,5 +170,41 @@ describe("buildMessages", () => {
     const user = buildMessages([s1, s2], "q", "en")[1].content;
     const blocks = user.split('"""').filter((_, i) => i % 2 === 1); // odd segments are inside fences
     expect(blocks).toEqual(["\nExcerpt one.\n", "\nExcerpt two.\n"]);
+  });
+});
+
+// M9.4 step 4 (work order §3): the search-excerpt rule is emitted only when a marked source
+// is present, so a turn with the search toggle off sends the same system contract M9.3 did.
+describe("buildMessages search-excerpt rule (M9.4)", () => {
+  // Captured from main before this rule existed, so the assertion is against a recording,
+  // not against the code under test.
+  const recorded = (lang: "en" | "bg") => (lang === "bg" ? systemContractBg : systemContractEn);
+
+  it.each(["en", "bg"] as const)("with no marked source, the %s system contract is byte-identical to the M9.3 recording", (lang) => {
+    const unmarked = [source(), source({ id: "S2", kind: "commentary", label: "MHC — John 3:16" })];
+    expect(buildMessages(unmarked, "q", lang)[0].content).toBe(recorded(lang));
+    expect(buildMessages([], "q", lang)[0].content).toBe(recorded(lang));
+  });
+
+  it("with a marked source, adds exactly one rule and otherwise leaves the contract unchanged", () => {
+    const marked = source({ id: "S2", kind: "commentary", label: "MHC — John 3:16", searchExcerpt: true });
+    const system = buildMessages([source(), marked], "q", "en")[0].content;
+    const baseline = recorded("en");
+    expect(system).not.toBe(baseline);
+    const added = system.split("\n").filter((line) => !baseline.split("\n").includes(line));
+    expect(added).toHaveLength(1);
+    expect(added[0]).toContain("'search excerpt'");
+    expect(added[0]).toContain("may begin or end mid-sentence");
+    expect(added[0]).toContain("Do not quote it as a complete statement");
+    // Every M9.3 line survives in order.
+    expect(system.split("\n").filter((line) => baseline.split("\n").includes(line))).toEqual(baseline.split("\n"));
+  });
+
+  it("marks the excerpt source's block in the user message, and only that source's", () => {
+    const marked = source({ id: "S2", kind: "commentary", label: "MHC — John 3:16", excerpt: "…rose again…", searchExcerpt: true });
+    const user = buildMessages([source(), marked], "q", "en")[1].content;
+    expect(user).toContain("[S2] Commentary · en · search excerpt · MHC — John 3:16");
+    expect(user).toContain("[S1] Bible · en · John 3:16 (WEB)");
+    expect(user.match(/search excerpt/g)).toHaveLength(1);
   });
 });
