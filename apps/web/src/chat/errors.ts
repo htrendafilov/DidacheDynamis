@@ -8,6 +8,7 @@ export type ChatErrorKind =
   | "modelUnavailable"
   | "privacyConstraint" // 404: no endpoint satisfies zdr/data_collection — COMMON, not a corner case
   | "emptyAnswer" // finish_reason "length" with no visible content (reasoning ate the budget)
+  | "expansionFailed" // the expansion call did not return usable search terms
   | "badRequest" // 400 -> the request itself was malformed; retrying it verbatim cannot help
   | "contextOverflow" // sources + question alone exceed the model's window (budget.ts)
   | "network"
@@ -33,6 +34,7 @@ const GENERIC_MESSAGE: Record<ChatErrorKind, string> = {
   modelUnavailable: "The selected model is unavailable.",
   privacyConstraint: "No endpoint satisfies the requested privacy routing.",
   emptyAnswer: "The model produced no visible answer.",
+  expansionFailed: "The model did not return usable search terms.",
   badRequest: "The request was rejected as invalid.",
   contextOverflow: "The selected context does not fit the model's context window.",
   network: "A network error occurred.",

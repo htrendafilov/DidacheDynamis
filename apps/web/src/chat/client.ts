@@ -35,6 +35,8 @@ export interface ChatRequest {
   // openrouter/free) whose metadata omits it.
   reasoningCaps: ModelReasoningCaps | null;
   signal: AbortSignal;
+  // Local transport option; never serialized. Expansion opts out of automatic retries.
+  maxRetries?: number;
 }
 
 export interface ChatStreamHandlers {
@@ -322,7 +324,7 @@ export async function streamChat(
       // Never retry authentication/payment errors, a user abort, or once content has
       // already streamed (emptyAnswer/malformedStream reach here after the fact and are
       // not in isRetryable — the composer's Retry button, not automatic retry, applies).
-      if (err.kind === "aborted" || !isRetryable(err.kind) || retries >= MAX_RETRIES) {
+      if (err.kind === "aborted" || !isRetryable(err.kind) || retries >= (req.maxRetries ?? MAX_RETRIES)) {
         throw err;
       }
       retries++;

@@ -39,6 +39,7 @@ describe("chat translations", () => {
       "modelUnavailable",
       "privacyConstraint",
       "emptyAnswer",
+      "expansionFailed",
       "badRequest",
       "contextOverflow",
       "network",
