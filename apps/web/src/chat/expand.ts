@@ -131,46 +131,64 @@ export function hitKey(hit: SearchHit): string {
   }
 }
 
-// Round-robin, not concatenation: rank r of every group of every term before rank r+1 of
-// any. Concatenating puts all of term 1's hits first, and when the cap bites, terms 3-5
-// contribute nothing — the expansion would be decorative for most of the terms shown.
-// Within one rank the API's group order (bible, commentary, dictionary, book, strongs)
-// is kept, which is what gives the merged list type diversity as well as term diversity.
+// One distinct hit per term per pass. Within each term, visit rank r of every group
+// before rank r+1, preserving the API's group order. Taking a whole rank of all groups
+// per term would spend the 16-hit cap before the fifth term got a turn.
 export function mergeHits(perTerm: { term: string; hits: SearchHit[][] }[]): RankedHit[] {
   const merged: RankedHit[] = [];
   const seen = new Set<string>();
-  const deepest = Math.max(0, ...perTerm.flatMap((t) => t.hits.map((g) => g.length)));
-  for (let rank = 0; rank < deepest && merged.length < MAX_MERGED_HITS; rank++) {
-    for (const { term, hits } of perTerm) {
+  const queues = perTerm.map(({ term, hits }) => {
+    const queue: RankedHit[] = [];
+    const deepest = Math.max(0, ...hits.map((g) => g.length));
+    for (let rank = 0; rank < deepest; rank++) {
       for (const group of hits) {
         const hit = group[rank];
-        if (!hit) continue;
-        const key = hitKey(hit);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push({ hit, term, rank });
-        if (merged.length >= MAX_MERGED_HITS) return merged;
+        if (hit) queue.push({ hit, term, rank });
       }
     }
+    return queue.values();
+  });
+  while (merged.length < MAX_MERGED_HITS) {
+    let added = false;
+    for (const queue of queues) {
+      let next = queue.next();
+      // A duplicate consumes neither a result slot nor this term's opportunity to
+      // contribute its next distinct hit before the other terms advance again.
+      while (!next.done && seen.has(hitKey(next.value.hit))) next = queue.next();
+      if (next.done) continue;
+      seen.add(hitKey(next.value.hit));
+      merged.push(next.value);
+      added = true;
+      if (merged.length >= MAX_MERGED_HITS) return merged;
+    }
+    if (!added) break;
   }
   return merged;
 }
 
 export async function searchTerms(terms: string[], signal: AbortSignal): Promise<RankedHit[]> {
   if (signal.aborted) throw new ChatError("aborted", "The request was cancelled.");
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  signal.addEventListener("abort", onAbort, { once: true });
   let responses;
   try {
     // Independent GETs against a read-only API, at most five of them. All-or-nothing: a
     // term the reader confirmed and that silently returned nothing would misrepresent
     // what was searched.
     responses = await Promise.all(
-      terms.map((term) => api.search(term, { sort: "relevance", signal })),
+      terms.map((term) => api.search(term, { sort: "relevance", signal: controller.signal })),
     );
   } catch (err) {
+    // Promise.all rejects early without cancelling its siblings. Stop those requests,
+    // but classify the original failure using the caller's signal, not our cleanup abort.
+    controller.abort();
     if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
       throw new ChatError("aborted", "The request was cancelled.");
     }
     throw new ChatError("network", "A network error occurred.");
+  } finally {
+    signal.removeEventListener("abort", onAbort);
   }
   return mergeHits(
     responses.map((r, i) => ({ term: terms[i], hits: r.groups.map((g) => g.hits) })),

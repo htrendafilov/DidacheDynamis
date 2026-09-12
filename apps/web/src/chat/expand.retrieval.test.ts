@@ -118,8 +118,8 @@ describe("mergeHits", () => {
     ]);
     expect(merged.map((m) => `${m.term}:${hitKey(m.hit)}`)).toEqual([
       "resurrection:bible:web:1Cor:15:1",
-      "resurrection:commentary:mhc:1",
       "raised:bible:web:1Cor:15:3",
+      "resurrection:commentary:mhc:1",
       "raised:commentary:mhc:2",
       "resurrection:bible:web:1Cor:15:2",
       "raised:bible:web:1Cor:15:4",
@@ -141,19 +141,43 @@ describe("mergeHits", () => {
     expect(merged).toHaveLength(2);
   });
 
-  it(`caps at ${MAX_MERGED_HITS} without starving later terms`, () => {
+  it(`caps at ${MAX_MERGED_HITS} without starving the fifth term when every group is populated`, () => {
     const many = (start: number) => Array.from({ length: 5 }, (_, i) => bible(start + i));
     const merged = mergeHits([
       { term: "a", hits: [many(1), [commentary(1, 1)], [dictionary("A")], [book("s1")], [strongsEntry("G1")]] },
       { term: "b", hits: [many(10), [commentary(2, 2)], [dictionary("B")], [book("s2")], [strongsEntry("G2")]] },
       { term: "c", hits: [many(20), [commentary(3, 3)], [dictionary("C")], [book("s3")], [strongsEntry("G3")]] },
       { term: "d", hits: [many(30), [commentary(4, 4)], [dictionary("D")], [book("s4")], [strongsEntry("G4")]] },
+      { term: "e", hits: [many(40), [commentary(5, 5)], [dictionary("E")], [book("s5")], [strongsEntry("G5")]] },
     ]);
     expect(merged).toHaveLength(MAX_MERGED_HITS);
-    // Rank 0 of all four terms across all five groups is 20 hits; the cap lands inside it,
-    // so every term contributed and at least three content types made it in.
-    expect(new Set(merged.map((m) => m.term))).toEqual(new Set(["a", "b", "c", "d"]));
+    // The old rank/term/group loop yielded [5, 5, 5, 1, 0]. Each term must get a
+    // chance to contribute before an earlier term consumes another result slot.
+    expect(["a", "b", "c", "d", "e"].map((term) => merged.filter((m) => m.term === term).length))
+      .toEqual([4, 3, 3, 3, 3]);
     expect(new Set(merged.map((m) => m.hit.kind)).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("gives a sparse later term its turn even when only its last group has hits", () => {
+    const merged = mergeHits([
+      { term: "broad", hits: [[bible(1), bible(2)], [commentary(1, 1)], [dictionary("A")], [book("s1")], []] },
+      { term: "narrow", hits: [[], [], [], [], [strongsEntry("G386")]] },
+    ]);
+    expect(merged.slice(0, 2).map((m) => m.term)).toEqual(["broad", "narrow"]);
+  });
+
+  it("skips repeated hits within a term's turn until it finds distinct evidence", () => {
+    const merged = mergeHits([
+      { term: "a", hits: [[bible(1), bible(2)]] },
+      { term: "b", hits: [[bible(1), bible(3)]] },
+      { term: "c", hits: [[bible(1), bible(3), bible(4)]] },
+    ]);
+    expect(merged.map((m) => [m.term, hitKey(m.hit), m.rank])).toEqual([
+      ["a", "bible:web:1Cor:15:1", 0],
+      ["b", "bible:web:1Cor:15:3", 1],
+      ["c", "bible:web:1Cor:15:4", 2],
+      ["a", "bible:web:1Cor:15:2", 1],
+    ]);
   });
 
   it("returns nothing for no hits", () => {
@@ -234,13 +258,16 @@ describe("mapHit — exhaustive over the six hit kinds", () => {
 });
 
 describe("searchTerms", () => {
-  it("issues one relevance-sorted multi-type search per term with the shared signal, in parallel", async () => {
+  it("issues one relevance-sorted multi-type search per term with a shared internal signal", async () => {
     const signal = new AbortController().signal;
     searchMock.mockResolvedValue(response([[bible(1)], [], [], [], []]));
     await searchTerms(["resurrection", "raised", "risen"], signal);
     expect(searchMock).toHaveBeenCalledTimes(3);
+    const internalSignal = searchMock.mock.calls[0][1]?.signal;
+    expect(internalSignal).toBeInstanceOf(AbortSignal);
+    expect(internalSignal).not.toBe(signal);
     for (const [i, term] of ["resurrection", "raised", "risen"].entries()) {
-      expect(searchMock).toHaveBeenNthCalledWith(i + 1, term, { sort: "relevance", signal });
+      expect(searchMock).toHaveBeenNthCalledWith(i + 1, term, { sort: "relevance", signal: internalSignal });
     }
     // No types filter (all groups), no limit/offset (multi-type ignores them anyway).
     expect(searchMock.mock.calls[0][1]).not.toHaveProperty("types");
@@ -254,8 +281,8 @@ describe("searchTerms", () => {
     const merged = await searchTerms(["a", "b"], new AbortController().signal);
     expect(merged.map((m) => hitKey(m.hit))).toEqual([
       "bible:web:1Cor:15:1",
-      "commentary:mhc:1",
       "bible:web:1Cor:15:2",
+      "commentary:mhc:1",
     ]);
   });
 
@@ -268,16 +295,51 @@ describe("searchTerms", () => {
 
   it("maps an abort during the fan-out to aborted, never to network or expansionFailed", async () => {
     const controller = new AbortController();
+    const cancelled: string[] = [];
     searchMock.mockImplementation(
-      (_q, opts) =>
+      (q, opts) =>
         new Promise((_, reject) => {
-          opts?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          opts?.signal?.addEventListener("abort", () => {
+            cancelled.push(q);
+            reject(new DOMException("Aborted", "AbortError"));
+          });
         }),
     );
     const pending = searchTerms(["a", "b"], controller.signal);
     const assertion = expect(pending).rejects.toMatchObject({ kind: "aborted" });
     controller.abort();
     await assertion;
+    expect(cancelled).toEqual(["a", "b"]);
+  });
+
+  it.each(["a", "b"])("cancels pending siblings when %s fails, preserving network and allowing retry", async (failedTerm) => {
+    const controller = new AbortController();
+    const cancelled: string[] = [];
+    searchMock.mockImplementation((q, opts) => {
+      if (q === failedTerm) return Promise.reject(new Error("search failed"));
+      return new Promise((_, reject) => {
+        opts?.signal?.addEventListener("abort", () => {
+          cancelled.push(q);
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    });
+    await expect(searchTerms(["a", "b", "c"], controller.signal)).rejects.toMatchObject({ kind: "network" });
+    expect(cancelled).toEqual(["a", "b", "c"].filter((term) => term !== failedTerm));
+    expect(controller.signal.aborted).toBe(false);
+
+    // Cancelling a failed batch must not cancel the caller's turn or its subsequent retry.
+    searchMock.mockResolvedValue(response([[bible(1)], [], [], [], []]));
+    await expect(searchTerms(["a", "b", "c"], controller.signal)).resolves.toHaveLength(1);
+  });
+
+  it("detaches the caller's abort listener after a successful search", async () => {
+    const controller = new AbortController();
+    searchMock.mockResolvedValue(response([[bible(1)], [], [], [], []]));
+    await searchTerms(["a"], controller.signal);
+    const internalSignal = searchMock.mock.calls[0][1]?.signal;
+    controller.abort();
+    expect(internalSignal?.aborted).toBe(false);
   });
 
   it("maps any other failure to network, exposing nothing of the underlying error", async () => {
