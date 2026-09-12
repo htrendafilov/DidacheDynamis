@@ -339,6 +339,35 @@ describe("streamChat", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
   });
 
+  it.each(["network", "rateLimit", "malformedStream"])("maxRetries: 0 disables retries for %s", async (kind) => {
+    setKey("openrouter", "sk-test");
+    if (kind === "network") fetchMock.mockRejectedValue(new TypeError("offline"));
+    else if (kind === "rateLimit") fetchMock.mockResolvedValue(jsonResponse(429, {}));
+    else fetchMock.mockResolvedValue(new Response(null));
+    await expect(streamChat(req({ maxRetries: 0 }), handlers())).rejects.toMatchObject({ kind });
+    // A failure throws ChatError, so no ChatRunMeta/retries counter is returned to inspect.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("honours a per-call retry limit without changing the default", async () => {
+    vi.useFakeTimers();
+    setKey("openrouter", "sk-test");
+    fetchMock.mockResolvedValue(jsonResponse(429, {}, { "Retry-After": "0" }));
+    const assertion = expect(streamChat(req({ maxRetries: 1 }), handlers())).rejects.toMatchObject({ kind: "rateLimit" });
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps retry configuration out of the provider request body", async () => {
+    setKey("openrouter", "sk-test");
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(sseBody("data: [DONE]\n\n"))));
+    await streamChat(req(), handlers());
+    const meta = await streamChat(req({ maxRetries: 0 }), handlers());
+    expect(fetchMock.mock.calls[0][1].body).toBe(fetchMock.mock.calls[1][1].body);
+    expect(meta.retries).toBe(0);
+  });
+
   it("lets an abort during the Retry-After backoff reject immediately, without waiting out the delay", async () => {
     vi.useFakeTimers();
     setKey("openrouter", "sk-test");

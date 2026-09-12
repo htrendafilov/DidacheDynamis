@@ -317,6 +317,7 @@
   "chat.error.privacyConstraint": "No endpoint for this model satisfies the requested privacy routing. Choose a different model, or relax privacy routing.",
   "chat.error.emptyAnswer": "The model produced no visible answer, likely because it used its whole budget on hidden reasoning. Try again with a larger answer limit or a different model.",
   "chat.error.badRequest": "The provider rejected the request as invalid. Try a different model or start a new conversation.",
+  "chat.error.expansionFailed": "The model did not return usable search terms. Try again, choose another model, or send without search.",
   "chat.error.contextOverflow": "The selected context is too large for this model's context window. Remove some context or choose a model with a larger window.",
   "chat.error.network": "A network error occurred. Check your connection and try again.",
   "chat.error.malformedStream": "The response could not be read. Try again.",
