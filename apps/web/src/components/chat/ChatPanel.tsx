@@ -148,6 +148,13 @@ export function ChatPanel({
     expansionMeta?: { usage?: ChatUsage; actualModel?: string };
   } | null>(null);
   const confirmResolverRef = useRef<((terms: string[] | null) => void) | null>(null);
+  // A turn can sit at the confirm step indefinitely while the reader changes the model,
+  // ticks chips, or edits the budget. Each stage reads these at the moment it runs, so the
+  // request reflects what the toolbar shows — never the render that started the turn.
+  const latestRef = useRef({ chips, selectedModel, privacyRouting, works, uiLang, chatPerSourceCap, chatTotalBudget, chatMaxAnswerTokens });
+  latestRef.current = { chips, selectedModel, privacyRouting, works, uiLang, chatPerSourceCap, chatTotalBudget, chatMaxAnswerTokens };
+  // Set by a pre-stream cancel; the effect below focuses the composer once it is enabled.
+  const focusComposerRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const modelPickerRef = useRef<ModelPickerHandle>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -314,21 +321,25 @@ export function ChatPanel({
     onCitationNavigate?.(paneType);
   };
 
-  // --- The turn, as a phase machine (m9.4-topical-questions.md §7, §7a) -------------------
-  //
-  // With the search toggle off the machine goes idle -> streaming in one step and the body
-  // of runAnswer() is M9.3's send() unchanged. With it on, three pre-stream phases run
-  // first — expanding, confirm, searching — during which no message row exists in React
-  // state or in Dexie, so cancelling has nothing to remove and the question simply returns
-  // to the composer.
+  // --- The turn, as a phase machine (plan/chat/m9.4-topical-questions.md §7, §7a) ----------
+  // Toggle off: idle -> streaming, and runAnswer is M9.3's send() body. Toggle on: no row
+  // exists in React or Dexie until runAnswer, so a pre-stream cancel has nothing to remove.
 
-  const cancelTurn = (question: string) => {
+  // Exactly one chain may own the phase. A stage that finds its controller is no longer
+  // abortRef.current has been superseded — by Stop, a second click, or a newer action —
+  // and must not touch state the newer chain now owns.
+  const isCurrent = (controller: AbortController) => abortRef.current === controller;
+
+  const cancelTurn = (question: string, controller?: AbortController) => {
+    if (controller && !isCurrent(controller)) return;
     abortRef.current = null;
     confirmResolverRef.current = null;
     turnRef.current = null;
     setPhase({ kind: "idle" });
     setInput(question);
-    composerRef.current?.focus();
+    // Not focused here: the textarea is still disabled until the idle render paints, and
+    // focusing a disabled field is a no-op — the effect below does it once enabled.
+    focusComposerRef.current = true;
   };
 
   const errorKindOf = (err: unknown): ChatErrorKind =>
@@ -337,10 +348,11 @@ export function ChatPanel({
   // A pre-stream failure hosts on the phase — there is no assistant row yet to attach it
   // to — with Retry and Cancel for every kind (turn.ts errorActions). An abort is the
   // reader's own Stop and is a clean cancel, not an error.
-  const failPreStream = (err: unknown, question: string, terms?: string[]) => {
+  const failPreStream = (err: unknown, question: string, controller: AbortController, terms?: string[]) => {
+    if (!isCurrent(controller)) return;
     const kind = errorKindOf(err);
     if (kind === "aborted") {
-      cancelTurn(question);
+      cancelTurn(question, controller);
       return;
     }
     abortRef.current = null;
@@ -353,7 +365,14 @@ export function ChatPanel({
     });
   };
 
+  // Starting a chain supersedes any other: the previous controller is aborted so its awaits
+  // reject and its stages bail on isCurrent, and a pending confirm waiter is resolved with
+  // null so that promise cannot hang. A second click before React re-renders therefore
+  // makes the last click win, never two live chains.
   const beginAttempt = (): AbortController => {
+    abortRef.current?.abort();
+    confirmResolverRef.current?.(null);
+    confirmResolverRef.current = null;
     const controller = new AbortController();
     abortRef.current = controller;
     return controller;
@@ -361,16 +380,20 @@ export function ChatPanel({
 
   // Stage 1: question -> proposed terms -> the reader confirms or edits them.
   const runExpansion = async (question: string, controller: AbortController) => {
-    if (!selectedModel) return;
+    const { selectedModel: model, privacyRouting: privacy, uiLang: lang } = latestRef.current;
+    if (!model) {
+      cancelTurn(question, controller);
+      return;
+    }
     setPhase({ kind: "expanding", question });
     let proposed: string[];
     let expansionMeta: { usage?: ChatUsage; actualModel?: string };
     try {
-      const result = await expandQuestion(question, selectedModel, privacyRouting, controller.signal, uiLang === "bg" ? "bg" : "en");
+      const result = await expandQuestion(question, model, privacy, controller.signal, lang === "bg" ? "bg" : "en");
       proposed = result.terms;
       expansionMeta = { usage: result.usage, actualModel: result.actualModel };
     } catch (err) {
-      failPreStream(err, question);
+      failPreStream(err, question, controller);
       return;
     }
     await awaitConfirmThenSearch(question, proposed, controller, expansionMeta);
@@ -386,14 +409,19 @@ export function ChatPanel({
     controller: AbortController,
     expansionMeta: { usage?: ChatUsage; actualModel?: string },
   ) => {
+    if (!isCurrent(controller)) return;
     const confirmed = await new Promise<string[] | null>((resolve) => {
+      // Never leave an earlier waiter dangling: it is the one promise in the turn that no
+      // fetch rejection can unwind.
+      confirmResolverRef.current?.(null);
       confirmResolverRef.current = resolve;
       controller.signal.addEventListener("abort", () => resolve(null), { once: true });
       setPhase({ kind: "confirm", question, terms: proposed });
     });
+    if (!isCurrent(controller)) return;
     confirmResolverRef.current = null;
     if (confirmed === null || controller.signal.aborted) {
-      cancelTurn(question);
+      cancelTurn(question, controller);
       return;
     }
     if (turnRef.current) turnRef.current.expansionMeta = expansionMeta;
@@ -403,19 +431,22 @@ export function ChatPanel({
   // Stage 2: confirmed terms -> hits -> context. Gated on the COMPLETE manifest (§7a):
   // chips get dropped too, so "the reader has chips" is not evidence of grounding.
   const runSearch = async (question: string, terms: string[], controller: AbortController) => {
+    if (!isCurrent(controller)) return;
     setPhase({ kind: "searching", question, terms });
     try {
       const hits = await searchTerms(terms, controller.signal);
-      const { chips: hitChips, extras } = hitsToContext(hits, works ?? []);
-      const budgetLimits = resolveContextBudget({ chatPerSourceCap, chatTotalBudget, chatMaxAnswerTokens });
+      const { chips: readerChips, works: currentWorks, privacyRouting: privacy, ...budgets } = latestRef.current;
+      const { chips: hitChips, extras } = hitsToContext(hits, currentWorks ?? []);
+      const budgetLimits = resolveContextBudget(budgets);
       const prepared = await buildContext(
-        [...chips, ...hitChips],
-        works ?? [],
-        privacyRouting,
+        [...readerChips, ...hitChips],
+        currentWorks ?? [],
+        privacy,
         controller.signal,
         budgetLimits,
         extras,
       );
+      if (!isCurrent(controller)) return;
       if (prepared.sources.length === 0) {
         abortRef.current = null;
         setPhase({ kind: "empty", question, terms, reason: emptyReason(hits.length, prepared.dropped) });
@@ -425,12 +456,12 @@ export function ChatPanel({
         prepared,
         expansion: {
           terms,
-          contributed: expansionContributed(prepared.sources, hitChips),
+          contributed: expansionContributed(prepared.sources, hitChips, extras),
           model: turnRef.current?.expansionMeta?.actualModel,
         },
       });
     } catch (err) {
-      failPreStream(err, question, terms);
+      failPreStream(err, question, controller, terms);
     }
   };
 
@@ -446,7 +477,12 @@ export function ChatPanel({
       expansion?: TurnExpansion;
     } = {},
   ) => {
-    if (!selectedModel) return;
+    if (!isCurrent(controller)) return;
+    const { selectedModel: model, chips: readerChips, works: currentWorks, privacyRouting: privacy, uiLang: lang, ...budgets } = latestRef.current;
+    if (!model) {
+      cancelTurn(question, controller);
+      return;
+    }
     const priorHistory = turnRef.current?.priorHistory ?? [];
     const expansionUsage = turnRef.current?.expansionMeta?.usage;
     const userText = question;
@@ -470,26 +506,22 @@ export function ChatPanel({
 
     let assistantText = "";
     try {
-      const budgetLimits = resolveContextBudget({
-        chatPerSourceCap,
-        chatTotalBudget,
-        chatMaxAnswerTokens,
-      });
+      const budgetLimits = resolveContextBudget(budgets);
       // Never above the model's own ceiling: a max_tokens larger than the model allows is
       // a request the provider rejects outright.
-      const answerTokens = effectiveMaxAnswerTokens(budgetLimits, selectedModel.maxCompletionTokens);
+      const answerTokens = effectiveMaxAnswerTokens(budgetLimits, model.maxCompletionTokens);
       const { sources, dropped } =
         opts.prepared ??
         (await buildContext(
-          chips,
-          works ?? [],
-          privacyRouting,
+          readerChips,
+          currentWorks ?? [],
+          privacy,
           controller.signal,
           budgetLimits,
         ));
       const manifest = buildManifest(sources);
 
-      const answerLanguage = uiLang === "bg" ? "bg" : "en";
+      const answerLanguage = lang === "bg" ? "bg" : "en";
       const [system, user] = buildMessages(sources, userText, answerLanguage);
 
       // Bound the whole request, not just its sources: the replayed conversation is
@@ -497,7 +529,7 @@ export function ChatPanel({
       const budget = planRequestBudget(priorHistory, {
         fixedTokens: estimateProseTokens(system.content) + estimateProseTokens(user.content),
         maxCompletionTokens: answerTokens,
-        contextLength: selectedModel.contextLength,
+        contextLength: model.contextLength,
       });
 
       const contextSummary = summarizeContext(
@@ -531,11 +563,11 @@ export function ChatPanel({
       const meta = await streamChat(
         {
           providerId: "openrouter",
-          model: selectedModel.id,
+          model: model.id,
           messages: requestMessages,
           maxTokens: answerTokens,
-          privacyRouting,
-          reasoningCaps: selectedModel.reasoning,
+          privacyRouting: privacy,
+          reasoningCaps: model.reasoning,
           signal: controller.signal,
         },
         {
@@ -600,9 +632,13 @@ export function ChatPanel({
       const kind = errorKindOf(err);
       setMessages((prev) => (kind === "aborted" ? prev : prev.map((m) => (m.id === assistantId ? { ...m, errorKind: kind } : m))));
     } finally {
-      setPhase({ kind: "idle" });
-      abortRef.current = null;
-      turnRef.current = null;
+      // A superseded chain's rows stay as its aborted partial; the phase belongs to the
+      // chain that superseded it.
+      if (isCurrent(controller)) {
+        setPhase({ kind: "idle" });
+        abortRef.current = null;
+        turnRef.current = null;
+      }
     }
   };
 
@@ -652,6 +688,15 @@ export function ChatPanel({
     if (phase.kind === "confirm") confirmResolverRef.current?.(null);
     else cancelTurn(phase.question);
   };
+
+  // The composer is disabled while a turn is active, so focus can only return to it after
+  // the idle render — never in the same tick as the transition.
+  useEffect(() => {
+    if (phase.kind === "idle" && focusComposerRef.current) {
+      focusComposerRef.current = false;
+      composerRef.current?.focus();
+    }
+  }, [phase.kind]);
   const confirmTerms = (terms: string[]) => confirmResolverRef.current?.(terms);
   const openPicker = () => modelPickerRef.current?.open();
 

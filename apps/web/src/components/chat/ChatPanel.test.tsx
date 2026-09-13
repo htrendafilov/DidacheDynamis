@@ -1091,6 +1091,8 @@ describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
     expect(composer().value).toBe("Къде се говори за възкресение?");
     expect(composer()).not.toBeDisabled();
+    // Focus returns to the composer — after the idle render enables it, not in the same tick.
+    await waitFor(() => expect(document.activeElement).toBe(composer()));
     expect(messageRows()).toHaveLength(0);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -1101,6 +1103,7 @@ describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
     expect(composer().value).toBe("Къде се говори за възкресение?");
+    await waitFor(() => expect(document.activeElement).toBe(composer()));
     expect(messageRows()).toHaveLength(0);
     expect(searchCalls()).toHaveLength(0);
     // A fresh mount finds no thread to restore: no user row reached Dexie.
@@ -1259,5 +1262,132 @@ describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Изпрати" }));
     await waitFor(() => expect(completionsCalls()).toHaveLength(1));
     expect(body(completionsCalls()[0]).messages[0].content).toBe(recorded);
+  });
+});
+
+// Review of #21: the machine must tolerate a second click before React re-renders, and must
+// read the model, chips and privacy setting as they are when a stage runs, not as they were
+// when the turn began.
+describe("ChatPanel phase machine — supersession and live inputs", () => {
+  const termsSse = (terms: string[]) =>
+    sseResponse(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(terms) } }] })}\n\ndata: [DONE]\n\n`);
+  const answerSse = (text: string) =>
+    sseResponse(`data: ${JSON.stringify({ model: "answerer/model", choices: [{ delta: { content: text }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
+  const searchJson = () =>
+    new Response(JSON.stringify({ query: "q", refine: null, sort: "relevance", total: 0, groups: [] }), { status: 200 });
+  const source: StudySource = {
+    id: "S1", kind: "bible", workId: "web", label: "x", canonicalTarget: { kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 },
+    language: "en", excerpt: "x", contentVersion: "v1", estimatedTokens: 1,
+  };
+  const completionsCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/chat/completions"));
+  const body = (call: unknown[]) => JSON.parse((call[1] as RequestInit).body as string);
+  const composer = () => screen.getByLabelText("Your question") as HTMLTextAreaElement;
+  const messageRows = () => document.querySelectorAll(".chat-messages > li");
+
+  function route(completions: Array<Response | ((init: RequestInit) => Promise<Response>)>) {
+    const queue = [...completions];
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
+      if (url.includes("/api/v1/search?")) return Promise.resolve(searchJson());
+      if (url.endsWith("/chat/completions")) {
+        const next = queue.shift();
+        if (!next) return Promise.reject(new Error("no more completions responses queued"));
+        return typeof next === "function" ? next(init) : Promise.resolve(next);
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+  }
+  const pendingUntilAbort = (init: RequestInit) =>
+    new Promise<Response>((_, reject) =>
+      init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))),
+    );
+
+  async function startSearchTurn(completions: Parameters<typeof route>[0], question = "q") {
+    await connectAndSelectModel();
+    route(completions);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Search the library" }));
+    fireEvent.change(composer(), { target: { value: question } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  }
+
+  it("a double-click on Retry starts one chain, not two: the first is superseded and makes no request", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    await startSearchTurn([
+      new Response(JSON.stringify({ error: { message: "x" } }), { status: 500 }), // first expansion fails
+      pendingUntilAbort, // first Retry's expansion — superseded, must be aborted
+      termsSse(["resurrection", "raised"]), // second Retry's expansion
+      answerSse("ok"),
+    ]);
+    await screen.findByRole("alert");
+    // Two native clicks inside one act(): fireEvent would flush a re-render between them,
+    // unmounting the button, and the second click would never reach React at all. This is
+    // the real double-click — both handlers see the same `error` phase closure.
+    const retry = screen.getByRole("button", { name: "Retry" });
+    await act(async () => {
+      retry.click();
+      retry.click();
+    });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    // Exactly one user/assistant pair, and the superseded chain's request was aborted rather
+    // than left to complete and race the phase.
+    expect(messageRows()).toHaveLength(2);
+    const superseded = completionsCalls()[1][1] as RequestInit;
+    expect(superseded.signal?.aborted).toBe(true);
+  });
+
+  it("a double-click on Edit terms leaves one live confirm waiter, and Cancel unwinds the turn cleanly", async () => {
+    // Guards the fixed behaviour rather than detecting the old bug: with the old code the
+    // first waiter simply never resolved, which has no finite observable consequence here.
+    // The double-Retry test above is where the same race was visible (a second request).
+    buildContextMock.mockResolvedValue({ sources: [], dropped: [] });
+    await startSearchTurn([termsSse(["resurrection", "raised"]), termsSse(["life", "death"])]);
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("region", { name: "Nothing usable was found" });
+    const edit = screen.getByRole("button", { name: "Edit terms" });
+    await act(async () => {
+      edit.click();
+      edit.click(); // same closure: a second confirm waiter installed over the first
+    });
+    const region = await screen.findByRole("region", { name: "Search terms" });
+    expect(region).toHaveTextContent("resurrection");
+    // Cancel resolves the live waiter; the superseded one was already resolved with null
+    // and must not have pulled the phase back to idle earlier or twice.
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(composer().value).toBe("q");
+    expect(messageRows()).toHaveLength(0);
+  });
+
+  it("uses the model selected at the confirm step, not the one selected when the turn began", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    await startSearchTurn([termsSse(["resurrection", "raised"]), answerSse("ok")]);
+    await screen.findByRole("region", { name: "Search terms" });
+    // Switch models while the turn waits at confirm.
+    openModelPicker();
+    await waitFor(() => expect(screen.getByRole("option", { name: /Claude Haiku 4.5/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("option", { name: /Claude Haiku 4.5/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    expect(body(completionsCalls()[0]).model).toBe("openrouter/free"); // the expansion, before the switch
+    expect(body(completionsCalls()[1]).model).toBe("anthropic/claude-haiku-4.5"); // the answer, after it
+  });
+
+  it("uses the privacy routing setting as it stands when the answering call is made", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    await startSearchTurn([termsSse(["resurrection", "raised"]), answerSse("ok")]);
+    await screen.findByRole("region", { name: "Search terms" });
+    openModelPicker();
+    const privacy = await screen.findByRole("checkbox", { name: /zero data retention/i });
+    expect(privacy).toBeChecked();
+    fireEvent.click(privacy);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    expect(body(completionsCalls()[0]).provider).toEqual({ zdr: true, data_collection: "deny" });
+    expect(body(completionsCalls()[1]).provider).toBeUndefined();
   });
 });

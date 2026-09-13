@@ -1,14 +1,8 @@
-// The M9.4 turn as an explicit phase machine (m9.4-topical-questions.md §7, §7a). Pure
-// types and helpers only; ChatPanel owns the state and the transitions.
-//
-// Why a machine and not a branch on send(): before M9.3's send() reaches buildContext it
-// has already cleared the composer, appended an empty assistant row, flipped Send to Stop,
-// and saved the user message. Every pre-stream step the search toggle adds — expansion,
-// confirm, fan-out — needs a place to show progress, host an error, and be cancelled, and
-// none of those may create rows the reader then has to see removed. So the turn carries
-// its own state, and rows are created only when the answering call starts.
+// The M9.4 turn's phase types and pure helpers (plan/chat/m9.4-topical-questions.md §7,
+// §7a). ChatPanel owns the state and the transitions.
 import type { ChatUsage } from "./client";
 import type { ChatErrorKind } from "./errors";
+import type { ExtraCandidate } from "./context";
 import type { ContextChip, DroppedSource, StudySource } from "./types";
 
 // Why the post-search manifest was empty. "noHits": the search matched nothing. "licence":
@@ -40,8 +34,6 @@ export interface TurnExpansion {
   contributed: boolean; // false when no expansion source survived buildContext
   model?: string; // the router's choice for the expansion call, when it differs
 }
-
-export const PRE_STREAM_PHASES = new Set<TurnPhase["kind"]>(["expanding", "confirm", "searching"]);
 
 export function emptyReason(hitCount: number, dropped: readonly DroppedSource[]): EmptyReason {
   if (hitCount === 0) return "noHits";
@@ -93,15 +85,23 @@ export function errorActions(kind: ChatErrorKind): ErrorAction[] {
   }
 }
 
-// Did the search put anything into the manifest? Path B sources carry searchExcerpt; Path A
-// hits became ordinary chips and are indistinguishable from the reader's own in the
-// manifest, so they are matched back to the hit chips by target. A source the reader ALSO
-// chose counts — the search did find it — which is the honest reading for a "no results
-// were used" label whose job is to flag a search that added nothing at all.
-export function expansionContributed(sources: readonly StudySource[], hitChips: readonly ContextChip[]): boolean {
+// Did the search put anything into the manifest? A surviving Path B source carries
+// searchExcerpt. Otherwise a surviving source counts when the search found the same thing:
+// a Path A hit chip with a matching target, or a Path B extra with a matching target — the
+// latter is how a snippet dropped as a duplicate of the reader's own commentary or book
+// chip still registers. Commentary matches at chapter level, the only identity a
+// StudySource carries for it. A source the reader ALSO chose counts either way — the
+// search did find it — which is the honest reading for a "no results were used" label
+// whose job is to flag a search that added nothing at all.
+export function expansionContributed(
+  sources: readonly StudySource[],
+  hitChips: readonly ContextChip[],
+  extras: readonly ExtraCandidate[] = [],
+): boolean {
   return sources.some((s) => {
     if (s.searchExcerpt) return true;
     const t = s.canonicalTarget;
+    if (extras.some((e) => JSON.stringify(e.source.canonicalTarget) === JSON.stringify(t))) return true;
     return hitChips.some((chip) => {
       switch (chip.kind) {
         case "bible":

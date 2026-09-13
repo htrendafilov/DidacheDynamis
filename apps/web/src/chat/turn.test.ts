@@ -120,8 +120,28 @@ describe("expansionContributed", () => {
     expect(expansionContributed([source({ kind: "lexicon", canonicalTarget: { kind: "lexicon", strongId: "G386" } })], hitChips)).toBe(true);
   });
 
+  it("counts a reader's commentary or book source that a Path B extra rediscovered — parallel to the bible-target match", () => {
+    const readerCommentary = source({
+      kind: "commentary",
+      workId: "mhc",
+      canonicalTarget: { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15 },
+    });
+    const extra = {
+      source: { kind: "commentary" as const, workId: "mhc", label: "", canonicalTarget: { kind: "commentary" as const, workId: "mhc", osis: "1Cor", chapter: 15 }, language: "en", excerpt: "…", estimatedTokens: 1, searchExcerpt: true as const },
+      requires: [],
+      entryIds: [7],
+    };
+    // The extra was dropped as a duplicate of the reader's chip, so only the reader's copy
+    // survives — and the search did find it.
+    expect(expansionContributed([readerCommentary], [], [extra])).toBe(true);
+    // A different chapter is not a match.
+    const other = { ...extra, source: { ...extra.source, canonicalTarget: { kind: "commentary" as const, workId: "mhc", osis: "1Cor", chapter: 16 } } };
+    expect(expansionContributed([readerCommentary], [], [other])).toBe(false);
+  });
+
   it("is false when every source is the reader's own and none matches a hit", () => {
     expect(expansionContributed([source({})], hitChips)).toBe(false); // verse 4, hit was verse 20
     expect(expansionContributed([], hitChips)).toBe(false);
+    expect(expansionContributed([source({})], [], [])).toBe(false);
   });
 });
