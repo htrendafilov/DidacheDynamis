@@ -16,6 +16,7 @@ import {
 } from "../../chat/client";
 import { planRequestBudget } from "../../chat/budget";
 import { buildContext } from "../../chat/context";
+import { expandQuestion, hitsToContext, searchTerms } from "../../chat/expand";
 import { effectiveMaxAnswerTokens, resolveContextBudget } from "../../chat/contextBudget";
 import { connectedProviders, disconnect as disconnectProvider } from "../../chat/credentials";
 import { ChatError, type ChatErrorKind } from "../../chat/errors";
@@ -33,14 +34,22 @@ import {
 } from "../../chat/history";
 import { buildMessages } from "../../chat/prompt";
 import { estimateProseTokens } from "../../chat/tokens";
-import type { ContextChip, StudySource } from "../../chat/types";
+import {
+  emptyReason,
+  expansionContributed,
+  mergeUsage,
+  type TurnExpansion,
+  type TurnPhase,
+} from "../../chat/turn";
+import type { ContextChip, DroppedSource, StudySource } from "../../chat/types";
 import { useWorks } from "../../data/hooks";
 import { useStore, type PaneSourceType } from "../../state/store";
 import { ChatDisclaimer } from "./ChatDisclaimer";
 import { ChatMessage } from "./ChatMessage";
 import { ChatSources } from "./ChatSources";
 import { ContextPicker, summarizeContext } from "./ContextPicker";
-import { initialLoggingConfirmed, ModelPicker } from "./ModelPicker";
+import { initialLoggingConfirmed, ModelPicker, type ModelPickerHandle } from "./ModelPicker";
+import { TurnPanel } from "./TurnPanel";
 
 const HISTORY_NOTICE_KEY = "bible-chat-history-notice-dismissed";
 
@@ -73,6 +82,9 @@ interface DisplayMessage {
   // never retroactively change what an old citation in THIS message resolves to.
   manifest?: SourceManifest;
   contextSummary?: string; // shown on the user message it was sent with (§5)
+  // M9.4: the confirmed terms this answer was grounded through. Metadata, never part of
+  // `text` — text is replayed to the model as history on the next turn.
+  expansion?: TurnExpansion;
 }
 
 const newMessageId = () =>
@@ -116,7 +128,11 @@ export function ChatPanel({
   const [loggingConfirmed, setLoggingConfirmedState] = useState(initialLoggingConfirmed);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
-  const [streaming, setStreaming] = useState(false);
+  const [phase, setPhase] = useState<TurnPhase>({ kind: "idle" });
+  // Session-scoped, off by default: every chip-less question silently costing two model
+  // calls is the reader's money under BYOK, and §17's "all context visible before sending"
+  // holds only if a turn's shape is something the reader chose.
+  const [searchEnabled, setSearchEnabled] = useState(false);
   const [chips, setChips] = useState<ContextChip[]>([]);
   const [privateSession, setPrivateSession] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -125,6 +141,15 @@ export function ChatPanel({
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Per-turn state that is not UI: the conversation as it stood before the turn began,
+  // and the expansion call's usage/model until the answering call's arrive to be merged.
+  const turnRef = useRef<{
+    priorHistory: ClientChatMessage[];
+    expansionMeta?: { usage?: ChatUsage; actualModel?: string };
+  } | null>(null);
+  const confirmResolverRef = useRef<((terms: string[] | null) => void) | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const modelPickerRef = useRef<ModelPickerHandle>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -155,6 +180,7 @@ export function ChatPanel({
             actualModel: run?.actualModel,
             usage: run?.usage,
             manifest: run ? buildManifest(JSON.parse(run.sourceManifestJson) as StudySource[]) : [],
+            expansion: run?.expansion,
           };
         }),
       );
@@ -238,7 +264,14 @@ export function ChatPanel({
     setLoggingConfirmedState(false);
   };
 
-  const canSend = connected && selectedModel !== null && input.trim().length > 0 && !streaming;
+  // Two flags with different jobs (§7 [R3]). `turnActive` is any turn in any phase and
+  // guards everything that must not run mid-turn — sending, the composer, and both
+  // history-clearing actions, whose closure hazard is explained at the menu below.
+  // `streaming` is the answering call specifically: Stop during it keeps the partial answer.
+  const turnActive = phase.kind !== "idle";
+  const streaming = phase.kind === "streaming";
+  const showStop = phase.kind === "expanding" || phase.kind === "searching" || streaming;
+  const canSend = connected && selectedModel !== null && input.trim().length > 0 && !turnActive;
 
   const navigateToSource = (source: StudySource) => {
     const intent = navigationIntent(source);
@@ -281,29 +314,151 @@ export function ChatPanel({
     onCitationNavigate?.(paneType);
   };
 
-  const send = async () => {
-    if (!canSend || !selectedModel) return;
+  // --- The turn, as a phase machine (m9.4-topical-questions.md §7, §7a) -------------------
+  //
+  // With the search toggle off the machine goes idle -> streaming in one step and the body
+  // of runAnswer() is M9.3's send() unchanged. With it on, three pre-stream phases run
+  // first — expanding, confirm, searching — during which no message row exists in React
+  // state or in Dexie, so cancelling has nothing to remove and the question simply returns
+  // to the composer.
+
+  const cancelTurn = (question: string) => {
+    abortRef.current = null;
+    confirmResolverRef.current = null;
+    turnRef.current = null;
+    setPhase({ kind: "idle" });
+    setInput(question);
+    composerRef.current?.focus();
+  };
+
+  const errorKindOf = (err: unknown): ChatErrorKind =>
+    err instanceof ChatError ? err.kind : err instanceof DOMException && err.name === "AbortError" ? "aborted" : "network";
+
+  // A pre-stream failure hosts on the phase — there is no assistant row yet to attach it
+  // to — with Retry and Cancel for every kind (turn.ts errorActions). An abort is the
+  // reader's own Stop and is a clean cancel, not an error.
+  const failPreStream = (err: unknown, question: string, terms?: string[]) => {
+    const kind = errorKindOf(err);
+    if (kind === "aborted") {
+      cancelTurn(question);
+      return;
+    }
+    abortRef.current = null;
+    setPhase({
+      kind: "error",
+      question,
+      error: kind,
+      terms,
+      retryAfterSeconds: err instanceof ChatError ? err.retryAfterSeconds : undefined,
+    });
+  };
+
+  const beginAttempt = (): AbortController => {
     const controller = new AbortController();
     abortRef.current = controller;
+    return controller;
+  };
 
-    const userText = input.trim();
-    setInput("");
-    // Strip citation markers before replaying prior turns: StudySource ids are reassigned
-    // fresh every turn, so a prior [S1] means nothing about the current manifest's S1, and
-    // a model that reuses it would have that reused id resolve to real but unrelated
-    // content — citations.ts's resolve() only guards against an id outside the manifest,
-    // not a misattribution to a real one that happens to share a stale id.
-    const priorHistory: ClientChatMessage[] = messages
-      .filter((m) => !m.errorKind && m.text.trim().length > 0)
-      .map((m) => ({ role: m.role, content: stripCitationMarkers(m.text) }));
+  // Stage 1: question -> proposed terms -> the reader confirms or edits them.
+  const runExpansion = async (question: string, controller: AbortController) => {
+    if (!selectedModel) return;
+    setPhase({ kind: "expanding", question });
+    let proposed: string[];
+    let expansionMeta: { usage?: ChatUsage; actualModel?: string };
+    try {
+      const result = await expandQuestion(question, selectedModel, privacyRouting, controller.signal, uiLang === "bg" ? "bg" : "en");
+      proposed = result.terms;
+      expansionMeta = { usage: result.usage, actualModel: result.actualModel };
+    } catch (err) {
+      failPreStream(err, question);
+      return;
+    }
+    await awaitConfirmThenSearch(question, proposed, controller, expansionMeta);
+  };
+
+  // The confirm wait is a promise the phase resolves: Search resolves it with the edited
+  // terms, Cancel/Escape with null, and the turn's abort with null — so nothing in this
+  // path can hang, which a bare `await` in the middle of send() could (abort() rejects
+  // fetches, not arbitrary promises).
+  const awaitConfirmThenSearch = async (
+    question: string,
+    proposed: string[],
+    controller: AbortController,
+    expansionMeta: { usage?: ChatUsage; actualModel?: string },
+  ) => {
+    const confirmed = await new Promise<string[] | null>((resolve) => {
+      confirmResolverRef.current = resolve;
+      controller.signal.addEventListener("abort", () => resolve(null), { once: true });
+      setPhase({ kind: "confirm", question, terms: proposed });
+    });
+    confirmResolverRef.current = null;
+    if (confirmed === null || controller.signal.aborted) {
+      cancelTurn(question);
+      return;
+    }
+    if (turnRef.current) turnRef.current.expansionMeta = expansionMeta;
+    await runSearch(question, confirmed, controller);
+  };
+
+  // Stage 2: confirmed terms -> hits -> context. Gated on the COMPLETE manifest (§7a):
+  // chips get dropped too, so "the reader has chips" is not evidence of grounding.
+  const runSearch = async (question: string, terms: string[], controller: AbortController) => {
+    setPhase({ kind: "searching", question, terms });
+    try {
+      const hits = await searchTerms(terms, controller.signal);
+      const { chips: hitChips, extras } = hitsToContext(hits, works ?? []);
+      const budgetLimits = resolveContextBudget({ chatPerSourceCap, chatTotalBudget, chatMaxAnswerTokens });
+      const prepared = await buildContext(
+        [...chips, ...hitChips],
+        works ?? [],
+        privacyRouting,
+        controller.signal,
+        budgetLimits,
+        extras,
+      );
+      if (prepared.sources.length === 0) {
+        abortRef.current = null;
+        setPhase({ kind: "empty", question, terms, reason: emptyReason(hits.length, prepared.dropped) });
+        return;
+      }
+      await runAnswer(question, controller, {
+        prepared,
+        expansion: {
+          terms,
+          contributed: expansionContributed(prepared.sources, hitChips),
+          model: turnRef.current?.expansionMeta?.actualModel,
+        },
+      });
+    } catch (err) {
+      failPreStream(err, question, terms);
+    }
+  };
+
+  // Stage 3 — the answering call. This is M9.3's send() body: rows are created here, the
+  // user message is saved here, and everything after buildContext is unchanged. `prepared`
+  // is supplied by the search path, which already ran buildContext for the §7a gate; the
+  // toggle-off path builds it here exactly as before.
+  const runAnswer = async (
+    question: string,
+    controller: AbortController,
+    opts: {
+      prepared?: { sources: StudySource[]; dropped: DroppedSource[] };
+      expansion?: TurnExpansion;
+    } = {},
+  ) => {
+    if (!selectedModel) return;
+    const priorHistory = turnRef.current?.priorHistory ?? [];
+    const expansionUsage = turnRef.current?.expansionMeta?.usage;
+    const userText = question;
+
     const userId = newMessageId();
     const assistantId = newMessageId();
+    setPhase({ kind: "streaming", question });
     setMessages((prev) => [
       ...prev,
       { id: userId, role: "user", text: userText },
-      { id: assistantId, role: "assistant", text: "" },
+      { id: assistantId, role: "assistant", text: "", expansion: opts.expansion },
     ]);
-    setStreaming(true);
 
     let currentThreadId = threadId;
     const userCreatedAt = Date.now();
@@ -323,13 +478,15 @@ export function ChatPanel({
       // Never above the model's own ceiling: a max_tokens larger than the model allows is
       // a request the provider rejects outright.
       const answerTokens = effectiveMaxAnswerTokens(budgetLimits, selectedModel.maxCompletionTokens);
-      const { sources, dropped } = await buildContext(
-        chips,
-        works ?? [],
-        privacyRouting,
-        controller.signal,
-        budgetLimits,
-      );
+      const { sources, dropped } =
+        opts.prepared ??
+        (await buildContext(
+          chips,
+          works ?? [],
+          privacyRouting,
+          controller.signal,
+          budgetLimits,
+        ));
       const manifest = buildManifest(sources);
 
       const answerLanguage = uiLang === "bg" ? "bg" : "en";
@@ -395,7 +552,9 @@ export function ChatPanel({
                   ? {
                       ...m,
                       actualModel: partial.actualModel ?? m.actualModel,
-                      usage: partial.usage ?? m.usage,
+                      // Summed with the expansion call's usage, never replaced by it: the
+                      // reader sees one answer and must be shown everything it cost.
+                      usage: partial.usage ? mergeUsage(expansionUsage, partial.usage) : m.usage,
                     }
                   : m,
               ),
@@ -403,6 +562,7 @@ export function ChatPanel({
           },
         },
       );
+      const usage = mergeUsage(expansionUsage, meta.usage ?? undefined);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
@@ -411,7 +571,7 @@ export function ChatPanel({
                 incomplete: meta.incomplete,
                 finishReason: meta.finishReason,
                 actualModel: meta.actualModel ?? m.actualModel,
-                usage: meta.usage ?? m.usage,
+                usage: usage ?? m.usage,
                 manifest,
               }
             : m,
@@ -431,18 +591,69 @@ export function ChatPanel({
           sourceManifestJson: serializeManifest(sources),
           contentVersion: sources[0]?.contentVersion ?? "unknown",
           actualModel: meta.actualModel ?? undefined,
-          usage: meta.usage ?? undefined,
+          usage,
           finishReason: meta.finishReason,
+          expansion: opts.expansion,
         });
       }
     } catch (err) {
-      const kind = err instanceof ChatError ? err.kind : err instanceof DOMException && err.name === "AbortError" ? "aborted" : "network";
+      const kind = errorKindOf(err);
       setMessages((prev) => (kind === "aborted" ? prev : prev.map((m) => (m.id === assistantId ? { ...m, errorKind: kind } : m))));
     } finally {
-      setStreaming(false);
+      setPhase({ kind: "idle" });
       abortRef.current = null;
+      turnRef.current = null;
     }
   };
+
+  const send = async () => {
+    if (!canSend || !selectedModel) return;
+    const question = input.trim();
+    setInput("");
+    // Strip citation markers before replaying prior turns: StudySource ids are reassigned
+    // fresh every turn, so a prior [S1] means nothing about the current manifest's S1, and
+    // a model that reuses it would have that reused id resolve to real but unrelated
+    // content — citations.ts's resolve() only guards against an id outside the manifest,
+    // not a misattribution to a real one that happens to share a stale id.
+    //
+    // Captured once here, before any row for this turn exists, and carried in turnRef for
+    // every stage and retry: recomputed later it would include the in-flight question.
+    const priorHistory: ClientChatMessage[] = messages
+      .filter((m) => !m.errorKind && m.text.trim().length > 0)
+      .map((m) => ({ role: m.role, content: stripCitationMarkers(m.text) }));
+    turnRef.current = { priorHistory };
+    const controller = beginAttempt();
+    if (searchEnabled) await runExpansion(question, controller);
+    else await runAnswer(question, controller);
+  };
+
+  // Panel actions. Each reads the question from the phase, never from the composer, which
+  // was cleared at send.
+  const retry = () => {
+    if (phase.kind !== "error" && phase.kind !== "empty") return;
+    const controller = beginAttempt();
+    if (phase.kind === "error" && phase.terms) void runSearch(phase.question, phase.terms, controller);
+    else void runExpansion(phase.question, controller);
+  };
+  const editTerms = () => {
+    if (phase.kind !== "empty") return;
+    const controller = beginAttempt();
+    void awaitConfirmThenSearch(phase.question, phase.terms, controller, turnRef.current?.expansionMeta ?? {});
+  };
+  // One-shot: the ordinary M9.3 turn over the reader's own chips, with no search and no
+  // §7a gate — a deliberately chosen ungrounded turn if there are no chips. Leaves the
+  // session toggle where the reader set it.
+  const sendWithoutSearch = () => {
+    if (phase.kind !== "error" && phase.kind !== "empty") return;
+    void runAnswer(phase.question, beginAttempt());
+  };
+  const cancel = () => {
+    if (phase.kind === "idle" || phase.kind === "streaming") return;
+    if (phase.kind === "confirm") confirmResolverRef.current?.(null);
+    else cancelTurn(phase.question);
+  };
+  const confirmTerms = (terms: string[]) => confirmResolverRef.current?.(terms);
+  const openPicker = () => modelPickerRef.current?.open();
 
   const stop = () => abortRef.current?.abort();
 
@@ -475,6 +686,13 @@ export function ChatPanel({
               <span className="chat-message-text">{m.text}</span>
             )}
             {m.contextSummary && <p className="chat-context-summary">{m.contextSummary}</p>}
+            {m.role === "assistant" && m.expansion && (
+              <p className="chat-expansion-terms">
+                {t(m.expansion.contributed ? "chat.expansion.termsRow" : "chat.expansion.termsRowNoContribution", {
+                  terms: m.expansion.terms.join(", "),
+                })}
+              </p>
+            )}
             {m.incomplete && (
               <span className="chat-message-flag">
                 {m.finishReason === "length" ? t("chat.truncatedByAnswerLimit") : t("chat.incomplete")}
@@ -536,17 +754,29 @@ export function ChatPanel({
           void send();
         }}
       >
+        <TurnPanel
+          phase={phase}
+          onConfirm={confirmTerms}
+          onCancel={cancel}
+          onRetry={retry}
+          onEditTerms={editTerms}
+          onSwitchModel={openPicker}
+          onOpenSettings={openPicker}
+          onSendWithoutSearch={sendWithoutSearch}
+        />
         <label className="sr-only" htmlFor={composerId}>
           {t("chat.composer.label")}
         </label>
         <textarea
           id={composerId}
+          ref={composerRef}
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          disabled={!connected || streaming}
+          disabled={!connected || turnActive}
         />
         <div className="chat-composer-toolbar">
           <ModelPicker
+            ref={modelPickerRef}
             connected={connected}
             onConnected={() => setConnected(true)}
             onDisconnect={disconnect}
@@ -557,6 +787,15 @@ export function ChatPanel({
             loggingConfirmed={loggingConfirmed}
             onLoggingConfirmedChange={setLoggingConfirmedState}
           />
+          <label className="chat-search-toggle" title={t("chat.expansion.toggleHelp")}>
+            <input
+              type="checkbox"
+              checked={searchEnabled}
+              onChange={(event) => setSearchEnabled(event.target.checked)}
+              disabled={!connected || selectedModel === null || turnActive}
+            />
+            {t("chat.expansion.toggle")}
+          </label>
           {/* Answer-language control (follow UI / English / Bulgarian) is out of scope for
               this refit (plan/chat/m9.3b-chat-layout.md, "Out of scope") — this is its slot. */}
           <div className="chat-overflow-menu" onKeyDown={onMenuKeyDown}>
@@ -588,11 +827,13 @@ export function ChatPanel({
                   />
                   {t("chat.history.privateSession")}
                 </label>
-                {/* Disabled while streaming: send()'s in-flight closure still has
-                    currentThreadId captured and, after the turn finishes, saves the
-                    assistant message/run under it regardless of what happens elsewhere —
-                    clearing that thread mid-turn would leave those writes to resurrect it
-                    as orphaned data, visible in a later Export JSON. */}
+                {/* Disabled while a turn is active in ANY phase, not only while streaming:
+                    the turn's closure holds currentThreadId and priorHistory and, when it
+                    finishes, saves the assistant message/run under that thread regardless
+                    of what happened elsewhere — clearing mid-turn would leave those writes
+                    to resurrect it as orphaned data, visible in a later Export JSON, and
+                    to replay messages the reader believes are gone. A confirm step is a
+                    turn in flight. */}
                 <button
                   type="button"
                   role="menuitem"
@@ -600,7 +841,7 @@ export function ChatPanel({
                     closeMenu();
                     void clearThisThread();
                   }}
-                  disabled={messages.length === 0 || streaming}
+                  disabled={messages.length === 0 || turnActive}
                 >
                   {t("chat.history.clearThread")}
                 </button>
@@ -611,7 +852,7 @@ export function ChatPanel({
                     closeMenu();
                     void clearAllHistoryAndReset();
                   }}
-                  disabled={streaming}
+                  disabled={turnActive}
                 >
                   {t("chat.history.clearAll")}
                 </button>
@@ -628,15 +869,15 @@ export function ChatPanel({
               </div>
             )}
           </div>
-          {streaming ? (
+          {showStop ? (
             <button type="button" onClick={stop}>
               {t("chat.stop")}
             </button>
-          ) : (
+          ) : phase.kind === "idle" ? (
             <button type="submit" disabled={!canSend}>
               {t("chat.send")}
             </button>
-          )}
+          ) : null}
         </div>
       </form>
     </div>

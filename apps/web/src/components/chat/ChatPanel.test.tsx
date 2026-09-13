@@ -945,3 +945,319 @@ describe("ChatPanel layout refit (M9.3b)", () => {
     expect(screen.queryByLabelText("OpenRouter API key")).not.toBeInTheDocument();
   });
 });
+
+// M9.4 §7/§7a — the turn as a phase machine. fetch is routed by URL: the expansion and the
+// answer are both /chat/completions POSTs (in that order), /api/v1/search is the real
+// api.search hitting the mocked fetch, and buildContext stays mocked as elsewhere in this
+// file so the manifest is whatever a test says it is.
+describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
+  const termsSse = (terms: string[], usage: Record<string, number> = {}) =>
+    sseResponse(
+      `data: ${JSON.stringify({ model: "expander/model", choices: [{ delta: { content: JSON.stringify(terms) } }], usage })}\n\n` +
+        "data: [DONE]\n\n",
+    );
+  const answerSse = (text: string, usage: Record<string, number> = {}) =>
+    sseResponse(
+      `data: ${JSON.stringify({ model: "answerer/model", choices: [{ delta: { content: text }, finish_reason: "stop" }], usage })}\n\n` +
+        "data: [DONE]\n\n",
+    );
+  const searchJson = (hits: unknown[] = []) =>
+    new Response(
+      JSON.stringify({
+        query: "q", refine: null, sort: "relevance", total: hits.length,
+        groups: [{ type: "bible", total: hits.length, offset: 0, limit: 5, has_more: false, hits }],
+      }),
+      { status: 200 },
+    );
+  const bibleHit = { kind: "bible", work_id: "web", title: "1 Cor 15:20", snippet: "…", osis: "1Cor", chapter: 15, verse: 20, ref: "1Cor.15.20" };
+  const source: StudySource = {
+    id: "S1", kind: "bible", workId: "web", label: "1 Cor 15:20 (WEB)",
+    canonicalTarget: { kind: "bible", workId: "web", osis: "1Cor", chapter: 15, verse: 20 },
+    language: "en", excerpt: "20 But now Christ has been raised from the dead.", contentVersion: "v1", estimatedTokens: 12,
+  };
+
+  // Route every request after connect. `completions` is consumed in order.
+  type Responder = Response | ((init: RequestInit) => Response | Promise<Response>);
+  function route(opts: { completions: Responder[]; search?: () => Response }) {
+    const queue = [...opts.completions];
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
+      if (url.includes("/api/v1/search?")) return Promise.resolve((opts.search ?? (() => searchJson([bibleHit])))());
+      if (url.endsWith("/chat/completions")) {
+        const next = queue.shift();
+        if (!next) return Promise.reject(new Error("no more completions responses queued"));
+        return Promise.resolve(typeof next === "function" ? next(init) : next);
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+  }
+  const completionsCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/chat/completions"));
+  const searchCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).includes("/api/v1/search?"));
+  const body = (call: unknown[]) => JSON.parse((call[1] as RequestInit).body as string);
+  const composer = () => screen.getByLabelText("Your question") as HTMLTextAreaElement;
+  const toggle = () => screen.getByRole("checkbox", { name: "Search the library" });
+  const messageRows = () => document.querySelectorAll(".chat-messages > li");
+
+  async function setUp(routing: Parameters<typeof route>[0], { search = true } = {}) {
+    await connectAndSelectModel();
+    route(routing);
+    if (search) fireEvent.click(toggle());
+    fireEvent.change(composer(), { target: { value: "Къде се говори за възкресение?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  }
+
+  it("the toggle is off by default, and with it off a turn is one POST and no search — M9.3's turn", async () => {
+    await connectAndSelectModel();
+    expect(toggle()).not.toBeChecked();
+    route({ completions: [answerSse("Отговор")] });
+    fireEvent.change(composer(), { target: { value: "Обясни Йоан 3:16" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("Отговор")).toBeInTheDocument());
+    expect(completionsCalls()).toHaveLength(1);
+    expect(searchCalls()).toHaveLength(0);
+    expect(body(completionsCalls()[0]).max_tokens).not.toBe(200);
+    expect(buildContextMock.mock.calls[0]).toHaveLength(5); // no extras argument on the M9.3 path
+    expect(screen.queryByText(/Searched \(English\)/)).not.toBeInTheDocument();
+  });
+
+  it("runs expansion → confirm → search → answer, with the terms shown and both calls' usage summed", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    await setUp({
+      completions: [
+        termsSse(["resurrection", "raised"], { prompt_tokens: 40, completion_tokens: 10, total_tokens: 50 }),
+        answerSse("Христос възкръсна [S1].", { prompt_tokens: 900, completion_tokens: 100, total_tokens: 1000 }),
+      ],
+    });
+
+    // Expansion: Stop is the only control, no rows yet, the composer is cleared.
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(messageRows()).toHaveLength(0);
+    expect(composer().value).toBe("");
+
+    // Confirm: the proposed terms, neither Send nor Stop, and the history guards hold.
+    const region = await screen.findByRole("region", { name: "Search terms" });
+    expect(region).toHaveTextContent("resurrection");
+    expect(region).toHaveTextContent("raised");
+    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    expect(messageRows()).toHaveLength(0);
+    expect(composer()).toBeDisabled();
+    openOverflowMenu();
+    expect(screen.getByRole("menuitem", { name: "Clear all history" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Clear all history" }), { key: "Escape" });
+
+    // The expansion request carried the question as data, no sources, and no retries.
+    const expansion = body(completionsCalls()[0]);
+    expect(expansion.max_tokens).toBe(200);
+    expect(expansion.messages[1].content).toBe(JSON.stringify({ question: "Къде се говори за възкресение?" }));
+    expect(expansion).not.toHaveProperty("maxRetries");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove raised" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    // One search per confirmed term — the removed one is not searched.
+    await waitFor(() => expect(searchCalls()).toHaveLength(1));
+    expect(String(searchCalls()[0][0])).toContain("q=resurrection");
+
+    // buildContext received the hit as a chip plus the extras argument.
+    await waitFor(() => expect(buildContextMock).toHaveBeenCalled());
+    const [chipsArg, , , , , extrasArg] = buildContextMock.mock.calls[0];
+    expect(chipsArg).toEqual(expect.arrayContaining([{ kind: "bible", workId: "web", osis: "1Cor", chapter: 15, verses: "20" }]));
+    expect(extrasArg).toEqual([]);
+
+    await waitFor(() => expect(screen.getByText(/Христос възкръсна/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(messageRows()).toHaveLength(2);
+    expect(screen.getByText("Searched (English): resurrection")).toBeInTheDocument();
+    // 50 + 1000, not 1000: the reader is shown everything the turn cost.
+    expect(screen.getAllByText(/1,050 tokens|1050 tokens/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/1,000 tokens|1000 tokens/)).not.toBeInTheDocument();
+    // The answering call's model is what is reported.
+    expect(screen.getAllByText(/answerer\/model/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/expander\/model/)).not.toBeInTheDocument();
+    // The toggle is a session setting and stays on.
+    expect(toggle()).toBeChecked();
+  });
+
+  it("Stop during expansion is a clean cancel: no rows, the question back in the composer, Send restored", async () => {
+    // Pending until aborted, then rejects the way real fetch does.
+    const pending = (init: RequestInit) =>
+      new Promise<Response>((_, reject) =>
+        init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))),
+      );
+    await setUp({ completions: [pending] });
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(composer().value).toBe("Къде се говори за възкресение?");
+    expect(composer()).not.toBeDisabled();
+    expect(messageRows()).toHaveLength(0);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("Cancel at the confirm step is a clean cancel and nothing was saved", async () => {
+    await setUp({ completions: [termsSse(["resurrection", "raised"])] });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(composer().value).toBe("Къде се говори за възкресение?");
+    expect(messageRows()).toHaveLength(0);
+    expect(searchCalls()).toHaveLength(0);
+    // A fresh mount finds no thread to restore: no user row reached Dexie.
+    document.body.innerHTML = "";
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(document.querySelector(".chat-model-chip")).toBeInTheDocument());
+    expect(messageRows()).toHaveLength(0);
+  });
+
+  it("Escape at the confirm step cancels the step only; the drawer stays open", async () => {
+    const onClose = vi.fn();
+    render(
+      <ChatDrawer open fullscreen={false} width={420} onWidthChange={() => {}} onClose={onClose}>
+        <ChatPanel onClose={onClose} />
+      </ChatDrawer>,
+    );
+    openModelPicker();
+    await waitFor(() => expect(screen.getByRole("option", { name: /Free Models Router/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox", { name: /eligible OpenRouter account/i }));
+    fireEvent.change(screen.getByLabelText("OpenRouter API key"), { target: { value: SENTINEL_KEY } });
+    fetchMock.mockImplementationOnce(() => Promise.resolve(keyInfoResponse()));
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() => expect(screen.getByText("Connected to OpenRouter.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("option", { name: /Free Models Router/ }));
+    route({ completions: [termsSse(["resurrection", "raised"])] });
+    fireEvent.click(toggle());
+    fireEvent.change(composer(), { target: { value: "q" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const region = await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.keyDown(region, { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(composer().value).toBe("q");
+  });
+
+  it("a model that returns prose fails as expansionFailed on the panel; send-without-search completes a normal turn and leaves the toggle on", async () => {
+    buildContextMock.mockResolvedValue({ sources: [], dropped: [] });
+    await setUp({
+      completions: [
+        sseResponse('data: {"choices":[{"delta":{"content":"Here are some terms: resurrection, raised"}}]}\n\ndata: [DONE]\n\n'),
+        answerSse("Отговор без търсене"),
+      ],
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/did not return usable search terms/);
+    expect(messageRows()).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch model" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send without search" }));
+    await waitFor(() => expect(screen.getByText("Отговор без търсене")).toBeInTheDocument());
+    expect(searchCalls()).toHaveLength(0);
+    expect(completionsCalls()).toHaveLength(2);
+    expect(body(completionsCalls()[1]).max_tokens).not.toBe(200);
+    expect(messageRows()).toHaveLength(2);
+    expect(screen.queryByText(/Searched \(English\)/)).not.toBeInTheDocument();
+    expect(toggle()).toBeChecked();
+  });
+
+  it("an auth failure during expansion offers Open settings, Retry and Cancel; Cancel restores the question", async () => {
+    await setUp({ completions: [new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 })] });
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Open settings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send without search" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // the model/key popover opened
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(composer().value).toBe("Къде се говори за възкресение?");
+    expect(messageRows()).toHaveLength(0);
+  });
+
+  it("Retry after a search-stage failure re-searches the confirmed terms without re-confirming or re-expanding", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    let searchAttempts = 0;
+    await setUp({
+      completions: [termsSse(["resurrection", "raised"]), answerSse("ok")],
+      search: () => {
+        searchAttempts++;
+        if (searchAttempts <= 2) return new Response("boom", { status: 500 }); // both terms fail on the first pass
+        return searchJson([bibleHit]);
+      },
+    });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/network error/);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
+    expect(completionsCalls()).toHaveLength(2); // one expansion, one answer — no re-expansion
+    expect(screen.queryByRole("region", { name: "Search terms" })).not.toBeInTheDocument();
+  });
+
+  it("an empty complete manifest enters the empty state with no answering call; send-without-search then reaches the model", async () => {
+    buildContextMock.mockResolvedValue({ sources: [], dropped: [{ label: "x", kind: "bible", reason: "licence" }] });
+    await setUp({ completions: [termsSse(["resurrection", "raised"]), answerSse("Отговор")] });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    const region = await screen.findByRole("region", { name: "Nothing usable was found" });
+    expect(region).toHaveTextContent(/none may be sent/);
+    expect(region).toHaveTextContent("Terms tried: resurrection, raised");
+    expect(completionsCalls()).toHaveLength(1); // the expansion only
+    expect(messageRows()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send without search" }));
+    await waitFor(() => expect(screen.getByText("Отговор")).toBeInTheDocument());
+    expect(completionsCalls()).toHaveLength(2);
+    expect(body(completionsCalls()[1]).messages.at(-1).content).toContain("No sources were supplied");
+  });
+
+  it("an empty manifest where the search matched nothing says so, and Edit terms returns to the confirm step", async () => {
+    buildContextMock.mockResolvedValue({ sources: [], dropped: [] });
+    await setUp({ completions: [termsSse(["zzz", "yyy"])], search: () => searchJson([]) });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    const region = await screen.findByRole("region", { name: "Nothing usable was found" });
+    expect(region).toHaveTextContent(/No content matched/);
+    fireEvent.click(screen.getByRole("button", { name: "Edit terms" }));
+    const confirm = await screen.findByRole("region", { name: "Search terms" });
+    expect(confirm).toHaveTextContent("zzz");
+    expect(completionsCalls()).toHaveLength(1);
+  });
+
+  it("replays only the conversation as it stood before the turn — the in-flight question is not sent twice", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    await connectAndSelectModel();
+    route({ completions: [answerSse("първи отговор"), termsSse(["resurrection", "raised"]), answerSse("втори")] });
+    fireEvent.change(composer(), { target: { value: "първи въпрос" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByText("първи отговор")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+
+    fireEvent.click(toggle());
+    fireEvent.change(composer(), { target: { value: "втори въпрос" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText("втори")).toBeInTheDocument());
+
+    const answer = body(completionsCalls()[2]).messages as { role: string; content: string }[];
+    expect(answer.map((m) => m.role)).toEqual(["system", "user", "assistant", "user"]);
+    expect(answer[1].content).toBe("първи въпрос");
+    expect(answer[2].content).toBe("първи отговор");
+    expect(answer[3].content).toContain("втори въпрос");
+    expect(JSON.stringify(answer).match(/втори въпрос/g)).toHaveLength(1);
+  });
+
+  it("the toggle-off system message is byte-identical to the M9.3 recording", async () => {
+    const { default: recorded } = await import("../../chat/__fixtures__/system-contract.m9.3.bg.txt?raw");
+    await connectAndSelectModel();
+    route({ completions: [answerSse("x")] });
+    await i18n.changeLanguage("bg");
+    fireEvent.change(screen.getByLabelText("Вашият въпрос"), { target: { value: "q" } });
+    fireEvent.click(screen.getByRole("button", { name: "Изпрати" }));
+    await waitFor(() => expect(completionsCalls()).toHaveLength(1));
+    expect(body(completionsCalls()[0]).messages[0].content).toBe(recorded);
+  });
+});

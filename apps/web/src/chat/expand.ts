@@ -20,6 +20,17 @@ function expansionFailed(): ChatError {
   return new ChatError("expansionFailed", "The model did not return usable search terms.");
 }
 
+// One term's rule, shared with the confirm panel's hand-typed terms: a term the reader
+// adds is no more trusted than one the model produced. Returns the trimmed term or null.
+export const MAX_TERMS = 5;
+export function validateTerm(entry: string): string | null {
+  const term = entry.trim();
+  if (term.length < 2 || term.length > 40 || !/^[a-z0-9 '-]+$/i.test(term) || !/[a-z0-9]/i.test(term)) {
+    return null;
+  }
+  return term;
+}
+
 export function parseExpansionTerms(output: string): string[] {
   const text = output.trim();
   // Unwrap one complete fence only. Nested fences or surrounding prose still fail JSON.
@@ -30,16 +41,14 @@ export function parseExpansionTerms(output: string): string[] {
   } catch {
     throw expansionFailed();
   }
-  if (!Array.isArray(value) || value.length < 2 || value.length > 5) throw expansionFailed();
+  if (!Array.isArray(value) || value.length < 2 || value.length > MAX_TERMS) throw expansionFailed();
 
   const terms: string[] = [];
   const seen = new Set<string>();
   for (const entry of value) {
     if (typeof entry !== "string") throw expansionFailed();
-    const term = entry.trim();
-    if (term.length < 2 || term.length > 40 || !/^[a-z0-9 '-]+$/i.test(term) || !/[a-z0-9]/i.test(term)) {
-      throw expansionFailed();
-    }
+    const term = validateTerm(entry);
+    if (term === null) throw expansionFailed();
     // ASCII English terms make lowercase equivalent to casefold. Keep the first spelling.
     // Apostrophes and hyphens deliberately remain: FTS splits them at index/query time.
     const key = term.toLowerCase();
