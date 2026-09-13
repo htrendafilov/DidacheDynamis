@@ -432,6 +432,7 @@ export const api = {
       sort?: SearchSort;
       limit?: number;
       offset?: number;
+      signal?: AbortSignal;
     } = {},
   ) => {
     const params = new URLSearchParams({ q });
@@ -447,6 +448,6 @@ export const api = {
     if (opts.sort) params.set("sort", opts.sort);
     if (opts.limit != null) params.set("limit", String(opts.limit));
     if (opts.offset != null) params.set("offset", String(opts.offset));
-    return get<SearchResponse>(`/search?${params.toString()}`);
+    return get<SearchResponse>(`/search?${params.toString()}`, { signal: opts.signal });
   },
 };
