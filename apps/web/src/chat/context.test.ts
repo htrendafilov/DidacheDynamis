@@ -740,5 +740,16 @@ describe("buildContext extraCandidates (M9.4)", () => {
       ]);
       expect(dropped).toEqual([expect.objectContaining({ reason: "budget", label: "MHC — 1Cor 15:20" })]);
     });
+
+    it("a retained fallback shadows a later ordinary duplicate of its entry, so the entry never takes two slots (second review of #22)", async () => {
+      mhcEntries([1, 1, 11], [2, 12, 19]);
+      const later = extra({ excerpt: "…another window onto entry two…", estimatedTokens: 2 }, { entryIds: [2] });
+      const { sources, dropped } = await buildContext([entryChip], works, true, signal(), { perSourceCap: 4, totalBudget: 1000 }, [
+        extra({ estimatedTokens: 3 }, { entryIds: [2], fallback: true }),
+        later,
+      ]);
+      expect(sources.map((s) => s.excerpt)).toEqual(["…if Christ be preached that he rose from the dead…"]);
+      expect(dropped.map((d) => d.reason)).toEqual(["over-cap", "duplicate"]);
+    });
   });
 });
