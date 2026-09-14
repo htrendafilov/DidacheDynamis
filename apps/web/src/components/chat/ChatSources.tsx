@@ -25,6 +25,9 @@ export function ChatSources({
         {manifest.map((source) => (
           <li key={source.id} className="chat-source">
             <strong>[{source.id}]</strong> {source.label}
+            {source.searchExcerpt && (
+              <span className="chat-source-excerpt-marker"> · {t("chat.expansion.excerptMarker")}</span>
+            )}
             <blockquote>{source.excerpt}</blockquote>
           </li>
         ))}

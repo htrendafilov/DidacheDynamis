@@ -325,6 +325,7 @@ export function ContextPicker({
   privacyRouting,
   loggingConfirmed,
   onChipsChange,
+  searchFirst = false,
 }: {
   panes: Pane[];
   privacyRouting: boolean;
@@ -337,6 +338,8 @@ export function ContextPicker({
   // stale at whatever they were before the toggle.
   loggingConfirmed: boolean;
   onChipsChange: (chips: ContextChip[]) => void;
+  // M9.4 §5: with the search toggle on, the strip — the pre-send affordance — says so.
+  searchFirst?: boolean;
 }) {
   const { t } = useTranslation();
   const works = useWorks();
@@ -523,10 +526,11 @@ export function ContextPicker({
     activeContext.unlabelled > 0
       ? [...activeContext.labels, `+${activeContext.unlabelled}`]
       : activeContext.labels;
-  const stripSummary =
+  const contextSummary =
     activeContext.chips.length === 0
       ? t("chat.context.stripEmpty")
       : t("chat.context.stripSummary", { labels: stripLabels.join(", ") });
+  const stripSummary = searchFirst ? `${contextSummary} · ${t("chat.expansion.stripSearchFirst")}` : contextSummary;
 
   return (
     <details

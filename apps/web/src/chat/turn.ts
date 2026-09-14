@@ -32,7 +32,7 @@ export type TurnPhase =
 export interface TurnExpansion {
   terms: string[]; // the confirmed terms — what was searched, not what was proposed
   contributed: boolean; // false when no expansion source survived buildContext
-  model?: string; // the router's choice for the expansion call, when it differs
+  model?: string; // the router's choice for the expansion call, when it reported one
 }
 
 export function emptyReason(hitCount: number, dropped: readonly DroppedSource[]): EmptyReason {

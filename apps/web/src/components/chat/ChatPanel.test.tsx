@@ -978,11 +978,14 @@ describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
 
   // Route every request after connect. `completions` is consumed in order.
   type Responder = Response | ((init: RequestInit) => Response | Promise<Response>);
-  function route(opts: { completions: Responder[]; search?: () => Response }) {
+  function route(opts: { completions: Responder[]; search?: Responder }) {
     const queue = [...opts.completions];
     fetchMock.mockImplementation((url: string, init: RequestInit) => {
       if (url.endsWith("/models")) return Promise.resolve(modelsResponse());
-      if (url.includes("/api/v1/search?")) return Promise.resolve((opts.search ?? (() => searchJson([bibleHit])))());
+      if (url.includes("/api/v1/search?")) {
+        const search = opts.search ?? searchJson([bibleHit]);
+        return Promise.resolve(typeof search === "function" ? search(init) : search);
+      }
       if (url.endsWith("/chat/completions")) {
         const next = queue.shift();
         if (!next) return Promise.reject(new Error("no more completions responses queued"));
@@ -1242,6 +1245,10 @@ describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
     fireEvent.change(composer(), { target: { value: "втори въпрос" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("region", { name: "Search terms" });
+    // With a conversation on screen, Clear-this-thread is gated by turnActive too.
+    openOverflowMenu();
+    expect(screen.getByRole("menuitem", { name: "Clear this conversation" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Clear this conversation" }), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => expect(screen.getByText("втори")).toBeInTheDocument());
 
@@ -1262,6 +1269,121 @@ describe("ChatPanel phase machine (M9.4 §7, §7a)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Изпрати" }));
     await waitFor(() => expect(completionsCalls()).toHaveLength(1));
     expect(body(completionsCalls()[0]).messages[0].content).toBe(recorded);
+  });
+
+  it("the pre-send strip says a library search runs first only while the toggle is on (§5)", async () => {
+    await connectAndSelectModel();
+    const strip = () => document.querySelector(".chat-context-strip > summary") as HTMLElement;
+    expect(strip()).not.toHaveTextContent(/library search runs first/);
+    fireEvent.click(toggle());
+    expect(strip()).toHaveTextContent(/library search runs first/);
+    fireEvent.click(toggle());
+    expect(strip()).not.toHaveTextContent(/library search runs first/);
+  });
+
+  it("Stop during the search stage aborts every in-flight search and is a clean cancel", async () => {
+    const pendingSearch = (init: RequestInit) =>
+      new Promise<Response>((_, reject) =>
+        init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))),
+      );
+    await setUp({ completions: [termsSse(["resurrection", "raised"])], search: pendingSearch });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Searching the library…");
+    await waitFor(() => expect(searchCalls()).toHaveLength(2));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    // No pending request survives: the shared signal reached every fetch.
+    expect(searchCalls().every((call) => (call[1] as RequestInit).signal?.aborted)).toBe(true);
+    expect(composer().value).toBe("Къде се говори за възкресение?");
+    expect(messageRows()).toHaveLength(0);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(buildContextMock).not.toHaveBeenCalled();
+  });
+
+  it("disconnecting at the confirm step resolves the wait through the turn's abort — no hang, no rows, the question kept", async () => {
+    await setUp({ completions: [termsSse(["resurrection", "raised"])] });
+    await screen.findByRole("region", { name: "Search terms" });
+    openModelPicker();
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Search terms" })).not.toBeInTheDocument());
+    expect(composer().value).toBe("Къде се говори за възкресение?");
+    expect(messageRows()).toHaveLength(0);
+    expect(searchCalls()).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+  });
+
+  it("an empty manifest whose matches were all dropped for size or availability says so — the reader's own chips included", async () => {
+    buildContextMock.mockResolvedValue({
+      sources: [],
+      dropped: [{ label: "MHC — 1 Cor 15", kind: "commentary", reason: "over-cap", estimatedTokens: 21600 }],
+    });
+    await setUp({ completions: [termsSse(["resurrection", "raised"])] });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    const region = await screen.findByRole("region", { name: "Nothing usable was found" });
+    expect(region).toHaveTextContent(/every one was left out/);
+    expect(region).not.toHaveTextContent(/none may be sent/);
+    expect(completionsCalls()).toHaveLength(1);
+    expect(messageRows()).toHaveLength(0);
+  });
+
+  it("a manifest grounded only by the reader's chips proceeds, and the summary and the terms row both say the search contributed nothing", async () => {
+    const readerSource: StudySource = {
+      ...source,
+      label: "John 3:16 (WEB)",
+      canonicalTarget: { kind: "bible", workId: "web", osis: "John", chapter: 3, verse: 16 },
+    };
+    buildContextMock.mockResolvedValue({ sources: [readerSource], dropped: [] });
+    await setUp({ completions: [termsSse(["resurrection", "raised"]), answerSse("Отговор [S1].")] });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText(/Отговор/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(completionsCalls()).toHaveLength(2);
+    expect(screen.getByText("Searched (English): resurrection, raised — no results were used")).toBeInTheDocument();
+    expect(document.querySelector(".chat-context-summary")).toHaveTextContent(/The library search contributed nothing/);
+  });
+
+  it("the terms row is restored from history on reload and never enters the conversation replayed to the model", async () => {
+    buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
+    await setUp({ completions: [termsSse(["resurrection", "raised"]), answerSse("Христос възкръсна [S1].")] });
+    await screen.findByRole("region", { name: "Search terms" });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText("Searched (English): resurrection, raised")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+
+    // A fresh mount restores the row from ChatRun.expansion, not from the message text.
+    document.body.innerHTML = "";
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(messageRows()).toHaveLength(2));
+    expect(screen.getByText("Searched (English): resurrection, raised")).toBeInTheDocument();
+
+    const before = completionsCalls().length;
+    route({ completions: [answerSse("второ")] });
+    openModelPicker();
+    fireEvent.click(await screen.findByRole("option", { name: /Free Models Router/ }));
+    fireEvent.change(composer(), { target: { value: "втори въпрос" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(completionsCalls()).toHaveLength(before + 1));
+    const replayed = body(completionsCalls()[before]).messages as { role: string; content: string }[];
+    expect(replayed.map((m) => m.role)).toEqual(["system", "user", "assistant", "user"]);
+    expect(replayed[2].content).toMatch(/^Христос възкръсна/);
+    expect(replayed[2].content).not.toMatch(/Searched|resurrection/);
+  });
+
+  it("a storage failure as the turn starts lands on the assistant row and the turn settles — never a stranded streaming phase", async () => {
+    const history = await import("../../chat/history");
+    vi.spyOn(history, "createThread").mockRejectedValueOnce(new Error("QuotaExceededError"));
+    await connectAndSelectModel();
+    route({ completions: [answerSse("never requested")] });
+    fireEvent.change(composer(), { target: { value: "q" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByRole("alert");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(completionsCalls()).toHaveLength(0);
+    expect(messageRows()).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
   });
 });
 

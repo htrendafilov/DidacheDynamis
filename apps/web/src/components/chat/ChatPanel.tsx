@@ -498,14 +498,17 @@ export function ChatPanel({
 
     let currentThreadId = threadId;
     const userCreatedAt = Date.now();
-    if (!privateSession) {
-      currentThreadId ??= await createThread(userText);
-      setThreadId(currentThreadId);
-      await saveMessage({ id: userId, threadId: currentThreadId, role: "user", text: userText, createdAt: userCreatedAt });
-    }
-
     let assistantText = "";
     try {
+      // Inside the try: a storage failure here is a streaming-phase error like any
+      // other — it lands on the assistant row and the turn settles — rather than a
+      // rejection that leaves the phase at `streaming` with a Stop that does nothing.
+      if (!privateSession) {
+        currentThreadId ??= await createThread(userText);
+        setThreadId(currentThreadId);
+        await saveMessage({ id: userId, threadId: currentThreadId, role: "user", text: userText, createdAt: userCreatedAt });
+      }
+
       const budgetLimits = resolveContextBudget(budgets);
       // Never above the model's own ceiling: a max_tokens larger than the model allows is
       // a request the provider rejects outright.
@@ -532,13 +535,19 @@ export function ChatPanel({
         contextLength: model.contextLength,
       });
 
-      const contextSummary = summarizeContext(
+      const baseSummary = summarizeContext(
         sources,
         dropped,
         t,
         budget.droppedTurns,
         budgetLimits.perSourceCap,
       );
+      // §7a: grounded by the reader's chips alone, the terms shown must not read as the
+      // answer's evidence — the summary says so, as the terms row does.
+      const contextSummary =
+        opts.expansion && !opts.expansion.contributed
+          ? `${baseSummary} ${t("chat.expansion.summaryNoContribution")}`
+          : baseSummary;
       setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, contextSummary } : m)));
       // buildContext only resolves after the user message is already saved (needed
       // immediately, to have a thread to save it under), so the summary — required to be
@@ -784,6 +793,7 @@ export function ChatPanel({
         privacyRouting={privacyRouting}
         loggingConfirmed={loggingConfirmed}
         onChipsChange={setChips}
+        searchFirst={searchEnabled}
       />
 
       <form

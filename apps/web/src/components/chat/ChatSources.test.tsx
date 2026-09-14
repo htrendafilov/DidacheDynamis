@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { buildManifest } from "../../chat/citations";
 import type { StudySource } from "../../chat/types";
-import "../../i18n";
+import i18n from "../../i18n";
 import { ChatSources } from "./ChatSources";
 
 function source(overrides: Partial<StudySource> = {}): StudySource {
@@ -22,6 +22,8 @@ function source(overrides: Partial<StudySource> = {}): StudySource {
 }
 
 describe("ChatSources", () => {
+  beforeEach(() => i18n.changeLanguage("en"));
+
   it("renders nothing for an empty manifest", () => {
     const { container } = render(<ChatSources manifest={buildManifest([])} />);
     expect(container).toBeEmptyDOMElement();
@@ -45,5 +47,19 @@ describe("ChatSources", () => {
     expect(screen.getByText(/some\/model/)).toBeInTheDocument();
     expect(screen.getByText(/42/)).toBeInTheDocument();
     expect(screen.getByText(/v1/)).toBeInTheDocument();
+  });
+
+  it("marks a snippet-backed source as a search excerpt, and no other source (M9.4 §3)", () => {
+    render(
+      <ChatSources
+        manifest={buildManifest([
+          source(),
+          source({ id: "S2", kind: "commentary", label: "MHC — 1Cor 15:12", excerpt: "…rose again…", searchExcerpt: true }),
+        ])}
+      />,
+    );
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).not.toHaveTextContent("search excerpt");
+    expect(items[1]).toHaveTextContent("MHC — 1Cor 15:12 · search excerpt");
   });
 });

@@ -2147,3 +2147,7 @@ button.danger {
   color: inherit;
   text-align: left;
 }
+.chat-source-excerpt-marker {
+  font-size: 0.85em;
+  color: var(--muted);
+}
