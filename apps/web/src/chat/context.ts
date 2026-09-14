@@ -90,7 +90,8 @@ export function findSection(sections: GeneralBookSection[], sectionId: string): 
   return null;
 }
 
-function selectCommentaryEntries(entries: CommentaryEntry[], verse?: number): CommentaryEntry[] {
+function selectCommentaryEntries(entries: CommentaryEntry[], verse?: number, entryId?: number): CommentaryEntry[] {
+  if (entryId != null) return entries.filter((e) => e.entry_id === entryId);
   if (verse == null) return entries;
   return entries.filter((e) => {
     const start = e.verse_start ?? -Infinity;
@@ -123,6 +124,7 @@ export interface Candidate {
   // verseSpan. CanonicalTarget.commentary has no verse, so without this two distinct
   // entries in one chapter compare equal and one is dropped as a duplicate of the other.
   entryIds?: number[];
+  fallback?: true;
 }
 
 // A candidate built outside this module — M9.4's search-snippet sources (expand.ts). The
@@ -131,6 +133,11 @@ export interface ExtraCandidate {
   source: Omit<StudySource, "id" | "contentVersion">;
   requires: RequiredPolicy[];
   entryIds?: number[];
+  // A snippet standing in for a chip that fetches the same entry in full (M9.4 §3). When
+  // the full text survives, this is a duplicate by design and is dropped without a line
+  // in the summary; when the full text is over the cap or unavailable, this is what the
+  // turn keeps.
+  fallback?: true;
 }
 
 function fallbackLabel(chip: ContextChip): string {
@@ -202,7 +209,7 @@ async function buildCandidate(
     case "commentary": {
       const work = workById(works, chip.workId);
       const passage = await api.commentary(chip.workId, chip.osis, chip.chapter, chip.verse, signal);
-      const entries = selectCommentaryEntries(passage.entries, chip.verse);
+      const entries = selectCommentaryEntries(passage.entries, chip.verse, chip.entryId);
       if (entries.length === 0) return null;
       const excerpt = entries
         .map((e) => documentToText(e.body))
@@ -487,17 +494,22 @@ export async function buildContext(
   const deduped: Candidate[] = [];
   for (const c of ranked) {
     if (deduped.some((d) => isDuplicate(d, c))) {
-      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
+      if (!c.fallback) dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
     } else {
       deduped.push(c);
     }
   }
 
-  // 6. Keep in relevance order until the total/count budget is spent.
+  // 6. Keep in relevance order until the source count or the token budget is spent. Two
+  // reasons, because they are two limits: the count is fixed, the budget is a setting.
   const kept: Candidate[] = [];
   let total = 0;
   for (const c of deduped) {
-    if (kept.length >= MAX_SOURCES || total + c.source.estimatedTokens > budget.totalBudget) {
+    if (kept.length >= MAX_SOURCES) {
+      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "count" });
+      continue;
+    }
+    if (total + c.source.estimatedTokens > budget.totalBudget) {
       dropped.push({ label: c.source.label, kind: c.source.kind, reason: "budget" });
       continue;
     }

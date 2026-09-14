@@ -73,7 +73,7 @@ class ChatHistoryDB extends Dexie {
 export const db = new ChatHistoryDB();
 
 export const MAX_TITLE_LENGTH = 200;
-export const MAX_MANIFEST_JSON_LENGTH = 200_000; // ~12 sources x ~8000 chars, generous headroom
+export const MAX_MANIFEST_JSON_LENGTH = 200_000; // a default-budget turn is ~64k chars; generous headroom
 export const MAX_THREADS = 200;
 export const MAX_TOTAL_BYTES = 20_000_000; // ~20 MB, a coarse cap on the whole database
 

@@ -1,7 +1,7 @@
 // M9.4 steps 1, 3 and 4: question -> validated English terms -> search hits -> context
 // candidates. Pure retrieval plumbing; the staged UI turn that drives it is a later step,
 // and nothing here alters conversation state.
-import { api, type SearchHit, type Work } from "../data/api";
+import { api, type CommentaryHit, type SearchHit, type Work } from "../data/api";
 import { streamChat, type ChatModel, type ChatUsage } from "./client";
 import type { ExtraCandidate } from "./context";
 import { ChatError } from "./errors";
@@ -216,6 +216,25 @@ export function stripHighlights(snippet: string): string {
 // commentary and book, whose full units routinely exceed the per-source cap; §3).
 export type MappedHit = { chip: ContextChip } | { extra: ExtraCandidate };
 
+// The first commentary hits also get Path A: a chip addressed by entry_id, so the exact
+// entry the search matched is fetched whole. Three because a median Matthew Henry entry is
+// ~3,600 tokens and three of them leave the default 16,000 budget room for everything else;
+// a 12-token FTS snippet is a pointer, not evidence, and the model said so in the live run.
+// Each keeps its snippet as a fallback candidate for when the full entry is over the cap.
+export const FULL_TEXT_COMMENTARY_HITS = 3;
+
+function commentaryEntryChip(hit: CommentaryHit): ContextChip {
+  return {
+    kind: "commentary",
+    workId: hit.work_id,
+    osis: hit.osis,
+    chapter: hit.chapter,
+    // The API filters entries covering `verse`; the entry id then picks the one matched.
+    verse: hit.verse_start ?? undefined,
+    entryId: hit.entry_id,
+  };
+}
+
 export function mapHit(hit: SearchHit, works: readonly Work[]): MappedHit {
   const work = works.find((w) => w.id === hit.work_id);
   const abbrev = work?.abbrev ?? hit.work_id;
@@ -276,10 +295,18 @@ export function hitsToContext(
 ): { chips: ContextChip[]; extras: ExtraCandidate[] } {
   const chips: ContextChip[] = [];
   const extras: ExtraCandidate[] = [];
+  let fullText = 0;
   for (const { hit } of hits) {
     const mapped = mapHit(hit, works);
-    if ("chip" in mapped) chips.push(mapped.chip);
-    else extras.push(mapped.extra);
+    if ("chip" in mapped) {
+      chips.push(mapped.chip);
+    } else if (hit.kind === "commentary" && fullText < FULL_TEXT_COMMENTARY_HITS) {
+      fullText++;
+      chips.push(commentaryEntryChip(hit));
+      extras.push({ ...mapped.extra, fallback: true });
+    } else {
+      extras.push(mapped.extra);
+    }
   }
   return { chips, extras };
 }

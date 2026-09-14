@@ -139,6 +139,14 @@ describe("expansionContributed", () => {
     expect(expansionContributed([readerCommentary], [], [other])).toBe(false);
   });
 
+  it("matches a full-text commentary source back to its entry chip by chapter", () => {
+    const chip: ContextChip = { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: 12, entryId: 2 };
+    const at = (chapter: number) =>
+      source({ kind: "commentary", workId: "mhc", canonicalTarget: { kind: "commentary", workId: "mhc", osis: "1Cor", chapter } });
+    expect(expansionContributed([at(15)], [chip])).toBe(true);
+    expect(expansionContributed([at(16)], [chip])).toBe(false);
+  });
+
   it("is false when every source is the reader's own and none matches a hit", () => {
     expect(expansionContributed([source({})], hitChips)).toBe(false); // verse 4, hit was verse 20
     expect(expansionContributed([], hitChips)).toBe(false);

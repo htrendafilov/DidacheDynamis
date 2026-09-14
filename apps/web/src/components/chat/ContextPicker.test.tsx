@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MAX_SOURCES } from "../../chat/contextBudget";
 import type { ContextChip } from "../../chat/types";
 import type { GeneralBook, Passage, Work } from "../../data/api";
 import { db } from "../../data/notes";
@@ -679,6 +680,19 @@ describe("summarizeContext", () => {
     expect(summary).toMatch(/blocked by (its|their) licence/i);
     expect(summary).toContain("MHC — John 3");
     expect(summary).toContain(i18n.t("chat.licence.turnOnPrivacyRouting"));
+  });
+
+  it("tells a source-count drop apart from a token-budget drop, naming the fixed limit", () => {
+    const summary = summarizeContext(
+      [source("John 3:16 (WEB)", 40)],
+      [
+        { label: "MHC — 1Cor 15", kind: "commentary", reason: "budget" },
+        { label: "Chapter 31 (1689)", kind: "book", reason: "count" },
+      ],
+      t,
+    );
+    expect(summary).toContain("1 source did not fit the context budget: MHC — 1Cor 15.");
+    expect(summary).toContain(`1 source was beyond the limit of ${MAX_SOURCES} sources per question: Chapter 31 (1689).`);
   });
 
   it("reports dropped conversation turns", () => {

@@ -112,6 +112,8 @@ export function expansionContributed(
             t.chapter === chip.chapter &&
             (chip.verses == null || String(t.verse) === chip.verses)
           );
+        case "commentary":
+          return t.kind === "commentary" && t.workId === chip.workId && t.osis === chip.osis && t.chapter === chip.chapter;
         case "dictionary":
           return t.kind === "dictionary" && t.workId === chip.workId && t.headword === chip.headword;
         case "lexicon":

@@ -16,6 +16,7 @@ vi.mock("../data/api", () => ({ api: { search: vi.fn() } }));
 
 import { api } from "../data/api";
 import {
+  FULL_TEXT_COMMENTARY_HITS,
   MAX_MERGED_HITS,
   hitKey,
   hitsToContext,
@@ -252,8 +253,24 @@ describe("mapHit — exhaustive over the six hit kinds", () => {
     const hits = [bible(1), commentary(1, 1), dictionary("A"), book("s"), strongsEntry("G1"), strongsOccurrence(2)]
       .map((hit) => ({ hit, term: "t", rank: 0 }));
     const { chips, extras } = hitsToContext(hits, works);
-    expect(chips.map((c) => c.kind)).toEqual(["bible", "dictionary", "lexicon", "bible"]);
-    expect(extras.map((e) => e.source.kind)).toEqual(["commentary", "book"]);
+    expect(chips.map((c) => c.kind)).toEqual(["bible", "commentary", "dictionary", "lexicon", "bible"]);
+    expect(extras.map((e) => [e.source.kind, e.fallback ?? false])).toEqual([["commentary", true], ["book", false]]);
+  });
+
+  it(`gives the first ${FULL_TEXT_COMMENTARY_HITS} commentary hits full text — an entry chip plus a silent snippet fallback — and later ones their snippet only`, () => {
+    const hits = [commentary(1, 1), commentary(2, 12), commentary(3, 20, "other"), commentary(4, 30)].map((hit) => ({ hit, term: "t", rank: 0 }));
+    const { chips, extras } = hitsToContext(hits, works);
+    expect(chips).toEqual([
+      { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: 1, entryId: 1 },
+      { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: 12, entryId: 2 },
+      { kind: "commentary", workId: "other", osis: "1Cor", chapter: 15, verse: 20, entryId: 3 },
+    ]);
+    expect(extras.map((e) => [e.entryIds, e.fallback ?? false])).toEqual([[[1], true], [[2], true], [[3], true], [[4], false]]);
+  });
+
+  it("addresses a chapter introduction by entry id alone, with no verse to filter on", () => {
+    const { chips } = hitsToContext([{ hit: commentary(1, null), term: "t", rank: 0 }], works);
+    expect(chips).toEqual([{ kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: undefined, entryId: 1 }]);
   });
 });
 

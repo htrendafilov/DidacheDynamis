@@ -273,6 +273,8 @@
   "chat.context.dropped.overCapHint": "The per-source limit is {{cap}} tokens. Raise it in the model menu to include larger sources.",
   "chat.context.dropped.budget_one": "{{count}} source did not fit the context budget: {{labels}}.",
   "chat.context.dropped.budget_other": "{{count}} sources did not fit the context budget: {{labels}}.",
+  "chat.context.dropped.count_one": "{{count}} source was beyond the limit of {{max}} sources per question: {{labels}}.",
+  "chat.context.dropped.count_other": "{{count}} sources were beyond the limit of {{max}} sources per question: {{labels}}.",
   "chat.context.dropped.duplicate_one": "{{count}} duplicate source was removed: {{labels}}.",
   "chat.context.dropped.duplicate_other": "{{count}} duplicate sources were removed: {{labels}}.",
   "chat.context.dropped.unavailable_one": "{{count}} source could not be retrieved: {{labels}}.",
