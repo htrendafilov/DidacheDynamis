@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type ChatModel, type KeyInfo, listModels, validateKey } from "../../chat/client";
@@ -51,17 +51,7 @@ function suppressEnterSubmit(event: React.KeyboardEvent<HTMLInputElement>): void
  * independent privacy controls that together decide `allowed_no_training` eligibility
  * (m9.2-workspace-and-provider.md §1b).
  */
-export function ModelPicker({
-  connected,
-  onConnected,
-  onDisconnect,
-  selectedModel,
-  onSelectModel,
-  privacyRouting,
-  onPrivacyRoutingChange,
-  loggingConfirmed,
-  onLoggingConfirmedChange,
-}: {
+interface ModelPickerProps {
   connected: boolean;
   onConnected: () => void;
   onDisconnect: () => void;
@@ -71,7 +61,26 @@ export function ModelPicker({
   onPrivacyRoutingChange: (value: boolean) => void;
   loggingConfirmed: boolean;
   onLoggingConfirmedChange: (value: boolean) => void;
-}) {
+}
+
+export interface ModelPickerHandle {
+  open: () => void;
+}
+
+export const ModelPicker = forwardRef<ModelPickerHandle, ModelPickerProps>(function ModelPicker(
+  {
+    connected,
+    onConnected,
+    onDisconnect,
+    selectedModel,
+    onSelectModel,
+    privacyRouting,
+    onPrivacyRoutingChange,
+    loggingConfirmed,
+    onLoggingConfirmedChange,
+  },
+  ref,
+) {
   const { t } = useTranslation();
   const keyInputId = useId();
   const searchInputId = useId();
@@ -174,6 +183,10 @@ export function ModelPicker({
     setActiveIndex(idx >= 0 ? idx : 0);
     setOpen(true);
   };
+
+  // The turn panel's "Switch model" / "Open settings" (m9.4 §7) open this same popover:
+  // it holds both the model list and the key entry, and focus lands in it as below.
+  useImperativeHandle(ref, () => ({ open: openPopover }));
 
   // Accessibility contract: focus moves to the search box on open.
   useEffect(() => {
@@ -454,7 +467,7 @@ export function ModelPicker({
       )}
     </div>
   );
-}
+});
 
 /** Initial value for the logging-confirmation toggle, read from its sessionStorage record. */
 export function initialLoggingConfirmed(): boolean {

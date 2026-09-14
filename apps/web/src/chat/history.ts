@@ -13,6 +13,7 @@
 import Dexie, { type Table } from "dexie";
 
 import type { ChatUsage } from "./client";
+import type { TurnExpansion } from "./turn";
 import type { StudySource } from "./types";
 
 export interface ChatThread {
@@ -48,6 +49,10 @@ export interface ChatRun {
   // Why the answer stopped. Restored so a reloaded turn still shows *why* it is incomplete
   // ("cut off at the answer limit" vs. "the stream ended early"), not just that it is.
   finishReason?: string | null;
+  // M9.4: the confirmed search terms this answer was grounded through, so a reloaded turn
+  // still shows what was searched. Optional and unindexed — no schema version bump; a turn
+  // from before M9.4 simply has none.
+  expansion?: TurnExpansion;
 }
 
 class ChatHistoryDB extends Dexie {
