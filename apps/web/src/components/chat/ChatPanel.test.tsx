@@ -1297,11 +1297,6 @@ describe("ChatPanel phase machine — supersession and live inputs", () => {
       return Promise.reject(new Error(`unexpected fetch: ${url}`));
     });
   }
-  const pendingUntilAbort = (init: RequestInit) =>
-    new Promise<Response>((_, reject) =>
-      init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))),
-    );
-
   async function startSearchTurn(completions: Parameters<typeof route>[0], question = "q") {
     await connectAndSelectModel();
     route(completions);
@@ -1310,12 +1305,11 @@ describe("ChatPanel phase machine — supersession and live inputs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
   }
 
-  it("a double-click on Retry starts one chain, not two: the first is superseded and makes no request", async () => {
+  it("a double-click on Retry starts one chain, not two: the second click is a no-op", async () => {
     buildContextMock.mockResolvedValue({ sources: [source], dropped: [] });
     await startSearchTurn([
-      new Response(JSON.stringify({ error: { message: "x" } }), { status: 500 }), // first expansion fails
-      pendingUntilAbort, // first Retry's expansion — superseded, must be aborted
-      termsSse(["resurrection", "raised"]), // second Retry's expansion
+      new Response(JSON.stringify({ error: { message: "x" } }), { status: 500 }), // the first expansion fails
+      termsSse(["resurrection", "raised"]), // the ONE retry expansion
       answerSse("ok"),
     ]);
     await screen.findByRole("alert");
@@ -1331,17 +1325,37 @@ describe("ChatPanel phase machine — supersession and live inputs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => expect(screen.getByText("ok")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
-    // Exactly one user/assistant pair, and the superseded chain's request was aborted rather
-    // than left to complete and race the phase.
+    // Failed expansion + one retry expansion + one answer. A second chain would have queued
+    // a fourth request (and rejected on an empty queue).
+    expect(completionsCalls()).toHaveLength(3);
     expect(messageRows()).toHaveLength(2);
-    const superseded = completionsCalls()[1][1] as RequestInit;
-    expect(superseded.signal?.aborted).toBe(true);
   });
 
-  it("a double-click on Edit terms leaves one live confirm waiter, and Cancel unwinds the turn cleanly", async () => {
-    // Guards the fixed behaviour rather than detecting the old bug: with the old code the
-    // first waiter simply never resolved, which has no finite observable consequence here.
-    // The double-Retry test above is where the same race was visible (a second request).
+  it("a double-click on Send without search creates one user/assistant pair and one request — runAnswer writes rows before its first await, so the second click must not start", async () => {
+    buildContextMock.mockResolvedValue({ sources: [], dropped: [] });
+    await startSearchTurn([
+      sseResponse('data: {"choices":[{"delta":{"content":"not json"}}]}\n\ndata: [DONE]\n\n'), // expansionFailed
+      answerSse("без търсене"),
+    ]);
+    await screen.findByRole("alert");
+    const button = screen.getByRole("button", { name: "Send without search" });
+    await act(async () => {
+      button.click();
+      button.click();
+    });
+    await waitFor(() => expect(screen.getByText("без търсене")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument());
+    expect(messageRows()).toHaveLength(2);
+    expect(completionsCalls()).toHaveLength(2); // the failed expansion, then exactly one answer
+    // Exactly one user message reached history: a fresh mount restores one pair, not two.
+    document.body.innerHTML = "";
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(document.querySelectorAll(".chat-messages > li")).toHaveLength(2));
+  });
+
+  it("a double-click on Edit terms installs one confirm waiter; Cancel unwinds the turn cleanly", async () => {
+    // With the old code the second click installed a second waiter over the first, which then
+    // never resolved. Not finitely observable from the DOM; guarded here as behaviour.
     buildContextMock.mockResolvedValue({ sources: [], dropped: [] });
     await startSearchTurn([termsSse(["resurrection", "raised"]), termsSse(["life", "death"])]);
     await screen.findByRole("region", { name: "Search terms" });

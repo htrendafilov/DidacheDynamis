@@ -365,14 +365,14 @@ export function ChatPanel({
     });
   };
 
-  // Starting a chain supersedes any other: the previous controller is aborted so its awaits
-  // reject and its stages bail on isCurrent, and a pending confirm waiter is resolved with
-  // null so that promise cannot hang. A second click before React re-renders therefore
-  // makes the last click win, never two live chains.
+  // Every phase in which an action is legal — idle, error, empty — leaves abortRef null, so
+  // a non-null ref means an attempt is already in flight. Actions check it before starting
+  // work: a second click before React re-renders (same closure, same phase) is a no-op,
+  // never a second chain. The FIRST click wins. runAnswer creates rows and writes Dexie
+  // before its first abortable await, so superseding a chain after the fact could not
+  // have been made clean; refusing to start it can.
+  const attemptInFlight = () => abortRef.current !== null;
   const beginAttempt = (): AbortController => {
-    abortRef.current?.abort();
-    confirmResolverRef.current?.(null);
-    confirmResolverRef.current = null;
     const controller = new AbortController();
     abortRef.current = controller;
     return controller;
@@ -643,7 +643,7 @@ export function ChatPanel({
   };
 
   const send = async () => {
-    if (!canSend || !selectedModel) return;
+    if (!canSend || !selectedModel || attemptInFlight()) return;
     const question = input.trim();
     setInput("");
     // Strip citation markers before replaying prior turns: StudySource ids are reassigned
@@ -666,13 +666,13 @@ export function ChatPanel({
   // Panel actions. Each reads the question from the phase, never from the composer, which
   // was cleared at send.
   const retry = () => {
-    if (phase.kind !== "error" && phase.kind !== "empty") return;
+    if ((phase.kind !== "error" && phase.kind !== "empty") || attemptInFlight()) return;
     const controller = beginAttempt();
     if (phase.kind === "error" && phase.terms) void runSearch(phase.question, phase.terms, controller);
     else void runExpansion(phase.question, controller);
   };
   const editTerms = () => {
-    if (phase.kind !== "empty") return;
+    if (phase.kind !== "empty" || attemptInFlight()) return;
     const controller = beginAttempt();
     void awaitConfirmThenSearch(phase.question, phase.terms, controller, turnRef.current?.expansionMeta ?? {});
   };
@@ -680,7 +680,7 @@ export function ChatPanel({
   // §7a gate — a deliberately chosen ungrounded turn if there are no chips. Leaves the
   // session toggle where the reader set it.
   const sendWithoutSearch = () => {
-    if (phase.kind !== "error" && phase.kind !== "empty") return;
+    if ((phase.kind !== "error" && phase.kind !== "empty") || attemptInFlight()) return;
     void runAnswer(phase.question, beginAttempt());
   };
   const cancel = () => {
