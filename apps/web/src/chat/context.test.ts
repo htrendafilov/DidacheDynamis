@@ -13,6 +13,7 @@ import type {
 import { db } from "../data/notes";
 import type { Note } from "../data/notes";
 import { DEFAULT_CONTEXT_BUDGET, MAX_SOURCES } from "./contextBudget";
+import { estimateTokens } from "./tokens";
 import { setLoggingConfirmed } from "./credentials";
 import type { ContextChip } from "./types";
 
@@ -721,6 +722,23 @@ describe("buildContext extraCandidates (M9.4)", () => {
         ["…if Christ be preached that he rose from the dead…", true],
       ]);
       expect(dropped).toEqual([expect.objectContaining({ reason: "over-cap", kind: "commentary", label: "MHC — 1Cor 15:12" })]);
+    });
+
+    it("keeps a fallback whose full entry the token budget rejects — judged after budgeting, not before (review of #22)", async () => {
+      const spans: [number, number, number][] = [[1, 1, 11], [2, 12, 19], [3, 20, 28]];
+      mhcEntries(...spans);
+      const chips: ContextChip[] = spans.map(([entryId, verse]) => ({ kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse, entryId }));
+      const fallbacks = spans.map(([entryId]) => extra({ estimatedTokens: 1, excerpt: `…snippet ${entryId}…` }, { entryIds: [entryId], fallback: true }));
+      const full = (entryId: number, start: number, end: number) => estimateTokens(`Entry ${entryId} on verses ${start}-${end}.`, "commentary");
+      // Two full entries fit; the third does not, but its one-token snippet still does.
+      const budget = { perSourceCap: 1000, totalBudget: full(1, 1, 11) + full(2, 12, 19) + 1 };
+      const { sources, dropped } = await buildContext(chips, works, true, signal(), budget, fallbacks);
+      expect(sources.map((s) => [s.excerpt, s.searchExcerpt ?? false])).toEqual([
+        ["Entry 1 on verses 1-11.", false],
+        ["Entry 2 on verses 12-19.", false],
+        ["…snippet 3…", true],
+      ]);
+      expect(dropped).toEqual([expect.objectContaining({ reason: "budget", label: "MHC — 1Cor 15:20" })]);
     });
   });
 });

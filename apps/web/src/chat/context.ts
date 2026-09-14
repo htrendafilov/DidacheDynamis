@@ -493,8 +493,16 @@ export async function buildContext(
   // that survives is the more relevant one.
   const deduped: Candidate[] = [];
   for (const c of ranked) {
-    if (deduped.some((d) => isDuplicate(d, c))) {
-      if (!c.fallback) dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
+    // A fallback is judged in step 6 against what was actually kept, not here against what
+    // merely survived so far: its full entry can still be rejected by the count or the
+    // token budget, and a snippet discarded as its duplicate beforehand would take the
+    // hit down with it (review of #22).
+    if (c.fallback) {
+      deduped.push(c);
+      continue;
+    }
+    if (deduped.some((d) => !d.fallback && isDuplicate(d, c))) {
+      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
     } else {
       deduped.push(c);
     }
@@ -505,6 +513,10 @@ export async function buildContext(
   const kept: Candidate[] = [];
   let total = 0;
   for (const c of deduped) {
+    // The full text is in: the snippet has nothing to add and there is nothing to report.
+    // Ranked order puts a chip before the extras of its kind, so the entry it shadows has
+    // already been decided by the time the fallback is reached.
+    if (c.fallback && kept.some((k) => isDuplicate(k, c))) continue;
     if (kept.length >= MAX_SOURCES) {
       dropped.push({ label: c.source.label, kind: c.source.kind, reason: "count" });
       continue;
