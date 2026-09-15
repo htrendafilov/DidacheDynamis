@@ -41,14 +41,19 @@ export interface StudySource {
 // treats every chip here as "on" — the picker is responsible for not passing disabled ones.
 export type ContextChip =
   | { kind: "bible"; workId: string; osis: string; chapter: number; verses?: string }
-  | { kind: "commentary"; workId: string; osis: string; chapter: number; verse?: number }
+  // entryId (M9.4): a search hit names the exact entry it matched; with it set, the chip
+  // fetches that one entry rather than every entry covering `verse`.
+  | { kind: "commentary"; workId: string; osis: string; chapter: number; verse?: number; entryId?: number }
   | { kind: "dictionary"; workId: string; headword: string }
   | { kind: "lexicon"; strongId: string }
   | { kind: "xref"; osis: string; chapter: number; verse: number; previewWork: string }
   | { kind: "book"; workId: string; sectionId: string }
   | { kind: "note"; noteId: string };
 
-export type DropReason = "licence" | "unavailable" | "over-cap" | "budget" | "duplicate";
+// "budget" is the token budget, "count" the per-turn source limit: two different limits
+// the reader raises in two different ways (or cannot raise at all), so one label for both
+// sent readers to raise a budget that was not the constraint.
+export type DropReason = "licence" | "unavailable" | "over-cap" | "budget" | "count" | "duplicate";
 
 // Stable, locale-independent codes — never a human sentence — so the UI layer (which has
 // useTranslation) can localize them and history.ts can store them without baking English

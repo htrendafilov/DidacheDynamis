@@ -90,7 +90,8 @@ export function findSection(sections: GeneralBookSection[], sectionId: string): 
   return null;
 }
 
-function selectCommentaryEntries(entries: CommentaryEntry[], verse?: number): CommentaryEntry[] {
+function selectCommentaryEntries(entries: CommentaryEntry[], verse?: number, entryId?: number): CommentaryEntry[] {
+  if (entryId != null) return entries.filter((e) => e.entry_id === entryId);
   if (verse == null) return entries;
   return entries.filter((e) => {
     const start = e.verse_start ?? -Infinity;
@@ -123,6 +124,7 @@ export interface Candidate {
   // verseSpan. CanonicalTarget.commentary has no verse, so without this two distinct
   // entries in one chapter compare equal and one is dropped as a duplicate of the other.
   entryIds?: number[];
+  fallback?: true;
 }
 
 // A candidate built outside this module — M9.4's search-snippet sources (expand.ts). The
@@ -131,6 +133,11 @@ export interface ExtraCandidate {
   source: Omit<StudySource, "id" | "contentVersion">;
   requires: RequiredPolicy[];
   entryIds?: number[];
+  // A snippet standing in for a chip that fetches the same entry in full (M9.4 §3). When
+  // the full text survives, this is a duplicate by design and is dropped without a line
+  // in the summary; when the full text is over the cap or unavailable, this is what the
+  // turn keeps.
+  fallback?: true;
 }
 
 function fallbackLabel(chip: ContextChip): string {
@@ -202,7 +209,7 @@ async function buildCandidate(
     case "commentary": {
       const work = workById(works, chip.workId);
       const passage = await api.commentary(chip.workId, chip.osis, chip.chapter, chip.verse, signal);
-      const entries = selectCommentaryEntries(passage.entries, chip.verse);
+      const entries = selectCommentaryEntries(passage.entries, chip.verse, chip.entryId);
       if (entries.length === 0) return null;
       const excerpt = entries
         .map((e) => documentToText(e.body))
@@ -479,25 +486,28 @@ export async function buildContext(
     .sort((a, b) => KIND_PRIORITY[a.c.source.kind] - KIND_PRIORITY[b.c.source.kind] || a.index - b.index)
     .map(({ c }) => c);
 
-  // 5. Deduplicate BEFORE budgeting. The plan numbers dedup after the budget step, but
-  // that order lets a duplicate spend the 8,000-token / 12-source allowance and evict a
-  // distinct source that would otherwise have fit — the duplicate is then thrown away
-  // anyway, so the turn simply loses content for nothing. Ranked order first, so the copy
-  // that survives is the more relevant one.
-  const deduped: Candidate[] = [];
-  for (const c of ranked) {
-    if (deduped.some((d) => isDuplicate(d, c))) {
-      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
-    } else {
-      deduped.push(c);
-    }
-  }
-
-  // 6. Keep in relevance order until the total/count budget is spent.
+  // 5. Dedupe against what is actually kept, then budget — one pass in ranked order, so
+  // the copy that survives is the more relevant one and a duplicate never spends the
+  // allowance. The plan numbered dedup after the budget step, which let a duplicate evict
+  // a distinct source and then be thrown away anyway. Comparing against the kept set, not
+  // against everything that survived the cap, is what makes both halves of M9.4's fallback
+  // rule hold: a snippet whose full entry was kept is redundant and goes silently; one
+  // whose full entry the cap, the count or the budget rejected is that entry's only
+  // representative, is kept, and then shadows any later duplicate of it in turn (the two
+  // reviews of #22).
   const kept: Candidate[] = [];
   let total = 0;
-  for (const c of deduped) {
-    if (kept.length >= MAX_SOURCES || total + c.source.estimatedTokens > budget.totalBudget) {
+  for (const c of ranked) {
+    if (kept.some((k) => isDuplicate(k, c))) {
+      if (!c.fallback) dropped.push({ label: c.source.label, kind: c.source.kind, reason: "duplicate" });
+      continue;
+    }
+    // Two reasons for two limits: the count is fixed, the budget is a setting.
+    if (kept.length >= MAX_SOURCES) {
+      dropped.push({ label: c.source.label, kind: c.source.kind, reason: "count" });
+      continue;
+    }
+    if (total + c.source.estimatedTokens > budget.totalBudget) {
       dropped.push({ label: c.source.label, kind: c.source.kind, reason: "budget" });
       continue;
     }
@@ -505,7 +515,7 @@ export async function buildContext(
     total += c.source.estimatedTokens;
   }
 
-  // 7. Assign S1..Sn only after all dropping, so ids are contiguous.
+  // 6. Assign S1..Sn only after all dropping, so ids are contiguous.
   const sources: StudySource[] = kept.map((c, i) => ({
     ...c.source,
     id: `S${i + 1}` as `S${number}`,

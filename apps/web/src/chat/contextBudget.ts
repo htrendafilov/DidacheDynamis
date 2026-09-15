@@ -34,8 +34,13 @@ export const DEFAULT_MAX_ANSWER_TOKENS = 4000;
 export const MIN_MAX_ANSWER_TOKENS = 256;
 export const MAX_MAX_ANSWER_TOKENS = 32000;
 
-/** Independent of the token budget: a hard ceiling on how many sources one turn may carry. */
-export const MAX_SOURCES = 12;
+// Independent of the token budget: a hard ceiling on how many sources one turn may carry.
+// Was 12, set when every source was a reader's chip of thousands of tokens. M9.4's search
+// snippets are ~20 tokens each and a topical turn brings up to 16 of them plus the reader's
+// chips; at 12 the count bound before the budget did and cut by kind, not relevance (the
+// 2026-09-14 live run lost the 1689 chapter on the resurrection to keep Easton's
+// "Alexandria"). 20 lets a full fan-out through; the token budget stays the cost guard.
+export const MAX_SOURCES = 20;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));

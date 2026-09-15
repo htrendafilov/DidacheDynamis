@@ -12,7 +12,8 @@ import type {
 } from "../data/api";
 import { db } from "../data/notes";
 import type { Note } from "../data/notes";
-import { DEFAULT_CONTEXT_BUDGET } from "./contextBudget";
+import { DEFAULT_CONTEXT_BUDGET, MAX_SOURCES } from "./contextBudget";
+import { estimateTokens } from "./tokens";
 import { setLoggingConfirmed } from "./credentials";
 import type { ContextChip } from "./types";
 
@@ -278,7 +279,7 @@ describe("buildContext budget (§4)", () => {
     expect(total).toBeLessThanOrEqual(8000);
   });
 
-  it("caps at 12 sources even when the token budget has room left", async () => {
+  it(`caps at ${MAX_SOURCES} sources even when the token budget has room left, reported as "count", never "budget"`, async () => {
     apiMock.dictionaryEntry.mockImplementation((_w, headword) =>
       Promise.resolve({
         work_id: "easton",
@@ -286,7 +287,7 @@ describe("buildContext budget (§4)", () => {
         body: { blocks: [{ kind: "paragraph", text: `Definition of ${headword}.` }] },
       } as DictionaryEntry),
     );
-    const chips: ContextChip[] = Array.from({ length: 15 }, (_, i) => ({
+    const chips: ContextChip[] = Array.from({ length: MAX_SOURCES + 3 }, (_, i) => ({
       kind: "dictionary" as const,
       workId: "easton",
       headword: `word${i}`,
@@ -297,8 +298,9 @@ describe("buildContext budget (§4)", () => {
       true,
       new AbortController().signal,
     );
-    expect(sources).toHaveLength(12);
-    expect(dropped.filter((d) => d.reason === "budget")).toHaveLength(3);
+    expect(sources).toHaveLength(MAX_SOURCES);
+    expect(dropped.filter((d) => d.reason === "count")).toHaveLength(3);
+    expect(dropped.filter((d) => d.reason === "budget")).toHaveLength(0);
   });
 
   it("deduplicates identical excerpts", async () => {
@@ -685,5 +687,69 @@ describe("buildContext extraCandidates (M9.4)", () => {
     const { sources, dropped } = await buildContext([], works, true, signal(), { perSourceCap: 1000, totalBudget: 1000 }, [big, small]);
     expect(sources.map((s) => s.excerpt)).toEqual(["small"]);
     expect(dropped).toEqual([expect.objectContaining({ reason: "over-cap", estimatedTokens: 5000 })]);
+  });
+
+  // The top commentary hits take Path A by entry id (§3, live-run revision), each with its
+  // snippet as a fallback candidate.
+  describe("full-text commentary hits", () => {
+    const entryChip: ContextChip = { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse: 12, entryId: 2 };
+
+    it("fetches exactly the entry the hit named: verse-filtered at the API, picked by id here", async () => {
+      mhcEntries([1, 1, 11], [2, 12, 19]);
+      const { sources, dropped } = await buildContext([entryChip], works, true, signal());
+      expect(dropped).toEqual([]);
+      expect(sources.map((s) => [s.excerpt, s.label, s.searchExcerpt ?? false])).toEqual([
+        ["Entry 2 on verses 12-19.", "MHC — 1Cor 15:12", false],
+      ]);
+      expect(apiMock.commentary).toHaveBeenCalledWith("mhc", "1Cor", 15, 12, expect.anything());
+    });
+
+    it("drops the snippet fallback silently when the full entry survives — no duplicate line for the reader", async () => {
+      mhcEntries([1, 1, 11], [2, 12, 19]);
+      const { sources, dropped } = await buildContext([entryChip], works, true, signal(), DEFAULT_CONTEXT_BUDGET, [
+        extra({}, { entryIds: [2], fallback: true }),
+      ]);
+      expect(sources.map((s) => s.excerpt)).toEqual(["Entry 2 on verses 12-19."]);
+      expect(dropped).toEqual([]);
+    });
+
+    it("keeps the snippet fallback when the full entry is over the per-source cap, and reports that drop with its cost", async () => {
+      mhcEntries([1, 1, 11], [2, 12, 19]);
+      const { sources, dropped } = await buildContext([entryChip], works, true, signal(), { perSourceCap: 4, totalBudget: 1000 }, [
+        extra({ estimatedTokens: 3 }, { entryIds: [2], fallback: true }),
+      ]);
+      expect(sources.map((s) => [s.excerpt, s.searchExcerpt ?? false])).toEqual([
+        ["…if Christ be preached that he rose from the dead…", true],
+      ]);
+      expect(dropped).toEqual([expect.objectContaining({ reason: "over-cap", kind: "commentary", label: "MHC — 1Cor 15:12" })]);
+    });
+
+    it("keeps a fallback whose full entry the token budget rejects — judged after budgeting, not before (review of #22)", async () => {
+      const spans: [number, number, number][] = [[1, 1, 11], [2, 12, 19], [3, 20, 28]];
+      mhcEntries(...spans);
+      const chips: ContextChip[] = spans.map(([entryId, verse]) => ({ kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15, verse, entryId }));
+      const fallbacks = spans.map(([entryId]) => extra({ estimatedTokens: 1, excerpt: `…snippet ${entryId}…` }, { entryIds: [entryId], fallback: true }));
+      const full = (entryId: number, start: number, end: number) => estimateTokens(`Entry ${entryId} on verses ${start}-${end}.`, "commentary");
+      // Two full entries fit; the third does not, but its one-token snippet still does.
+      const budget = { perSourceCap: 1000, totalBudget: full(1, 1, 11) + full(2, 12, 19) + 1 };
+      const { sources, dropped } = await buildContext(chips, works, true, signal(), budget, fallbacks);
+      expect(sources.map((s) => [s.excerpt, s.searchExcerpt ?? false])).toEqual([
+        ["Entry 1 on verses 1-11.", false],
+        ["Entry 2 on verses 12-19.", false],
+        ["…snippet 3…", true],
+      ]);
+      expect(dropped).toEqual([expect.objectContaining({ reason: "budget", label: "MHC — 1Cor 15:20" })]);
+    });
+
+    it("a retained fallback shadows a later ordinary duplicate of its entry, so the entry never takes two slots (second review of #22)", async () => {
+      mhcEntries([1, 1, 11], [2, 12, 19]);
+      const later = extra({ excerpt: "…another window onto entry two…", estimatedTokens: 2 }, { entryIds: [2] });
+      const { sources, dropped } = await buildContext([entryChip], works, true, signal(), { perSourceCap: 4, totalBudget: 1000 }, [
+        extra({ estimatedTokens: 3 }, { entryIds: [2], fallback: true }),
+        later,
+      ]);
+      expect(sources.map((s) => s.excerpt)).toEqual(["…if Christ be preached that he rose from the dead…"]);
+      expect(dropped.map((d) => d.reason)).toEqual(["over-cap", "duplicate"]);
+    });
   });
 });

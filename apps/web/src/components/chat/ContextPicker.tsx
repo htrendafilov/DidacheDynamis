@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { findSection, licenceDetail, policyEligible } from "../../chat/context";
+import { MAX_SOURCES } from "../../chat/contextBudget";
 import type {
   ContextChip,
   DropReason,
@@ -642,12 +643,13 @@ export function ContextPicker({
 
 // Reported in a fixed order so the summary is stable turn to turn, and with licence first
 // because it is the only reason the reader can act on.
-const DROP_REASON_ORDER: DropReason[] = ["licence", "over-cap", "budget", "duplicate", "unavailable"];
+const DROP_REASON_ORDER: DropReason[] = ["licence", "over-cap", "budget", "count", "duplicate", "unavailable"];
 
 const DROP_REASON_KEY: Record<DropReason, string> = {
   licence: "chat.context.dropped.licence",
   "over-cap": "chat.context.dropped.overCap",
   budget: "chat.context.dropped.budget",
+  count: "chat.context.dropped.count",
   duplicate: "chat.context.dropped.duplicate",
   unavailable: "chat.context.dropped.unavailable",
 };
@@ -688,6 +690,7 @@ export function summarizeContext(
     parts.push(
       t(DROP_REASON_KEY[reason], {
         count: items.length,
+        max: MAX_SOURCES,
         // An over-cap drop names what the source would have cost. "Too large" leaves the
         // reader guessing; "~21,600 tokens" tells them exactly what to raise the limit to.
         labels: items

@@ -273,6 +273,8 @@
   "chat.context.dropped.overCapHint": "Ограничението за един източник е {{cap}} токена. Увеличете го от менюто за модела, за да включите по-големи източници.",
   "chat.context.dropped.budget_one": "{{count}} източник не се побра в бюджета за контекст: {{labels}}.",
   "chat.context.dropped.budget_other": "{{count}} източника не се побраха в бюджета за контекст: {{labels}}.",
+  "chat.context.dropped.count_one": "{{count}} източник е над лимита от {{max}} източника на въпрос: {{labels}}.",
+  "chat.context.dropped.count_other": "{{count}} източника са над лимита от {{max}} източника на въпрос: {{labels}}.",
   "chat.context.dropped.duplicate_one": "{{count}} повтарящ се източник е премахнат: {{labels}}.",
   "chat.context.dropped.duplicate_other": "{{count}} повтарящи се източника са премахнати: {{labels}}.",
   "chat.context.dropped.unavailable_one": "{{count}} източник не можа да бъде извлечен: {{labels}}.",
