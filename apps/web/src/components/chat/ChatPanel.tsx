@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -709,7 +709,15 @@ export function ChatPanel({
   const confirmTerms = (terms: string[]) => confirmResolverRef.current?.(terms);
   const openPicker = () => modelPickerRef.current?.open();
 
-  const stop = () => abortRef.current?.abort();
+  // preventDefault, on a type="button": a pre-stream Stop restores the question and goes
+  // idle inside the click's own microtasks, and React then reuses this DOM node for the
+  // Send button — so by the time the browser runs the click's default action, the node it
+  // was clicked on is an enabled submit button, and the turn Stop just cancelled is sent
+  // again. Found by e2e-chat/topical.spec.ts; invisible to jsdom.
+  const stop = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    abortRef.current?.abort();
+  };
 
   return (
     <div className="chat-panel">
