@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { buildManifest, parseCitations, resolve } from "./citations";
-import { INJECTION_CORPUS } from "./injectionCorpus";
+import { ChatError } from "./errors";
+import { parseExpansionTerms } from "./expand";
+import { INJECTION_CORPUS, STEERED_EXPANSION_OUTPUTS } from "./injectionCorpus";
 import { parseMessage } from "./markdown";
 import { buildMessages } from "./prompt";
 import type { StudySource } from "./types";
@@ -95,5 +97,32 @@ describe("injection corpus vs markdown.ts / the renderer's parse tree", () => {
       .join("");
     expect(text).toContain("<img");
     expect(text).toContain("javascript:alert");
+  });
+});
+
+// Deterministic layer 4 (M9.4): the term validator. Any list that reaches searchTerms has
+// passed §1's rules, so a steering attempt either fails here or surfaces as plain terms
+// the reader sees and can remove at the confirm step. The behavioural half — whether a
+// given model is steered at all — stays out of reach for the reason M9.3 recorded.
+describe("injection corpus vs expand.ts's term validator (M9.4)", () => {
+  it.each(["operators", "overlong", "prose"] as const)("%s: a steered expansion output never reaches the search", (key) => {
+    let caught: unknown;
+    try {
+      parseExpansionTerms(STEERED_EXPANSION_OUTPUTS[key]);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ChatError);
+    expect((caught as ChatError).kind).toBe("expansionFailed");
+  });
+
+  it("a steered but well-formed list is accepted verbatim — and so becomes visible, editable term chips before anything is searched", () => {
+    expect(parseExpansionTerms(STEERED_EXPANSION_OUTPUTS.visible)).toEqual(["ignore previous instructions", "resurrection"]);
+  });
+
+  it("term-steering: the terms the corpus excerpt demands are rejected by the same rule", () => {
+    const c = INJECTION_CORPUS.find((x) => x.id === "term-steering")!;
+    const demanded = /\[.*\]/.exec(c.sourceExcerpt)![0];
+    expect(() => parseExpansionTerms(demanded)).toThrow(ChatError);
   });
 });

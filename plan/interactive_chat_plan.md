@@ -1,9 +1,9 @@
 # Interactive Study Assistant — Implementation Plan
 
-Status: in progress — M9.0, M9.0b-1, and M9.1 through M9.3d shipped by 2026-07-31;
-M9.0b-2, M9.4, and M9.5 remain
+Status: in progress — M9.0, M9.0b-1, and M9.1 through M9.3d shipped by 2026-07-31; M9.4
+shipped 2026-09-17; M9.0b-2 and M9.5 remain
 Target milestone: M9
-Last reviewed: 2026-08-01
+Last reviewed: 2026-09-17
 
 Implementation plan for an optional AI-assisted study workspace in the Bible reader. `plan/00_system_design.md` §9 lists "AI explanations" as a v1 non-goal; M9 is the deliberate milestone that lifts it, not a v1 patch.
 
@@ -650,6 +650,11 @@ Exit: every navigable citation maps to context the app actually sent; no fabrica
 ### M9.4 — topical questions
 
 **Work order: [`chat/m9.4-topical-questions.md`](chat/m9.4-topical-questions.md).**
+
+**Shipped 2026-09-17** in #19, #20, #21, #22 and the close-out PR. The exit criterion passed live on
+2026-09-14 (four terms, one search each, 12 sources, seven verified citations). The work order
+carries the [R]–[R5] review revisions and the [L] live-run revision: source cap 20, full text for
+the top three commentary hits, and a `count` drop reason distinct from `budget`.
 
 Query expansion (§10), schema-validated terms, one multi-type search **per term** merged round-robin, an explicit composer toggle, an editable term-confirmation step, and a grounded answer over the hits. "Pagination" here was a misreading: a multi-type query returns a fixed 5-row preview per group and ignores `limit`/`offset`.
 
