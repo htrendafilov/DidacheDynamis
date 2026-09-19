@@ -279,3 +279,17 @@ test("creates a local note that survives a reload", async ({ page }) => {
   await addNotesPane(page);
   await expect(page.getByRole("button", { name: "Smoke note" })).toBeVisible();
 });
+
+// The first paint is one script plus the persisted language's strings. Anything else here
+// — the editor, the assistant, the sanitizer, the other language — is a regression in what
+// every reader downloads before seeing a verse.
+test("first paint loads only the entry bundle and the persisted language's strings", async ({ page }) => {
+  const scripts: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (/\/assets\/.*\.js$/.test(url.pathname)) scripts.push(url.pathname.replace(/^\/assets\/(.*)-[^-]+\.js$/, "$1"));
+  });
+  await page.goto("/");
+  await expect(page.getByText("God so loved the world")).toBeVisible();
+  expect(scripts.sort()).toEqual(["en", "index"]);
+});

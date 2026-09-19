@@ -10,6 +10,7 @@ import {
   passageNoteId,
   restoreDeletedNote,
   updateNote,
+  validateNoteRecords,
 } from "./notes";
 
 beforeEach(async () => {
@@ -51,6 +52,37 @@ describe("notes store", () => {
     const note = await db.notes.get(id);
     expect(note?.contentHtml).toBe("<p>hello</p>");
     expect(note?.title).toBe("Titled");
+  });
+
+  // The sanitizer is now loaded on the first write (notes.ts), and sanitization moved from
+  // record parsing to validateNoteRecords — so both write paths pin that markup that could
+  // run script never reaches the database.
+  it("sanitizes an update before storing it", async () => {
+    const id = await createTopic("t");
+    await updateNote(id, { contentHtml: '<p onclick="x()">hi</p><img src=x onerror="alert(1)"><script>1</script>' });
+    const note = await db.notes.get(id);
+    expect(note?.contentHtml).toBe("<p>hi</p>");
+  });
+
+  it("sanitizes every imported record before storing it", async () => {
+    await importNotes({
+      format: "bible-app-notes",
+      version: 1,
+      exportedAt: Date.now(),
+      notes: [
+        { id: "a", kind: "topic", title: "A", contentHtml: "<p>ok</p><script>1</script>", createdAt: 1, updatedAt: 1 },
+        { id: "b", kind: "topic", title: "B", contentHtml: '<a href="javascript:alert(1)">x</a>', createdAt: 1, updatedAt: 1 },
+      ],
+    });
+    expect((await db.notes.get("a"))?.contentHtml).toBe("<p>ok</p>");
+    expect((await db.notes.get("b"))?.contentHtml).toBe("<a>x</a>");
+  });
+
+  it("validateNoteRecords sanitizes — it is the only sanitizer on the Dropbox sync path", async () => {
+    const [note] = await validateNoteRecords([
+      { id: "r", kind: "topic", title: "R", contentHtml: "<p>ok</p><iframe src=x></iframe>", createdAt: 1, updatedAt: 1 },
+    ]);
+    expect(note.contentHtml).toBe("<p>ok</p>");
   });
 
   it("deletes a note", async () => {

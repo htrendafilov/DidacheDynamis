@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
-import "./i18n";
+import { i18nReady } from "./i18n";
 import "./styles/app.css";
 
 // If a lazy chunk (e.g. the notes editor) fails to load because a deploy replaced the hashed
@@ -18,8 +18,13 @@ window.addEventListener("vite:preloadError", (event) => {
   window.location.reload();
 });
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const render = () =>
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+
+// Rendered either way: if the persisted language's strings fail to load, i18next falls
+// back to the bundled Bulgarian, which beats a blank page.
+void i18nReady.then(render, render);

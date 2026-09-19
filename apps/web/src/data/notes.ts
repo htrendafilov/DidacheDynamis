@@ -2,7 +2,11 @@
 // sync providers exchange the same validated records without giving the API write access.
 import Dexie, { type Table } from "dexie";
 
-import { sanitizeHtml } from "../notes/sanitize";
+// DOMPurify is ~60 kB minified, and a static import here put it in the first-paint bundle
+// for every reader, when only note writes need it. Loaded on the first write instead. The
+// editor and print paths keep their static imports: they are lazy chunks already.
+const sanitizeHtml = async (html: string): Promise<string> =>
+  (await import("../notes/sanitize")).sanitizeHtml(html);
 
 export type NoteKind = "topic" | "passage";
 
@@ -131,7 +135,7 @@ export async function updateNote(
   }
   const safePatch = {
     ...patch,
-    ...(patch.contentHtml === undefined ? {} : { contentHtml: sanitizeHtml(patch.contentHtml) }),
+    ...(patch.contentHtml === undefined ? {} : { contentHtml: await sanitizeHtml(patch.contentHtml) }),
     updatedAt: now(),
   };
   const changed = await db.notes.update(id, safePatch);
@@ -209,7 +213,9 @@ function optionalInteger(value: unknown, max: number): number | undefined {
   return Number(value);
 }
 
-export function parseNoteRecord(value: unknown): Note {
+// Validation only; validateNoteRecords sanitizes, so every record that reaches the
+// database — import or sync — passes the same rule as a note saved from the editor.
+function parseNoteRecord(value: unknown): Note {
   if (!value || typeof value !== "object") throw new Error("Invalid note record");
   const raw = value as Record<string, unknown>;
   if (
@@ -231,7 +237,7 @@ export function parseNoteRecord(value: unknown): Note {
     id: raw.id,
     kind: raw.kind,
     title: raw.title,
-    contentHtml: sanitizeHtml(raw.contentHtml),
+    contentHtml: raw.contentHtml,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -297,14 +303,16 @@ function importedConflictCopy(note: Note): Note {
   };
 }
 
-export function validateNoteRecords(values: unknown[]): Note[] {
+export async function validateNoteRecords(values: unknown[]): Promise<Note[]> {
   const incoming = values.map(parseNoteRecord);
   const ids = new Set<string>();
   for (const note of incoming) {
     if (ids.has(note.id)) throw new Error("Duplicate note id in import");
     ids.add(note.id);
   }
-  return incoming;
+  return Promise.all(
+    incoming.map(async (note) => ({ ...note, contentHtml: await sanitizeHtml(note.contentHtml) })),
+  );
 }
 
 /** Validate every record, then merge atomically without overwriting divergent local content. */
@@ -319,7 +327,7 @@ export async function importNotes(data: unknown): Promise<ImportResult> {
   ) {
     throw new Error("Not a valid notes export file");
   }
-  const incoming = validateNoteRecords((data as NotesExport).notes);
+  const incoming = await validateNoteRecords((data as NotesExport).notes);
 
   const result = await db.transaction("rw", db.notes, async () => {
     let imported = 0;

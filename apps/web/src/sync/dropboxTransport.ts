@@ -25,7 +25,7 @@ function hasTag(value: unknown, expected: string): boolean {
   return Object.values(record).some((child) => hasTag(child, expected));
 }
 
-function parseSyncDocument(value: unknown): DropboxSyncDocument {
+async function parseSyncDocument(value: unknown): Promise<DropboxSyncDocument> {
   if (!value || typeof value !== "object") throw new Error("Invalid Dropbox notes file");
   const document = value as Partial<DropboxSyncDocument>;
   if (
@@ -38,7 +38,7 @@ function parseSyncDocument(value: unknown): DropboxSyncDocument {
   ) {
     throw new Error("Invalid Dropbox notes file");
   }
-  return { ...document, notes: validateNoteRecords(document.notes) } as DropboxSyncDocument;
+  return { ...document, notes: await validateNoteRecords(document.notes) } as DropboxSyncDocument;
 }
 
 export class DropboxSdkTransport implements DropboxTransport {
@@ -60,7 +60,7 @@ export class DropboxSdkTransport implements DropboxTransport {
         }
         text = new TextDecoder().decode(file.fileBinary);
       }
-      return { rev: file.rev, document: parseSyncDocument(JSON.parse(text)) };
+      return { rev: file.rev, document: await parseSyncDocument(JSON.parse(text)) };
     } catch (error) {
       if (error instanceof DropboxResponseError && error.status === 409 && hasTag(error.error, "not_found")) {
         return null;
