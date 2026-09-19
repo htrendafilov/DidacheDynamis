@@ -284,12 +284,15 @@ test("creates a local note that survives a reload", async ({ page }) => {
 // — the editor, the assistant, the sanitizer, the other language — is a regression in what
 // every reader downloads before seeing a verse.
 test("first paint loads only the entry bundle and the persisted language's strings", async ({ page }) => {
-  const scripts: string[] = [];
+  // Rollup names chunks `<name>-<8-char base64url hash>.js`, and that alphabet includes `-`
+  // — so the hash is stripped by length and charset, never by "the last hyphen".
+  const chunkName = (pathname: string) => /^\/assets\/(.+)-[A-Za-z0-9_-]{8}\.js$/.exec(pathname)?.[1];
+  const scripts = new Set<string>();
   page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (/\/assets\/.*\.js$/.test(url.pathname)) scripts.push(url.pathname.replace(/^\/assets\/(.*)-[^-]+\.js$/, "$1"));
+    const name = chunkName(new URL(request.url()).pathname);
+    if (name) scripts.add(name);
   });
   await page.goto("/");
   await expect(page.getByText("God so loved the world")).toBeVisible();
-  expect(scripts.sort()).toEqual(["en", "index"]);
+  expect([...scripts].sort()).toEqual(["en", "index"]);
 });
