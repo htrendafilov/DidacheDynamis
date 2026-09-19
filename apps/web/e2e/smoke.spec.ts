@@ -284,15 +284,19 @@ test("creates a local note that survives a reload", async ({ page }) => {
 // — the editor, the assistant, the sanitizer, the other language — is a regression in what
 // every reader downloads before seeing a verse.
 test("first paint loads only the entry bundle and the persisted language's strings", async ({ page }) => {
-  // Rollup names chunks `<name>-<8-char base64url hash>.js`, and that alphabet includes `-`
-  // — so the hash is stripped by length and charset, never by "the last hyphen".
-  const chunkName = (pathname: string) => /^\/assets\/(.+)-[A-Za-z0-9_-]{8}\.js$/.exec(pathname)?.[1];
+  // Distinct pathnames: a modulepreload plus an import of one file count once, while two
+  // files that share a name — the lazy Dropbox SDK chunk is also `index-<hash>.js` — count
+  // twice and fail.
   const scripts = new Set<string>();
   page.on("request", (request) => {
-    const name = chunkName(new URL(request.url()).pathname);
-    if (name) scripts.add(name);
+    const { pathname } = new URL(request.url());
+    if (/^\/assets\/.*\.js$/.test(pathname)) scripts.add(pathname);
   });
   await page.goto("/");
   await expect(page.getByText("God so loved the world")).toBeVisible();
-  expect([...scripts].sort()).toEqual(["en", "index"]);
+  // Rollup names chunks `<name>-<8-char base64url hash>.js`, and that alphabet includes `-`
+  // — so the hash is stripped by length and charset, never by "the last hyphen". A filename
+  // this does not recognise is kept whole, so it fails the assertion instead of vanishing.
+  const chunkName = (pathname: string) => /^\/assets\/(.+)-[A-Za-z0-9_-]{8}\.js$/.exec(pathname)?.[1] ?? pathname;
+  expect([...scripts].map(chunkName).sort()).toEqual(["en", "index"]);
 });
