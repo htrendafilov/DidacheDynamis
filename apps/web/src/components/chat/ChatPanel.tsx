@@ -28,6 +28,7 @@ import {
   getMessages as getHistoryMessages,
   getRun,
   listThreads,
+  parseStoredManifest,
   saveMessage,
   saveRun,
   serializeManifest,
@@ -186,7 +187,7 @@ export function ChatPanel({
             finishReason: run?.finishReason,
             actualModel: run?.actualModel,
             usage: run?.usage,
-            manifest: run ? buildManifest(JSON.parse(run.sourceManifestJson) as StudySource[]) : [],
+            manifest: run ? buildManifest(parseStoredManifest(run.sourceManifestJson)) : [],
             expansion: run?.expansion,
           };
         }),
