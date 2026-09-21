@@ -615,6 +615,26 @@ describe("SearchPanel", () => {
     );
   });
 
+  it("keeps the tabpanel mounted, busy, while a tab change refetches — so no tab's aria-controls dangles", async () => {
+    search.mockResolvedValueOnce(allRes());
+    await runSearch();
+    await screen.findByRole("tab", { name: "All 5" });
+    let resolve: ((value: unknown) => void) | undefined;
+    search.mockReturnValueOnce(new Promise((done) => (resolve = done)));
+    fireEvent.click(screen.getByRole("tab", { name: "Bible 2" }));
+
+    const panel = screen.getByRole("tabpanel");
+    expect(panel).toHaveAttribute("aria-busy", "true");
+    expect(panel).toHaveTextContent("Searching…");
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(document.getElementById(tab.getAttribute("aria-controls")!)).toBe(panel);
+    }
+
+    resolve?.(allRes());
+    await waitFor(() => expect(screen.getByRole("tabpanel")).not.toHaveAttribute("aria-busy"));
+    expect(screen.getByRole("tabpanel")).not.toHaveTextContent("Searching…");
+  });
+
   it("keeps the All tab focused when a keyboard-selected query returns no groups", async () => {
     search.mockResolvedValue(allRes());
     await runSearch();
