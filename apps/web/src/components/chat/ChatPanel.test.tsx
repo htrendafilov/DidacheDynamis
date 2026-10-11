@@ -39,7 +39,7 @@ vi.mock("../../data/hooks", () => ({
   useGeneralBook: () => ({ loading: false, error: false, data: null }),
 }));
 
-import { clearAll as clearChatHistory } from "../../chat/history";
+import { clearAll as clearChatHistory, createThread, saveMessage, saveRun } from "../../chat/history";
 import { ChatDrawer } from "./ChatDrawer";
 import { ChatPanel } from "./ChatPanel";
 
@@ -598,6 +598,19 @@ describe("ChatPanel history (M9.3 step 6)", () => {
     expect(
       screen.getByText("No context selected. The assistant will answer from the question alone."),
     ).toBeInTheDocument();
+  });
+
+  it("still restores a thread whose stored manifest does not parse — a pre-M9.5 sliced row costs one Sources panel, not the reload", async () => {
+    const threadId = await createThread("hi");
+    await saveMessage({ id: "u1", threadId, role: "user", text: "hi", createdAt: 1 });
+    await saveMessage({ id: "a1", threadId, role: "assistant", text: "ok [S1]", createdAt: 2 });
+    await saveRun({ messageId: "a1", sourceManifestJson: '[{"id":"S1","kind":"bible","exc', contentVersion: "v1" });
+    render(<ChatPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("hi")).toBeInTheDocument());
+    expect(screen.getByText(/^ok/)).toBeInTheDocument();
+    // No manifest, so the citation is unverified and there is no Sources panel to open.
+    expect(screen.queryByText("Sources")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Unverified citation")).toBeInTheDocument();
   });
 
   it("a private session never touches Dexie: nothing is there to find after reload", async () => {

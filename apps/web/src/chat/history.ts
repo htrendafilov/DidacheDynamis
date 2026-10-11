@@ -38,8 +38,8 @@ export interface ChatHistoryMessage {
 }
 
 // One per assistant message (messageId is the primary key: a message has at most one run).
-// sourceManifestJson is bounded (MAX_MANIFEST_JSON_LENGTH) because a manifest can in
-// principle hold up to 12 sources at ~2000 tokens/~8000 chars each.
+// sourceManifestJson is bounded (MAX_MANIFEST_JSON_LENGTH): a manifest can hold up to 20
+// sources at up to the per-source cap each, and the reader can raise both budgets.
 export interface ChatRun {
   messageId: string;
   sourceManifestJson: string;
@@ -117,14 +117,41 @@ export async function saveMessage(message: Omit<ChatHistoryMessage, "id"> & { id
   return id;
 }
 
-// sourceManifestJson is truncated (never expanded) if a run somehow exceeds the cap — a
-// dropped excerpt on replay is a UI-visible discrepancy the reader can see, but an
-// unbounded local database is a silent one.
+// Over the cap, whole sources are dropped from the end — never characters. A sliced JSON
+// string does not parse, and until M9.5 the loader threw on it, so one oversized answer
+// (a 64k-token budget over 20 sources gets there) cost the whole thread its restore. A
+// citation to a dropped source shows as unverified on replay, which the reader can see;
+// an unbounded local database is what they cannot.
+export function boundManifestJson(json: string): string {
+  if (json.length <= MAX_MANIFEST_JSON_LENGTH) return json;
+  let sources: unknown;
+  try {
+    sources = JSON.parse(json);
+  } catch {
+    return "[]";
+  }
+  if (!Array.isArray(sources)) return "[]";
+  let bounded = json;
+  while (sources.length > 0 && bounded.length > MAX_MANIFEST_JSON_LENGTH) {
+    sources.pop();
+    bounded = JSON.stringify(sources);
+  }
+  return bounded;
+}
+
+// A row written by a build that sliced the JSON does not parse. That must cost the one
+// answer its Sources panel, not the thread its restore.
+export function parseStoredManifest(json: string): StudySource[] {
+  try {
+    const value: unknown = JSON.parse(json);
+    return Array.isArray(value) ? (value as StudySource[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function saveRun(run: ChatRun): Promise<void> {
-  const json =
-    run.sourceManifestJson.length > MAX_MANIFEST_JSON_LENGTH
-      ? run.sourceManifestJson.slice(0, MAX_MANIFEST_JSON_LENGTH)
-      : run.sourceManifestJson;
+  const json = boundManifestJson(run.sourceManifestJson);
   await db.runs.put({ ...run, sourceManifestJson: json });
   // Runs are by far the largest rows, and retention used to be driven only by thread and
   // message writes — so the bytes that actually fill the database were the ones that never

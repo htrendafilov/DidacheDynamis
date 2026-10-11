@@ -1394,18 +1394,25 @@ export function SearchPanel({
             {t("search.error")}
           </p>
         )}
-        {loading && <p className="muted">{t("search.loading")}</p>}
+        {loading && !searched && <p className="muted">{t("search.loading")}</p>}
 
-        {searched && !loading && (
+        {/* Mounted for the whole time the tabs are, loading included: every tab's
+            aria-controls names this panel, and unmounting it while a tab change refetches
+            left that reference dangling — an axe "critical" whenever the API was slow
+            enough for the audit to run mid-load. */}
+        {searched && (
           <div
             id="search-results-panel"
             role={showTabs ? "tabpanel" : undefined}
             aria-labelledby={showTabs ? `search-tab-${selected}` : undefined}
+            aria-busy={loading || undefined}
             tabIndex={showTabs ? 0 : undefined}
           >
-            {nothingFound && <p className="muted">{t("search.noResults")}</p>}
+            {loading && <p className="muted">{t("search.loading")}</p>}
+            {!loading && nothingFound && <p className="muted">{t("search.noResults")}</p>}
 
-            {selected === "all" &&
+            {!loading &&
+              selected === "all" &&
               visibleKinds.map((kind) => {
                 const group = groups[kind];
                 if (!group || group.hits.length === 0) return null;
@@ -1429,7 +1436,7 @@ export function SearchPanel({
                 );
               })}
 
-            {selected !== "all" &&
+            {!loading && selected !== "all" &&
               groups[selected] &&
               (() => {
                 const group = groups[selected]!;

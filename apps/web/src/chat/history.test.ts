@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { StudySource } from "./types";
 import {
   MAX_MANIFEST_JSON_LENGTH,
+  boundManifestJson,
+  parseStoredManifest,
   MAX_THREADS,
   MAX_TOTAL_BYTES,
   clearAll,
@@ -96,13 +98,49 @@ describe("history.ts", () => {
     );
   });
 
-  it("truncates an oversized manifest rather than growing the database unbounded", async () => {
+  // Whole sources are dropped from the end, never characters: a sliced string is not JSON,
+  // and the loader used to throw on it and lose the whole thread's restore (M9.5).
+  const bigSource = (i: number, chars: number) => ({
+    id: `S${i}`,
+    kind: "commentary",
+    workId: "mhc",
+    label: `MHC ${i}`,
+    canonicalTarget: { kind: "commentary", workId: "mhc", osis: "1Cor", chapter: 15 },
+    language: "en",
+    excerpt: "x".repeat(chars),
+    contentVersion: "v1",
+    estimatedTokens: chars / 4,
+  });
+
+  it("bounds an oversized manifest by dropping trailing sources, keeping the row valid JSON", async () => {
     const threadId = await createThread("q");
     const messageId = await saveMessage({ threadId, role: "assistant", text: "a", createdAt: 1 });
-    const huge = "x".repeat(MAX_MANIFEST_JSON_LENGTH + 1000);
-    await saveRun({ messageId, sourceManifestJson: huge, contentVersion: "v1" });
+    // Six sources at ~40k chars each: ~240k, so the last one or two must go.
+    const sources = Array.from({ length: 6 }, (_, i) => bigSource(i + 1, 40_000));
+    await saveRun({ messageId, sourceManifestJson: JSON.stringify(sources), contentVersion: "v1" });
     const run = await getRun(messageId);
-    expect(run!.sourceManifestJson.length).toBe(MAX_MANIFEST_JSON_LENGTH);
+    expect(run!.sourceManifestJson.length).toBeLessThanOrEqual(MAX_MANIFEST_JSON_LENGTH);
+    const stored = parseStoredManifest(run!.sourceManifestJson);
+    expect(stored.length).toBeGreaterThan(0);
+    expect(stored.length).toBeLessThan(sources.length);
+    // The kept sources are the leading ones, intact.
+    expect(stored).toEqual(sources.slice(0, stored.length));
+  });
+
+  it("stores an empty manifest when even the first source is over the cap", () => {
+    expect(boundManifestJson(JSON.stringify([bigSource(1, MAX_MANIFEST_JSON_LENGTH + 10)]))).toBe("[]");
+  });
+
+  it("leaves a manifest under the cap byte-for-byte alone", () => {
+    const json = JSON.stringify([bigSource(1, 100)]);
+    expect(boundManifestJson(json)).toBe(json);
+  });
+
+  it("reads a row a pre-M9.5 build sliced mid-JSON as an empty manifest, not an exception", () => {
+    const sliced = JSON.stringify([bigSource(1, 1000)]).slice(0, 500);
+    expect(() => JSON.parse(sliced)).toThrow();
+    expect(parseStoredManifest(sliced)).toEqual([]);
+    expect(parseStoredManifest('{"not":"an array"}')).toEqual([]);
   });
 
   it("clears a single thread, its messages, and its runs, leaving other threads intact", async () => {
