@@ -533,7 +533,10 @@ which is the intended behaviour, not an obstacle.
   nothing. Publishing and rolling out are now separate jobs; the rollout is opt-in via a
   `deploy_to_vm` dispatch input, is skipped rather than failed when not requested, and its
   preflight failure now means "you asked for a deploy that cannot happen". Runbook references were
-  already removed in PR #31; least-privilege permissions and fork-PR approval remain due at §7.4.
+  already removed in PR #31; least-privilege permissions and fork-PR approval were done at §7.4
+  (2026-09-03). The `e2e` workflow stayed `workflow_dispatch`-only past the flip for no reason
+  other than inertia — the Actions-minutes argument died with the private repo — and now runs on
+  every push to `main` (2026-10-12).
 
 ### 4.4 App rename to DidacheDynamis
 
