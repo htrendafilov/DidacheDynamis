@@ -1,7 +1,8 @@
 # Plan: Going public — release as **DidacheDynamis**
 
-**Status:** in execution. **Audit snapshot:** 2026-08-01, `main` at `3206aba` plus the `cleanup`
-branch (merged as PR #30, `cc25716`). **Goal:** publish the project without exposing credentials,
+**Status:** done — public since 2026-09-03; the last open item (§7.12) closed 2026-10-15.
+**Audit snapshot:** 2026-08-01, `main` at `3206aba` plus the `cleanup` branch (merged as PR #30,
+`cc25716`). **Goal:** publish the project without exposing credentials,
 private infrastructure details, non-redistributable content, or misleading historical plans.
 
 **Decisions recorded 2026-08-01 (owner-approved):** clean-public-repo strategy (§0 path 2);
@@ -1333,13 +1334,26 @@ once.
     `main`: the SPA carries build id `cb3a610`, and `content.sqlite` had been rebuilt, so the
     Strong's pronunciation fix is live and MHC serves all 66 books — the §4.2b claim is now true of
     production and not merely of a build, which is the distinction that made it worth re-checking.
-12. Watch Actions/LFS usage and security alerts during the first week. **Open — started
-    2026-09-03.** Two things worth watching specifically rather than generally: GHCR usage now that
-    the package in item 8 exists and is anonymously pullable; and CI stability now that
-    `vite.config.ts`'s `retry: 2` has been removed. That retry was added for a `ChatPanel` stall
+12. ~~Watch Actions/LFS usage and security alerts during the first week.~~ **Closed 2026-10-15**,
+    six weeks in rather than one. Two things worth watching specifically rather than generally:
+    GHCR usage now that the package in item 8 exists and is anonymously pullable; and CI stability
+    now that `vite.config.ts`'s `retry: 2` has been removed. That retry was added for a `ChatPanel` stall
     whose cause — real Dexie writes inside the assertion path — has since been removed by mocking
     chat history in those tests. The stall was never reproducible locally, so only green CI over
     the coming days actually tests the claim; keeping the retry would have masked the answer.
+
+    What the six weeks showed:
+    - **CI held without the retry.** Of the 48 `ci` runs after #13 merged (2026-09-03 09:15 UTC),
+      47 passed. The one failure, 2026-09-10, was a genuine type break, not the `ChatPanel`
+      stall: Dependabot PR #16's `vitest` bump dropped the jest-dom matchers from `Assertion`
+      (`toBeInTheDocument` et al.), and #18 superseded it. The only re-run since the flip (a
+      `js-yaml` PR, 00:06 UTC that day) predates the retry's removal.
+    - **GHCR:** 3 total downloads of `ghcr.io/htrendafilov/didachedynamis`.
+    - **Security alerts:** six opened 2026-10-15, all in `apps/web/package-lock.json`, all fixed on
+      `main` the same day by Dependabot PRs #27–#30, merged after `ci` and a dispatched `e2e` run
+      passed on each.
+    - **Not measured from here:** LFS bandwidth and Actions minutes. Actions is free for a public
+      repository; LFS bandwidth is on the owner's billing page and was not checked.
 
 ## 8. Decisions
 
@@ -1578,8 +1592,8 @@ which is the only reason it stayed a footnote rather than an incident.
 
 **Every §7 item is now closed.** The last of them, GHCR package visibility, was settled on
 2026-09-03 by publishing the first image deliberately rather than waiting for one to appear as a
-side effect (§7.8). Only the week-one watch (§7.12) stays open, and it is observation rather than
-work: Actions and LFS usage, and whether CI holds now that `vite.config.ts`'s `retry: 2` is gone.
+side effect (§7.8). The week-one watch (§7.12), which was observation rather than work, closed
+on 2026-10-15: CI held without `vite.config.ts`'s `retry: 2`.
 
 This paragraph is itself the fourth instance of the pattern below. It previously said the package
 "does not exist until the first image publishes" — true when written, false thirteen minutes later
