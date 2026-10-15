@@ -1,14 +1,25 @@
 name: e2e
 
 # Playwright smoke tests over the full stack (FastAPI + built SPA + content.sqlite).
-# Manual-only by default to conserve private-repo Actions minutes (a run builds the DB + SPA
-# and downloads a browser — a few minutes). Once the repo is PUBLIC (Actions free/unlimited),
-# add `push: { branches: [main] }` here to run them automatically before deploys.
+# Runs on every push to main — the repo has been public since 2026-09-03, so Actions is free
+# and the manual-only compromise this workflow shipped with has no reason left. A run builds
+# the DB + SPA and downloads a browser, so it is minutes, not seconds: still too slow for
+# every PR, but main is what gets released, and these specs guard things `ci` cannot —
+# the lazy chat chunk, the first-paint bundle, the topical turn, and the axe sweeps.
+#
+# workflow_dispatch stays, for running the suite on a branch before merging it.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# One release-gating run at a time; a newer push supersedes an older run's answer.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   smoke:
