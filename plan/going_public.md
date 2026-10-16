@@ -1,7 +1,9 @@
 # Plan: Going public — release as **DidacheDynamis**
 
-**Status:** in execution. **Audit snapshot:** 2026-08-01, `main` at `3206aba` plus the `cleanup`
-branch (merged as PR #30, `cc25716`). **Goal:** publish the project without exposing credentials,
+**Status:** done except §7.13 — public since 2026-09-03; the week-one watch (§7.12) closed
+2026-10-15, and the one part of it not measured, LFS bandwidth, is §7.13 and still open.
+**Audit snapshot:** 2026-08-01, `main` at `3206aba` plus the `cleanup` branch (merged as PR #30,
+`cc25716`). **Goal:** publish the project without exposing credentials,
 private infrastructure details, non-redistributable content, or misleading historical plans.
 
 **Decisions recorded 2026-08-01 (owner-approved):** clean-public-repo strategy (§0 path 2);
@@ -1333,13 +1335,36 @@ once.
     `main`: the SPA carries build id `cb3a610`, and `content.sqlite` had been rebuilt, so the
     Strong's pronunciation fix is live and MHC serves all 66 books — the §4.2b claim is now true of
     production and not merely of a build, which is the distinction that made it worth re-checking.
-12. Watch Actions/LFS usage and security alerts during the first week. **Open — started
-    2026-09-03.** Two things worth watching specifically rather than generally: GHCR usage now that
-    the package in item 8 exists and is anonymously pullable; and CI stability now that
-    `vite.config.ts`'s `retry: 2` has been removed. That retry was added for a `ChatPanel` stall
+12. ~~Watch Actions/LFS usage and security alerts during the first week.~~ **Closed 2026-10-15**,
+    six weeks in rather than one, except LFS bandwidth, which was not measured and is now item 13.
+    Two things worth watching specifically rather than generally:
+    GHCR usage now that the package in item 8 exists and is anonymously pullable; and CI stability
+    now that `vite.config.ts`'s `retry: 2` has been removed. That retry was added for a `ChatPanel` stall
     whose cause — real Dexie writes inside the assertion path — has since been removed by mocking
     chat history in those tests. The stall was never reproducible locally, so only green CI over
     the coming days actually tests the claim; keeping the retry would have masked the answer.
+
+    What the six weeks showed:
+    - **CI held without the retry.** Of the 48 `ci` runs after #13 merged (2026-09-03 09:15 UTC),
+      47 passed. The one failure, 2026-09-10, was a genuine type break, not the `ChatPanel`
+      stall: Dependabot PR #16's `vitest` bump dropped the jest-dom matchers from `Assertion`
+      (`toBeInTheDocument` et al.), and #18 superseded it. The only re-run since the flip (a
+      `js-yaml` PR, 00:06 UTC that day) predates the retry's removal.
+    - **GHCR:** 3 total downloads of `ghcr.io/htrendafilov/didachedynamis`.
+    - **Security alerts:** Dependabot opened ten alerts on 2026-10-15 for seven advisories, all in
+      `apps/web/package-lock.json`; `brace-expansion` has a 1.x and a 5.x copy, so each of its three
+      advisories alerted twice. Dependabot PRs #27–#30 fixed all seven in the code on `main` the
+      same day, each merged after `ci` and a dispatched `e2e` run passed. The alerts' own status
+      is GitHub's and lagged: nine closed as `fixed`, but #23 (`source-map-js`,
+      GHSA-68fv-2mgg-jv7q) was still `open` at the end of the day although `main`'s lockfile holds
+      only the patched 1.2.2, because GitHub's dependency graph still reported 1.2.1.
+    - **Actions minutes:** free for a public repository on standard runners; nothing to watch.
+13. **Open: check Git LFS bandwidth.** Split out of item 12 on 2026-10-15 so that closing the watch
+    does not quietly close this too. Nine source inputs are LFS objects, and downloads of them count
+    against the owner's bandwidth (§2.3). The figure is on the owner's billing page; the usage API
+    (`/users/htrendafilov/settings/billing/usage`) needs a token with the `user` scope, which the
+    one used for item 12 lacked. Compare it with the 10 GiB monthly allowance, and set the
+    budget/alert §2.3 recommends if there is none yet.
 
 ## 8. Decisions
 
@@ -1576,10 +1601,11 @@ anonymous rehearsal and the community-profile checks all landed the same day (§
 this section warned about — public and unprotected — was real and was closed in the same session,
 which is the only reason it stayed a footnote rather than an incident.
 
-**Every §7 item is now closed.** The last of them, GHCR package visibility, was settled on
-2026-09-03 by publishing the first image deliberately rather than waiting for one to appear as a
-side effect (§7.8). Only the week-one watch (§7.12) stays open, and it is observation rather than
-work: Actions and LFS usage, and whether CI holds now that `vite.config.ts`'s `retry: 2` is gone.
+**Every §7 item but one is now closed.** The last piece of work, GHCR package visibility, was
+settled on 2026-09-03 by publishing the first image deliberately rather than waiting for one to
+appear as a side effect (§7.8). The week-one watch (§7.12), which was observation rather than work,
+closed on 2026-10-15: CI held without `vite.config.ts`'s `retry: 2`. Its LFS bandwidth check
+stays open as §7.13, because only the owner's billing page can answer it.
 
 This paragraph is itself the fourth instance of the pattern below. It previously said the package
 "does not exist until the first image publishes" — true when written, false thirteen minutes later

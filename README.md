@@ -125,9 +125,13 @@ and `scripts/load-smoke.py` verify the read path; actual 100-client capacity is 
 - **M9.1–M9.3d** — content-level AI-use policy, browser-direct OpenRouter integration, selected
   grounded context, citation validation, local chat history, responsive chat layout, and bounded
   context/answer budgets. ✅ **Enabled in production as an alpha since 2026-08-07** — it needs your
-  own OpenRouter key, and M9.4 topical retrieval and M9.5 hardening are still planned, so expect
-  rough edges. `VITE_CHAT_ENABLED` still gates it at build time for anyone building their own.
-- **Next:** prepare the repository for public release (see [`plan/going_public.md`](plan/going_public.md)).
+  own OpenRouter key, and M9.5 hardening is still planned, so expect rough edges.
+  `VITE_CHAT_ENABLED` still gates it at build time for anyone building their own.
+- **M9.4** — topical questions: query expansion into English search terms, an editable confirm
+  step, one search per term, and a grounded, cited answer over the hits. ✅ (2026-09-17)
+- **Public repository** — open source since 2026-09-03 (see [`plan/going_public.md`](plan/going_public.md)). ✅
+- **Next:** M9.5 hardening and public beta, and the M9.0b-2 Bulgarian answer-quality benchmark that
+  feeds its default-model decision (see [`plan/interactive_chat_plan.md`](plan/interactive_chat_plan.md) §15).
 
 ## Run it locally
 
